@@ -1,0 +1,12 @@
+VERSION 0.8
+
+server:
+    FROM scratch
+    COPY server.key server.crt .
+    SAVE ARTIFACT ./*
+
+client:
+    FROM scratch
+    COPY ca.crt .
+    SAVE ARTIFACT ca.crt
+

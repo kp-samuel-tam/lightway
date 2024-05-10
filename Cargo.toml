@@ -1,0 +1,19 @@
+[workspace]
+
+members = [
+    "lightway-core",
+    "lightway-core/fuzz",
+    "lightway-app-utils",
+    "lightway-client",
+    "lightway-server",
+]
+
+resolver = "2"
+
+[profile.release]
+lto = true
+debug = 1
+
+[workspace.lints.clippy]
+undocumented_unsafe_blocks = "deny"
+unsafe_code = "deny"

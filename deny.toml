@@ -1,0 +1,65 @@
+[advisories]
+version = 2
+db-path = "~/.cargo/advisory-db"
+db-urls = ["https://github.com/rustsec/advisory-db"]
+yanked = "deny"
+ignore = [
+    # yaml_rust is unmaintained, which is a dependency of twelf. Ignoring until its fixed
+    "RUSTSEC-2024-0320",
+]
+
+[licenses]
+version = 2
+allow = [
+    "Apache-2.0",
+    "BSD-3-Clause",
+    "ISC",
+    "MIT",
+    "Unicode-DFS-2016",
+]
+confidence-threshold = 0.8
+exceptions = [
+    { name = "wolfssl", allow = ["GPL-2.0"], version = "*" },
+    { name = "wolfssl-sys", allow = ["GPL-2.0"], version = "*" },
+    { name = "lightway-client", allow = ["GPL-2.0"], version = "*" },
+    { name = "lightway-core", allow = ["GPL-2.0"], version = "*" },
+    { name = "lightway-server", allow = ["GPL-2.0"], version = "*" },
+    { name = "lightway-app-utils", allow = ["GPL-2.0"], version = "*" },
+]
+
+[licenses.private]
+ignore = true
+
+[bans]
+multiple-versions = "deny"
+wildcards = "allow"
+highlight = "all"
+workspace-default-features = "allow"
+external-default-features = "allow"
+skip = [
+    { name = "bindgen", version = "0.68.1" },
+    { name = "bitflags", version = "1.3.2" },
+    { name = "hashbrown", version = "0.12.3" },
+    { name = "hashbrown", version = "0.14.1" },
+    { name = "heck", version = "0.4.1" },
+    { name = "indexmap", version = "1.9.3" },
+    { name = "windows-sys", version = "0.48.0" },
+    { name = "windows-targets", version = "0.48.5" },
+    { name = "windows_aarch64_gnullvm", version = "0.48.5" },
+    { name = "windows_aarch64_msvc", version = "0.48.5" },
+    { name = "windows_i686_gnu", version = "0.48.5" },
+    { name = "windows_i686_msvc", version = "0.48.5" },
+    { name = "windows_x86_64_gnu", version = "0.48.5" },
+    { name = "windows_x86_64_gnullvm", version = "0.48.5" },
+    { name = "windows_x86_64_msvc", version = "0.48.5" },
+    { name = "syn", version = "1.0.109" },
+    { name = "strsim", version = "0.10.0"},
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = [
+    "https://github.com/expressvpn/wolfssl-rs",
+]

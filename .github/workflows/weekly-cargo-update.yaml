@@ -1,0 +1,112 @@
+name: Weekly `cargo update`
+on:
+  workflow_dispatch:
+
+jobs:
+  cargo-update:
+    runs-on: ubuntu-latest
+    environment: expressvpn_iat_automation_githubiatuser_gpg_key
+    steps:
+    - uses: actions/checkout@v4
+    - name: Import GPG Key
+      uses: crazy-max/ghaction-import-gpg@v6
+      with:
+        gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+        passphrase: ${{ secrets.GPG_PASSPHRASE }}
+        git_user_signingkey: true
+        git_commit_gpgsign: true
+
+    - uses: Swatinem/rust-cache@v2
+    - run: rustup show
+
+    # Updates indirect and direct dependencies according to semver
+    # constraints from `*/Cargo.toml`.
+    - name: Update cargo dependencies
+      id: update
+      run: |
+        cargo update 2>&1 | tee /tmp/update.log
+
+        title="[auto] Update cargo dependencies"
+        body=$(
+            echo '```console'
+            echo '$ cargo update'
+            cat /tmp/update.log
+            echo '```'
+        )
+
+        # Outputs:
+        # ... PR title
+        echo PRTITLE="$title" >> "$GITHUB_OUTPUT"
+
+        # ... PR body
+        EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+        echo "PRBODY<<$EOF" >> "$GITHUB_OUTPUT"
+        echo "$body"        >> "$GITHUB_OUTPUT"
+        echo "$EOF"         >> "$GITHUB_OUTPUT"
+
+        # ... commit message
+        EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+        echo "COMMITMSG<<$EOF" >> "$GITHUB_OUTPUT"
+        echo "$title"          >> "$GITHUB_OUTPUT"
+        echo ""                >> "$GITHUB_OUTPUT"
+        echo "$body"           >> "$GITHUB_OUTPUT"
+        echo "$EOF"            >> "$GITHUB_OUTPUT"
+
+    - uses: peter-evans/create-pull-request@v6
+      id: pr
+      with:
+        token: ${{ secrets.SERVICE_ACCOUNT_PAT }}
+        delete-branch: true
+        committer: ExpressVPN Automation Bot <143369453+expressvpn-iat-bot@users.noreply.github.com>
+        author: ExpressVPN Automation Bot <143369453+expressvpn-iat-bot@users.noreply.github.com>
+        commit-message: ${{ steps.update.outputs.COMMITMSG }}
+        branch: gha/cargo-update
+        title: ${{ steps.update.outputs.PRTITLE }}
+        body: ${{ steps.update.outputs.PRBODY }}
+
+    - run: cargo install --locked cargo-outdated
+
+    # Checks for dependencies which can be upgraded but require a
+    # semver bump in `*/Cargo.toml`. Will fail if there are available
+    # updates.
+    - name: Check for outdated dependencies
+      id: outdated-check
+      shell: bash
+      run: |
+        git checkout ${{ steps.pr.outputs.pull-request-head-sha }}
+
+        failed=false
+
+        EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+        echo "comment<<$EOF" >> "$GITHUB_OUTPUT"
+
+        if ! cargo outdated --root-deps-only --exit-code 1 | tee /tmp/workspace-outdated.log ; then
+            echo "Workspace dependencies are out of date"
+            failed=true
+
+            echo '# Workspace Outdated Dependencies'               >> "$GITHUB_OUTPUT"
+            echo '```console'                                      >> "$GITHUB_OUTPUT"
+            echo '$ cargo outdated --root-deps-only --exit-code 1' >> "$GITHUB_OUTPUT"
+            cat /tmp/workspace-outdated.log                        >> "$GITHUB_OUTPUT"
+            echo '```'                                             >> "$GITHUB_OUTPUT"
+        fi
+
+        echo "$EOF" >> "$GITHUB_OUTPUT"
+
+        echo "Setting output: failed: $failed"
+        echo "failed=$failed" >> "$GITHUB_OUTPUT"
+
+    # If there was no PR then there is nowhere to put a comment,
+    # given a weekly update cadence it's 99% likely there will be a
+    # comment.
+    - name: Outdated dependencies comment
+      if: steps.pr.outputs.pull-request-number && steps.outdated-check.outputs.failed == 'true'
+      uses: peter-evans/create-or-update-comment@v4
+      with:
+        issue-number: ${{ steps.pr.outputs.pull-request-number }}
+        body: ${{ steps.outdated-check.outputs.comment }}
+        edit-mode: replace
+
+    - name: Outdated check fails
+      if: steps.outdated-check.outputs.failed == 'true'
+      run: exit 1
