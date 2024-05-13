@@ -1,0 +1,37 @@
+VERSION 0.8
+ARG --global debian
+
+container:
+    FROM debian:$debian-slim
+    RUN apt-get update \
+    && apt-get install -qqy --no-install-recommends \
+        curl \
+        bind9-dnsutils \
+        iperf3 \
+        iproute2 \
+        iptables \
+        iputils-ping \
+        jq \
+        procps \
+        retry \
+        tcpdump
+
+build-test-nginx-container:
+    FROM nginx:latest
+    RUN apt-get update && apt-get install -qyy --no-install-recommends iproute2 procps iputils-ping tcpdump
+    COPY nginx.default.conf /etc/nginx/templates/default.conf.template
+    HEALTHCHECK --interval=1s --timeout=1s --start-period=0s --retries=3 CMD curl -so /dev/null http://localhost/health || exit 1
+
+save-test-nginx-container:
+    FROM +build-test-nginx-container
+    SAVE IMAGE lightway-test-nginx:latest
+
+build-test-iperf-container:
+    FROM +container --debian=$debian
+    ENTRYPOINT ip addr && exec nice -n 19 iperf3 -i 5 -s
+    HEALTHCHECK --interval=1s --timeout=1s --start-period=0s --retries=3 CMD [ -n "$(ss -HOltn sport = :5201)" ]
+
+save-test-iperf-container:
+    FROM +build-test-iperf-container
+    SAVE IMAGE lightway-test-iperf:latest
+

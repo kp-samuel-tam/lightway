@@ -1,0 +1,41 @@
+[package]
+name = "lightway-server"
+version = "0.1.0"
+repository = "https://github.com/expressvpn/lightway"
+edition = "2021"
+authors = ["lightway-developers@expressvpn.com"]
+license = "GPL-2.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+lightway-core = { path = "../lightway-core", features = ["postquantum"] }
+lightway-app-utils = { path = "../lightway-app-utils" }
+tokio = { version = "1.31.0", features = ["rt-multi-thread", "macros", "net", "time", "sync", "io-util"] }
+clap = { version = "4.4.1", features = ["derive"] }
+anyhow = "1.0.75"
+async-trait = "0.1.73"
+bytes = "1.4.0"
+delegate = "0.12.0"
+tokio-tun = "0.11.2"
+thiserror = "1.0.48"
+tracing-subscriber = { version = "0.3.17", features = ["json"] }
+tracing-log = "0.2.0"
+tracing = "0.1.37"
+ipnet = { version = "2.8.0", features = ["serde"]}
+metrics = "0.22.0"
+metrics-util = "0.16.0"
+pnet = "0.34.0"
+rand = "0.8.5"
+tokio-stream = { version = "0.1.14", features = ["time"] }
+time = "0.3.29"
+serde = "1.0.189"
+twelf = { version = "0.15.0" , default-features = false, features = ["env", "clap", "yaml"]}
+derivative = "2.2.0"
+socket2 = "0.5.5"
+ctrlc = { version = "3.4.2", features = ["termination"] }
+async-channel = "2.1.1"
+
+[dev-dependencies]
+more-asserts = "0.3.1"
+test-case = "3.2.1"

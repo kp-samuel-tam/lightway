@@ -1,0 +1,113 @@
+VERSION 0.8
+ARG --global debian = bookworm
+
+# save-all-test-containers saves all Docker container test images
+save-all-test-containers:
+    BUILD ./client+save-container --debian=$debian
+    BUILD ./server+save-container --debian=$debian
+    BUILD ./base+save-test-nginx-container
+    BUILD ./base+save-test-iperf-container --debian=$debian
+
+TEST:
+    FUNCTION
+    FROM ./e2e+build-container
+
+    ARG MODE
+    ARG SERVER_PORT
+    ARG SERVER_EXTRA_ARGS=""
+    ARG CLIENT_EXTRA_ARGS=""
+    ARG TEST_SCRIPT=./run-simple-test.sh
+
+    ARG SERVER_ARGS="--config-file server_config.yaml --log-level trace --mode ${MODE} ${SERVER_EXTRA_ARGS} --bind-address 0.0.0.0:${SERVER_PORT}"
+    ARG CLIENT_ARGS="--config-file client_config.yaml --log-level trace --mode ${MODE} ${CLIENT_EXTRA_ARGS} --server server:${SERVER_PORT}"
+
+    ARG CLIENT_IMAGE="(./client+build-container --debian=$debian)"
+    ARG SERVER_IMAGE="(./server+build-container --debian=$debian)"
+    ARG NGINX_IMAGE="./base+build-test-nginx-container"
+    ARG IPERF_IMAGE="(./base+build-test-iperf-container --debian=$debian)"
+
+    WITH DOCKER \
+        --load lightway-test-client:latest=$CLIENT_IMAGE \
+        --load lightway-test-server:latest=$SERVER_IMAGE \
+        --load lightway-test-nginx:latest=$NGINX_IMAGE \
+        --load lightway-test-iperf:latest=$IPERF_IMAGE
+        RUN --no-cache ./run-with-compose-stack.sh $TEST_SCRIPT
+    END
+
+# run-tcp-aes256-test runs e2e test using TCP and AES256 cipher
+run-tcp-aes256-test:
+    DO +TEST --MODE=tcp --SERVER_PORT=443 --CLIENT_EXTRA_ARGS="--cipher aes256"
+
+# run-tcp-chacha20-test runs e2e test using TCP and chacha20 cipher
+run-tcp-chacha20-test:
+    DO +TEST --MODE=tcp --SERVER_PORT=443 --CLIENT_EXTRA_ARGS="--cipher chacha20"
+
+# run-tcp-pqc-test runs e2e test using TCP and default cipher with PQC enabled
+run-tcp-pqc-test:
+    DO +TEST --MODE=tcp --SERVER_PORT=443 --SERVER_EXTRA_ARGS="--enable-pqc" --CLIENT_EXTRA_ARGS="--enable-pqc"
+
+# run-udp-aes256-test runs e2e test using UDP and AES256 cipher
+run-udp-aes256-test:
+    DO +TEST --MODE=udp --SERVER_PORT=27690 --CLIENT_EXTRA_ARGS=""
+
+# run-udp-chacha20-test runs e2e test using UDP and chacha20 cipher
+run-udp-chacha20-test:
+    DO +TEST --MODE=udp --SERVER_PORT=27690 --CLIENT_EXTRA_ARGS="--cipher chacha20"
+
+# run-udp-pqc-test runs e2e test using UDP and default cipher with PQC enabled
+run-udp-pqc-test:
+    DO +TEST --MODE=udp --SERVER_PORT=27690 --SERVER_EXTRA_ARGS="--enable-pqc" --CLIENT_EXTRA_ARGS="--enable-pqc"
+
+# run-udp-floating-ip-test runs e2e test of UDP floating IP support
+run-udp-floating-ip-test:
+    DO +TEST --MODE=udp --SERVER_PORT=27690 --CLIENT_EXTRA_ARGS="" --TEST_SCRIPT=./run-udp-floating-test.sh
+
+# run-udp-pmtud-test runs e2e test of UDP with PMTUD enabled
+run-udp-pmtud-test:
+    DO +TEST --MODE=udp --SERVER_PORT=27690 --CLIENT_EXTRA_ARGS="--enable-pmtud"
+
+# run-udp-iouring-test runs e2e test using UDP and default cipher with io-uring enabled
+run-udp-iouring-test:
+    DO +TEST --MODE=udp --SERVER_PORT=27690 --SERVER_EXTRA_ARGS="--enable-tun-iouring" --CLIENT_EXTRA_ARGS="--enable-tun-iouring"
+
+# run-tcp-iouring-test runs e2e test using TCP and default cipher with io-uring enabled
+run-tcp-iouring-test:
+    DO +TEST --MODE=tcp --SERVER_PORT=27690 --SERVER_EXTRA_ARGS="--enable-tun-iouring" --CLIENT_EXTRA_ARGS="--enable-tun-iouring"
+
+# run-udp-min-inside-mtu-test runs e2e test of UDP with client using smallest valid inside MTU
+run-udp-min-inside-mtu-test:
+    DO +TEST --MODE=udp --SERVER_PORT=27690 --CLIENT_EXTRA_ARGS="--inside-mtu=1200"
+
+# run-tcp-min-inside-mtu-test runs e2e test of TCP with client using smallest valid inside MTU
+run-tcp-min-inside-mtu-test:
+    DO +TEST --MODE=tcp --SERVER_PORT=443 --CLIENT_EXTRA_ARGS="--inside-mtu=1200"
+
+# run-udp-max-inside-mtu-test runs e2e test of UDP with client using largest valid inside MTU (without PMTUD)
+run-udp-max-inside-mtu-test:
+    DO +TEST --MODE=udp --SERVER_PORT=27690 --CLIENT_EXTRA_ARGS="--inside-mtu=1419"
+
+# run-udp-max-inside-mtu-test runs e2e test of UDP with client using largest valid inside MTU (with PMTUD)
+run-udp-max-inside-mtu-pmtud-test:
+    DO +TEST --MODE=udp --SERVER_PORT=27690 --CLIENT_EXTRA_ARGS="--inside-mtu=1500 --enable-pmtud"
+
+# run-tcp-max-inside-mtu-test runs e2e test of TCP with client using largest valid inside MTU
+run-tcp-max-inside-mtu-test:
+    DO +TEST --MODE=tcp --SERVER_PORT=443 --CLIENT_EXTRA_ARGS="--inside-mtu=1500"
+
+# run-all-tests runs all tests
+run-all-tests:
+    BUILD +run-tcp-aes256-test
+    BUILD +run-tcp-chacha20-test
+    BUILD +run-tcp-pqc-test
+    BUILD +run-udp-aes256-test
+    BUILD +run-udp-chacha20-test
+    BUILD +run-udp-pqc-test
+    BUILD +run-udp-floating-ip-test
+    BUILD +run-udp-pmtud-test
+    BUILD +run-udp-iouring-test
+    BUILD +run-tcp-iouring-test
+    BUILD +run-udp-min-inside-mtu-test
+    BUILD +run-tcp-min-inside-mtu-test
+    BUILD +run-udp-max-inside-mtu-test
+    BUILD +run-udp-max-inside-mtu-pmtud-test
+    BUILD +run-tcp-max-inside-mtu-test

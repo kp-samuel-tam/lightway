@@ -1,0 +1,30 @@
+[package]
+name = "lightway-core-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+authors = ["lightway-developers@expressvpn.com"]
+license = "GPL-2.0"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+bytes = "1.4.0"
+
+[dependencies.lightway-core]
+path = ".."
+features = ["fuzzing_api"]
+
+[[bin]]
+name = "fuzz_parse_header"
+path = "fuzz_targets/fuzz_parse_header.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_parse_frame"
+path = "fuzz_targets/fuzz_parse_frame.rs"
+test = false
+doc = false

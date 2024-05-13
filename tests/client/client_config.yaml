@@ -1,0 +1,23 @@
+---
+server: 127.0.0.1:27690
+mode: tcp
+ca_cert: "./certs/ca.crt"
+tun_name: lightway
+tun_local_ip: 100.64.0.6
+tun_peer_ip: 100.64.0.5
+tun_dns_ip: 100.64.0.1
+log_level: info
+server_dn: goaway.com
+user: user
+password: password
+# inside_mtu: 1350 # Requires CAP_SYS_ADMIN
+outside_mtu: 1500
+cipher: aes256
+enable_pqc: false
+enable_tun_iouring: false
+iouring_entry_count: 1024
+keepalive_interval: 0s
+keepalive_timeout: 0s
+enable_pmtud: false
+# sndbuf: 1.5 MiB
+# rcvbuf: 1.5 MiB

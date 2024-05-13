@@ -1,0 +1,19 @@
+---
+bind_address: 0.0.0.0:27690
+mode: tcp
+server_cert: "certs/server.crt"
+server_key: "certs/server.key"
+tun_name: lightway
+ip_pool: 10.125.0.0/16
+tun_ip: 10.125.0.1
+lightway_server_ip: 169.254.10.1
+lightway_client_ip: 169.254.10.2
+lightway_dns_ip: 169.254.10.5
+log_format: full
+log_level: info
+enable_pqc: false
+enable_tun_iouring: false
+iouring_entry_count: 1024
+key_update_interval: 15m
+user: user
+password: password
