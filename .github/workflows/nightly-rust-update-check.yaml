@@ -1,6 +1,8 @@
 name: Nightly Rust release checks
 on:
   workflow_dispatch:
+  schedule:
+    - cron:  '23 1 * * *'
 
 jobs:
   check-for-updated-rust:
