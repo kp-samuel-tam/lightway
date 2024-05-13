@@ -1,6 +1,8 @@
 name: Weekly `cargo update`
 on:
   workflow_dispatch:
+  schedule:
+    - cron:  '50 5 * * 2' # 5:50 AM on Tuesdays
 
 jobs:
   cargo-update:
