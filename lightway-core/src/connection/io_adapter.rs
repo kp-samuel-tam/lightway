@@ -154,6 +154,10 @@ impl WolfSSLIOAdapter {
             PluginResult::Drop => {
                 return IOCallbackResult::Ok(buf.len());
             }
+            // Outside plugins cannot drop with reply
+            PluginResult::DropWithReply(_) => {
+                return IOCallbackResult::Ok(buf.len());
+            }
             PluginResult::Error(e) => {
                 use std::io::{Error, ErrorKind};
                 return IOCallbackResult::Err(Error::new(ErrorKind::Other, e));
@@ -218,6 +222,11 @@ impl WolfSSLIOAdapter {
             match send_buffer.apply_egress_plugins(&self.outside_plugins) {
                 PluginResult::Accept => {}
                 PluginResult::Drop => {
+                    send_buffer.complete();
+                    return IOCallbackResult::Ok(buf.len());
+                }
+                // Outside plugins cannot drop with reply
+                PluginResult::DropWithReply(_) => {
                     send_buffer.complete();
                     return IOCallbackResult::Ok(buf.len());
                 }

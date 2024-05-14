@@ -145,6 +145,10 @@ pub enum ConnectionError {
     #[error("Invalid inside packet: {0}")]
     InvalidInsidePacket(InvalidPacketError),
 
+    /// Plugin returns a reply packet
+    #[error("Plugin dropped with a reply packet")]
+    PluginDropWithReply(BytesMut),
+
     /// Plugin returns error
     #[error("Plugin error: {0}")]
     PluginError(Box<dyn std::error::Error + Sync + Send>),
@@ -193,6 +197,7 @@ impl ConnectionError {
                     UnknownSessionID => false,
                     InvalidInsidePacket(_) => false,
                     RejectedSessionID => false,
+                    PluginDropWithReply(_) => false,
                     PluginError(_) => false,
                     PacketError(_) => false,
                     DataFragmentError(_) => false,
@@ -725,6 +730,9 @@ impl<AppState: Send> Connection<AppState> {
             PluginResult::Accept => {}
             PluginResult::Drop => {
                 return Ok(());
+            }
+            PluginResult::DropWithReply(b) => {
+                return Err(ConnectionError::PluginDropWithReply(b));
             }
             PluginResult::Error(e) => {
                 return Err(ConnectionError::PluginError(e));
@@ -1290,6 +1298,9 @@ impl<AppState: Send> Connection<AppState> {
             PluginResult::Accept => {}
             PluginResult::Drop => {
                 return Ok(());
+            }
+            PluginResult::DropWithReply(b) => {
+                return Err(ConnectionError::PluginDropWithReply(b));
             }
             PluginResult::Error(e) => {
                 return Err(ConnectionError::PluginError(e));
