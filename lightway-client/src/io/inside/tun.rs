@@ -9,7 +9,7 @@ use pnet::packet::ipv4::Ipv4Packet;
 use lightway_app_utils::Tun as AppUtilsTun;
 use lightway_core::{
     ipv4_update_destination, ipv4_update_source, IOCallbackResult, InsideIOSendCallback,
-    InsideIOSendCallbackArg, SessionId,
+    InsideIOSendCallbackArg,
 };
 
 use crate::{io::inside::InsideIO, ConnectionState};
@@ -48,12 +48,7 @@ impl InsideIO for Tun {
 }
 
 impl InsideIOSendCallback<ConnectionState> for Tun {
-    fn send(
-        &self,
-        _session_id: SessionId,
-        mut buf: BytesMut,
-        state: &mut ConnectionState,
-    ) -> IOCallbackResult<usize> {
+    fn send(&self, mut buf: BytesMut, state: &mut ConnectionState) -> IOCallbackResult<usize> {
         // Update destination IP from server provided inside ip to TUN device ip
         ipv4_update_destination(buf.as_mut(), self.ip);
 

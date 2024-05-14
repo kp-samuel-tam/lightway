@@ -40,12 +40,7 @@ impl ChannelTun {
     }
 }
 impl InsideIOSendCallback<ConnectionTicker> for ChannelTun {
-    fn send(
-        &self,
-        _session_id: SessionId,
-        buf: BytesMut,
-        _state: &mut ConnectionTicker,
-    ) -> IOCallbackResult<usize> {
+    fn send(&self, buf: BytesMut, _state: &mut ConnectionTicker) -> IOCallbackResult<usize> {
         let buf_len = buf.len();
         self.0.send(buf.freeze()).expect("Send");
         IOCallbackResult::Ok(buf_len)

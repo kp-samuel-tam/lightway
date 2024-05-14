@@ -1301,7 +1301,7 @@ impl<AppState: Send> Connection<AppState> {
         match self
             .inside_io
             .clone()
-            .send(self.session_id, inside_pkt, self.app_state_mut())
+            .send(inside_pkt, self.app_state_mut())
         {
             IOCallbackResult::Ok(_nr) => {}
             IOCallbackResult::Err(err) => {
