@@ -9,7 +9,7 @@ use pnet::packet::ipv4::Ipv4Packet;
 use lightway_app_utils::Tun as AppUtilsTun;
 use lightway_core::{
     ipv4_update_destination, ipv4_update_source, IOCallbackResult, InsideIOSendCallback,
-    InsideIOSendCallbackArg,
+    InsideIOSendCallbackArg, InsideIpConfig,
 };
 
 use crate::{io::inside::InsideIO, ConnectionState};
@@ -33,6 +33,26 @@ impl Tun {
             None => AppUtilsTun::direct(name, mtu).await?,
         };
         Ok(Tun { tun, ip, dns_ip })
+    }
+
+    /// Api to send packet in the tunnel
+    pub fn try_send(&self, mut pkt: BytesMut, ip_config: Option<InsideIpConfig>) -> Result<usize> {
+        let pkt_len = pkt.len();
+        // Update destination IP from server provided inside ip to TUN device ip
+        ipv4_update_destination(pkt.as_mut(), self.ip);
+
+        // Update source IP from server DNS ip to TUN DNS ip
+        if let Some(ip_config) = ip_config {
+            let packet = Ipv4Packet::new(pkt.as_ref());
+            if let Some(packet) = packet {
+                if packet.get_source() == ip_config.dns_ip {
+                    ipv4_update_source(pkt.as_mut(), self.dns_ip);
+                }
+            };
+        }
+
+        self.tun.try_send(pkt);
+        Ok(pkt_len)
     }
 }
 

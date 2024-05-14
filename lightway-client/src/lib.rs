@@ -329,7 +329,8 @@ pub async fn client(config: ClientConfig) -> Result<()> {
             let mut conn = conn.lock().unwrap();
 
             // Update source IP address to server assigned IP address
-            if let Some(ip_config) = conn.app_state().ip_config {
+            let ip_config = conn.app_state().ip_config;
+            if let Some(ip_config) = &ip_config {
                 ipv4_update_source(buf.as_mut(), ip_config.client_ip);
 
                 // Update TUN device DNS IP address to server provided DNS address
@@ -343,6 +344,10 @@ pub async fn client(config: ClientConfig) -> Result<()> {
 
             match conn.inside_data_received(buf) {
                 Ok(()) => {}
+                Err(ConnectionError::PluginDropWithReply(reply)) => {
+                    // Send the reply packet to inside path
+                    let _ = inside_io.try_send(reply, ip_config);
+                }
                 Err(ConnectionError::InvalidState) => {
                     // Ignore the packet till the connection is online
                 }
