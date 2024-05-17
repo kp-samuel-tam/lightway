@@ -53,7 +53,6 @@ skip = [
     { name = "windows_x86_64_gnullvm", version = "0.48.5" },
     { name = "windows_x86_64_msvc", version = "0.48.5" },
     { name = "syn", version = "1.0.109" },
-    { name = "strsim", version = "0.10.0"},
 ]
 
 [sources]
