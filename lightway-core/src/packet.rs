@@ -40,6 +40,7 @@ impl OutsidePacket {
                 let mut buf = match plugins.do_ingress(&mut buf) {
                     PluginResult::Accept => buf,
                     PluginResult::Drop => return Err(OutsidePacketError::PluginDrop),
+                    PluginResult::DropWithReply(_) => return Err(OutsidePacketError::PluginDrop),
                     PluginResult::Error(e) => return Err(OutsidePacketError::PluginError(e)),
                 };
 

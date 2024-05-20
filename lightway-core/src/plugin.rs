@@ -42,6 +42,11 @@ pub enum PluginResult {
     /// [`Plugin`] dropped the packet
     #[error("Plugin drops the packet")]
     Drop,
+    /// [`Plugin`] dropped the packet and returned a reply packet to send back
+    /// This is useful only for Inside IO plugins. Outside plugins cannot
+    /// drop a packet with reply
+    #[error("Plugin drops the packet with reply packet")]
+    DropWithReply(BytesMut),
     /// Internal [`Plugin`] error
     #[error("Plugin error")]
     Error(Box<dyn std::error::Error + Sync + Send>),

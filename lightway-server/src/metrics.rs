@@ -35,6 +35,7 @@ const METRIC_TUN_REJECTED_INVALID_STATE: &str = "tun_rejected_packet_invalid_sta
 const METRIC_TUN_REJECTED_INVALID_INSIDE_PACKET: &str = "tun_rejected_packet_invalid_inside_packet";
 const METRIC_TUN_REJECTED_OTHER: &str = "tun_rejected_packet_invalid_other";
 const METRIC_TUN_REJECTED_NO_CONNECTION: &str = "tun_rejected_packet_no_connection";
+const METRIC_TUN_REJECTED_NO_CLIENT_IP: &str = "tun_rejected_packet_no_client_ip";
 
 // Traffic volume
 const METRIC_TUN_FROM_CLIENT: &str = "tun_from_client";
@@ -209,6 +210,11 @@ pub(crate) fn tun_rejected_packet_invalid_other() {
 /// [`lightway_core::Connection`] found.
 pub(crate) fn tun_rejected_packet_no_connection() {
     counter!(METRIC_TUN_REJECTED_NO_CONNECTION).increment(1);
+}
+
+/// Tunnel rejected packet, since there was no clientip in app state
+pub(crate) fn tun_rejected_packet_no_client_ip() {
+    counter!(METRIC_TUN_REJECTED_NO_CLIENT_IP).increment(1);
 }
 
 /// Bytes sent from client to the TUN device.

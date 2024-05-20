@@ -1,6 +1,5 @@
 use std::{net::SocketAddr, sync::Arc};
 
-use crate::SessionId;
 use bytes::BytesMut;
 use wolfssl::IOCallbackResult;
 
@@ -12,12 +11,7 @@ pub trait InsideIOSendCallback<AppState> {
     /// return the number of bytes actually consumed. If the operation would
     /// block [`std::io::ErrorKind::WouldBlock`] then return
     /// [`IOCallbackResult::WouldBlock`].
-    fn send(
-        &self,
-        session_id: SessionId,
-        buf: BytesMut,
-        state: &mut AppState,
-    ) -> IOCallbackResult<usize>;
+    fn send(&self, buf: BytesMut, state: &mut AppState) -> IOCallbackResult<usize>;
 
     /// MTU supported by this inside I/O path
     fn mtu(&self) -> usize;

@@ -6,11 +6,10 @@ use async_trait::async_trait;
 use bytes::BytesMut;
 use lightway_app_utils::Tun as AppUtilsTun;
 use lightway_core::{
-    ipv4_update_source, IOCallbackResult, InsideIOSendCallback, InsideIOSendCallbackArg, SessionId,
+    ipv4_update_source, IOCallbackResult, InsideIOSendCallback, InsideIOSendCallbackArg,
 };
 use std::os::fd::{AsRawFd, RawFd};
 use std::sync::Arc;
-use tracing::warn;
 
 pub(crate) struct Tun(AppUtilsTun);
 
@@ -48,14 +47,9 @@ impl InsideIO for Tun {
 }
 
 impl InsideIOSendCallback<ConnectionState> for Tun {
-    fn send(
-        &self,
-        session_id: SessionId,
-        mut buf: BytesMut,
-        state: &mut ConnectionState,
-    ) -> IOCallbackResult<usize> {
+    fn send(&self, mut buf: BytesMut, state: &mut ConnectionState) -> IOCallbackResult<usize> {
         let Some(client_ip) = state.ip else {
-            warn!(?session_id, "Unable to find client ip");
+            metrics::tun_rejected_packet_no_client_ip();
             // Ip address not found, dropping the packet
             return IOCallbackResult::Ok(buf.len());
         };
