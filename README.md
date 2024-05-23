@@ -14,6 +14,11 @@ In addition there is:
 
  - tests - dev and e2e test infrastructure
 
+## Documentation
+
+Protocol and design documentation can be found in the
+[`docs`](docs/README.md) folder.
+
 ## Development steps
 
 Lightway core and reference applications can be built using Earthly:
