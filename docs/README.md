@@ -4,6 +4,7 @@
 * [UDP Session ID Rotation](udp_session_id.md)
 * [PMTU Discovery](pmtu_discovery.md)
 * [Plugin architecture](plugins.md)
+* [Logging and Metrics](./logs_and_metrics.md)
 
 # Miscellaneous
 
