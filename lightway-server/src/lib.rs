@@ -116,11 +116,6 @@ pub async fn server<SA: ServerAuth + Sync + Send + 'static>(
 
     info!("Server starting with config:\n{:#?}", &config);
 
-    let (ctrlc_tx, mut ctrlc_rx) = tokio::sync::mpsc::channel(1);
-    ctrlc::set_handler(move || {
-        ctrlc_tx.blocking_send(()).expect("CtrlC handler failed");
-    })?;
-
     let tun_ip = match config.tun_ip {
         // Use the user specified IP
         Some(tun_ip) => {
@@ -234,6 +229,11 @@ pub async fn server<SA: ServerAuth + Sync + Send + 'static>(
             }
         }
     });
+
+    let (ctrlc_tx, mut ctrlc_rx) = tokio::sync::mpsc::channel(1);
+    ctrlc::set_handler(move || {
+        ctrlc_tx.blocking_send(()).expect("CtrlC handler failed");
+    })?;
 
     tokio::select! {
         err = server.run() => err.context("Outside IO loop exited"),
