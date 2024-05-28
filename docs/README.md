@@ -6,6 +6,7 @@
 * [Plugin architecture](plugins.md)
 * [Logging and Metrics](./logs_and_metrics.md)
 * [Supported TLS/DTLS versions](./tls_versions.md)
+* [IP translation](./ip_translation.md)
 
 # Miscellaneous
 
