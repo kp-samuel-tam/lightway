@@ -5,6 +5,7 @@
 * [PMTU Discovery](pmtu_discovery.md)
 * [Plugin architecture](plugins.md)
 * [Logging and Metrics](./logs_and_metrics.md)
+* [Supported TLS/DTLS versions](./tls_versions.md)
 
 # Miscellaneous
 
