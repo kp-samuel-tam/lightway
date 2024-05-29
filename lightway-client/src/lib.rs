@@ -177,10 +177,6 @@ async fn handle_events(mut stream: EventStream, keepalive: Keepalive) {
 
 pub async fn client(config: ClientConfig) -> Result<()> {
     println!("Client starting with config:\n{:#?}", &config);
-    let (ctrlc_tx, mut ctrlc_rx) = tokio::sync::mpsc::channel(1);
-    ctrlc::set_handler(move || {
-        ctrlc_tx.blocking_send(()).expect("CtrlC handler failed");
-    })?;
 
     let root_ca_cert = RootCertificate::PemFileOrDirectory(&config.ca_cert);
 
@@ -361,6 +357,11 @@ pub async fn client(config: ClientConfig) -> Result<()> {
             }
         }
     });
+
+    let (ctrlc_tx, mut ctrlc_rx) = tokio::sync::mpsc::channel(1);
+    ctrlc::set_handler(move || {
+        ctrlc_tx.blocking_send(()).expect("CtrlC handler failed");
+    })?;
 
     tokio::select! {
         Some(_) = keepalive_task => Err(anyhow!("Keepalive timeout")),
