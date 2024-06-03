@@ -59,8 +59,8 @@ async fn main() -> Result<()> {
         cipher: config.cipher,
         #[cfg(feature = "postquantum")]
         enable_pqc: config.enable_pqc,
-        keepalive_interval: config.keepalive_interval,
-        keepalive_timeout: config.keepalive_timeout,
+        keepalive_interval: config.keepalive_interval.into(),
+        keepalive_timeout: config.keepalive_timeout.into(),
         sndbuf: config.sndbuf,
         rcvbuf: config.rcvbuf,
         enable_pmtud: config.enable_pmtud,

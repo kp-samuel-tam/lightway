@@ -3,10 +3,16 @@ use serde_with::{serde_as, DisplayFromStr};
 
 /// Wrapper for compatibility with both clap and twelf at the same time
 #[serde_as]
-#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct Duration(#[serde_as(as = "DisplayFromStr")] humantime::Duration);
 
 impl std::fmt::Display for Duration {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl std::fmt::Debug for Duration {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.0.fmt(f)
     }

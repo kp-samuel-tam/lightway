@@ -8,9 +8,8 @@ use bytes::BytesMut;
 use bytesize::ByteSize;
 use keepalive::Keepalive;
 use lightway_app_utils::{
-    args::{Cipher, Duration},
-    connection_ticker_cb, ConnectionTicker, ConnectionTickerState, DplpmtudTimer, EventStream,
-    EventStreamCallback,
+    args::Cipher, connection_ticker_cb, ConnectionTicker, ConnectionTickerState, DplpmtudTimer,
+    EventStream, EventStreamCallback,
 };
 use lightway_core::{
     ipv4_update_destination, ipv4_update_source, BuilderPredicates, ClientContextBuilder,
@@ -28,6 +27,7 @@ use std::{
     net::Ipv4Addr,
     path::PathBuf,
     sync::{Arc, Mutex},
+    time::Duration,
 };
 use tokio::{
     net::{TcpStream, UdpSocket},
@@ -270,8 +270,8 @@ pub async fn client(config: ClientConfig) -> Result<()> {
 
     let (keepalive, keepalive_task) = Keepalive::new(
         keepalive::Config {
-            interval: config.keepalive_interval.into(),
-            timeout: config.keepalive_timeout.into(),
+            interval: config.keepalive_interval,
+            timeout: config.keepalive_timeout,
         },
         Arc::downgrade(&conn),
     );
