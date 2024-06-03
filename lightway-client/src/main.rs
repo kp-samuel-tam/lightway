@@ -46,10 +46,12 @@ async fn main() -> Result<()> {
         ConnectionType::Udp => ClientConnectionType::Datagram(None),
     };
 
+    let root_ca_cert = RootCertificate::PemFileOrDirectory(&config.ca_cert);
+
     let config = ClientConfig {
         mode,
         auth,
-        ca_cert: config.ca_cert,
+        root_ca_cert,
         outside_mtu: config.outside_mtu,
         inside_mtu: config.inside_mtu,
         tun_name: config.tun_name,

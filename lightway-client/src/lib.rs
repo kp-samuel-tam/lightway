@@ -14,18 +14,20 @@ use lightway_app_utils::{
 use lightway_core::{
     ipv4_update_destination, ipv4_update_source, BuilderPredicates, ClientContextBuilder,
     ClientIpConfig, ConnectionError, ConnectionType, Event, IOCallbackResult, InsideIpConfig,
-    OutsidePacket, RootCertificate, State,
+    OutsidePacket, State,
 };
 
 // re-export so client app does not need to depend on lightway-core
 pub use lightway_core::{
-    AuthMethod, PluginFactoryError, PluginFactoryList, Version, MAX_INSIDE_MTU, MAX_OUTSIDE_MTU,
+    AuthMethod, PluginFactoryError, PluginFactoryList, RootCertificate, Version, MAX_INSIDE_MTU,
+    MAX_OUTSIDE_MTU,
 };
 use pnet::packet::ipv4::Ipv4Packet;
 
+#[cfg(feature = "debug")]
+use std::path::PathBuf;
 use std::{
     net::Ipv4Addr,
-    path::PathBuf,
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -58,7 +60,7 @@ impl std::fmt::Debug for ClientConnectionType {
 
 #[derive(educe::Educe)]
 #[educe(Debug)]
-pub struct ClientConfig {
+pub struct ClientConfig<'cert> {
     /// Connection mode
     pub mode: ClientConnectionType,
 
@@ -67,7 +69,8 @@ pub struct ClientConfig {
     pub auth: AuthMethod,
 
     /// CA certificate
-    pub ca_cert: PathBuf,
+    #[educe(Debug(ignore))]
+    pub root_ca_cert: RootCertificate<'cert>,
 
     /// Outside (wire) MTU
     pub outside_mtu: usize,
@@ -183,10 +186,8 @@ async fn handle_events(mut stream: EventStream, keepalive: Keepalive) {
     }
 }
 
-pub async fn client(config: ClientConfig) -> Result<()> {
+pub async fn client(config: ClientConfig<'_>) -> Result<()> {
     println!("Client starting with config:\n{:#?}", &config);
-
-    let root_ca_cert = RootCertificate::PemFileOrDirectory(&config.ca_cert);
 
     let (connection_type, outside_io): (ConnectionType, Arc<dyn io::outside::OutsideIO>) =
         match config.mode {
@@ -236,7 +237,7 @@ pub async fn client(config: ClientConfig) -> Result<()> {
 
     let conn_builder = ClientContextBuilder::new(
         connection_type,
-        root_ca_cert,
+        config.root_ca_cert,
         inside_io.clone().into_io_send_callback(),
         Arc::new(ClientIpConfigCb),
     )?
