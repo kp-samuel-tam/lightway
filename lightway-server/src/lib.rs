@@ -49,14 +49,14 @@ impl<SA: ServerAuth> ServerAuth for AuthMetrics<SA> {
     }
 }
 
-#[derive(derivative::Derivative)]
-#[derivative(Debug)]
+#[derive(educe::Educe)]
+#[educe(Debug)]
 pub struct ServerConfig<SA: ServerAuth> {
     /// Connection mode
     pub connection_type: ConnectionType,
 
     /// Authentication manager
-    #[derivative(Debug = "ignore")]
+    #[educe(Debug(ignore))]
     pub auth: SA,
 
     /// Server certificate
@@ -97,11 +97,11 @@ pub struct ServerConfig<SA: ServerAuth> {
     pub key_update_interval: Duration,
 
     /// Inside plugins to use
-    #[derivative(Debug(format_with = "debug_fmt_plugin_list"))]
+    #[educe(Debug(method(debug_fmt_plugin_list)))]
     pub inside_plugins: PluginFactoryList,
 
     /// Outside plugins to use
-    #[derivative(Debug(format_with = "debug_fmt_plugin_list"))]
+    #[educe(Debug(method(debug_fmt_plugin_list)))]
     pub outside_plugins: PluginFactoryList,
 
     /// Address to listen to

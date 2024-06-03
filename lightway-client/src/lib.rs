@@ -48,14 +48,14 @@ pub enum ClientConnectionType {
     Datagram(Option<UdpSocket>),
 }
 
-#[derive(derivative::Derivative)]
-#[derivative(Debug)]
+#[derive(educe::Educe)]
+#[educe(Debug)]
 pub struct ClientConfig {
     /// Connection mode
     pub mode: ClientConnectionType,
 
     /// Auth parameters to use for connection
-    #[derivative(Debug = "ignore")]
+    #[educe(Debug(ignore))]
     pub auth: AuthMethod,
 
     /// CA certificate
@@ -115,11 +115,11 @@ pub struct ClientConfig {
     pub server: String,
 
     /// Inside plugins to use
-    #[derivative(Debug(format_with = "debug_fmt_plugin_list"))]
+    #[educe(Debug(method(debug_fmt_plugin_list)))]
     pub inside_plugins: PluginFactoryList,
 
     /// Outside plugins to use
-    #[derivative(Debug(format_with = "debug_fmt_plugin_list"))]
+    #[educe(Debug(method(debug_fmt_plugin_list)))]
     pub outside_plugins: PluginFactoryList,
 
     /// File path to save wireshark keylog
