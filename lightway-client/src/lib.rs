@@ -39,13 +39,21 @@ use tracing::info;
 #[cfg(feature = "debug")]
 use crate::debug::WiresharkKeyLogger;
 
-#[derive(Debug)]
 /// Connection type
 /// Applications can also attach socket for library to use directly,
 /// if there is any customisations needed
 pub enum ClientConnectionType {
     Stream(Option<TcpStream>),
     Datagram(Option<UdpSocket>),
+}
+
+impl std::fmt::Debug for ClientConnectionType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Stream(_) => f.debug_tuple("Stream").finish(),
+            Self::Datagram(_) => f.debug_tuple("Datagram").finish(),
+        }
+    }
 }
 
 #[derive(educe::Educe)]
