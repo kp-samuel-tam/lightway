@@ -29,6 +29,7 @@ jobs:
       - uses: earthly/actions-setup@v1
         with:
           version: ~v0.8
+          github-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/checkout@v4
       - name: Run +${{ matrix.target }} on Earthly satellite
         run: earthly --ci --org expressvpn --satellite lightway +${{ matrix.target }}
@@ -45,6 +46,7 @@ jobs:
       - uses: earthly/actions-setup@v1
         with:
           version: ~v0.8
+          github-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/checkout@v4
       - name: Run +e2e on Earthly satellite
         run: earthly --ci --org expressvpn --satellite lightway --allow-privileged +e2e --debian ${{ matrix.distro }}
@@ -57,6 +59,7 @@ jobs:
       - uses: earthly/actions-setup@v1
         with:
           version: ~v0.8
+          github-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/checkout@v4
       - name: Run +coverage on Earthly satellite
         id: coverage
