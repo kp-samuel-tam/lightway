@@ -8,26 +8,28 @@ use bytes::BytesMut;
 use bytesize::ByteSize;
 use keepalive::Keepalive;
 use lightway_app_utils::{
-    args::{Cipher, Duration},
-    connection_ticker_cb, ConnectionTicker, ConnectionTickerState, DplpmtudTimer, EventStream,
-    EventStreamCallback,
+    args::Cipher, connection_ticker_cb, ConnectionTicker, ConnectionTickerState, DplpmtudTimer,
+    EventStream, EventStreamCallback,
 };
 use lightway_core::{
     ipv4_update_destination, ipv4_update_source, BuilderPredicates, ClientContextBuilder,
     ClientIpConfig, ConnectionError, ConnectionType, Event, IOCallbackResult, InsideIpConfig,
-    OutsidePacket, RootCertificate, State,
+    OutsidePacket, State,
 };
 
 // re-export so client app does not need to depend on lightway-core
 pub use lightway_core::{
-    AuthMethod, PluginFactoryError, PluginFactoryList, Version, MAX_INSIDE_MTU, MAX_OUTSIDE_MTU,
+    AuthMethod, PluginFactoryError, PluginFactoryList, RootCertificate, Version, MAX_INSIDE_MTU,
+    MAX_OUTSIDE_MTU,
 };
 use pnet::packet::ipv4::Ipv4Packet;
 
+#[cfg(feature = "debug")]
+use std::path::PathBuf;
 use std::{
     net::Ipv4Addr,
-    path::PathBuf,
     sync::{Arc, Mutex},
+    time::Duration,
 };
 use tokio::{
     net::{TcpStream, UdpSocket},
@@ -39,7 +41,6 @@ use tracing::info;
 #[cfg(feature = "debug")]
 use crate::debug::WiresharkKeyLogger;
 
-#[derive(Debug)]
 /// Connection type
 /// Applications can also attach socket for library to use directly,
 /// if there is any customisations needed
@@ -48,18 +49,28 @@ pub enum ClientConnectionType {
     Datagram(Option<UdpSocket>),
 }
 
-#[derive(derivative::Derivative)]
-#[derivative(Debug)]
-pub struct ClientConfig {
+impl std::fmt::Debug for ClientConnectionType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Stream(_) => f.debug_tuple("Stream").finish(),
+            Self::Datagram(_) => f.debug_tuple("Datagram").finish(),
+        }
+    }
+}
+
+#[derive(educe::Educe)]
+#[educe(Debug)]
+pub struct ClientConfig<'cert> {
     /// Connection mode
     pub mode: ClientConnectionType,
 
     /// Auth parameters to use for connection
-    #[derivative(Debug = "ignore")]
+    #[educe(Debug(ignore))]
     pub auth: AuthMethod,
 
     /// CA certificate
-    pub ca_cert: PathBuf,
+    #[educe(Debug(ignore))]
+    pub root_ca_cert: RootCertificate<'cert>,
 
     /// Outside (wire) MTU
     pub outside_mtu: usize,
@@ -115,11 +126,11 @@ pub struct ClientConfig {
     pub server: String,
 
     /// Inside plugins to use
-    #[derivative(Debug(format_with = "debug_fmt_plugin_list"))]
+    #[educe(Debug(method(debug_fmt_plugin_list)))]
     pub inside_plugins: PluginFactoryList,
 
     /// Outside plugins to use
-    #[derivative(Debug(format_with = "debug_fmt_plugin_list"))]
+    #[educe(Debug(method(debug_fmt_plugin_list)))]
     pub outside_plugins: PluginFactoryList,
 
     /// File path to save wireshark keylog
@@ -175,10 +186,8 @@ async fn handle_events(mut stream: EventStream, keepalive: Keepalive) {
     }
 }
 
-pub async fn client(config: ClientConfig) -> Result<()> {
+pub async fn client(config: ClientConfig<'_>) -> Result<()> {
     println!("Client starting with config:\n{:#?}", &config);
-
-    let root_ca_cert = RootCertificate::PemFileOrDirectory(&config.ca_cert);
 
     let (connection_type, outside_io): (ConnectionType, Arc<dyn io::outside::OutsideIO>) =
         match config.mode {
@@ -228,7 +237,7 @@ pub async fn client(config: ClientConfig) -> Result<()> {
 
     let conn_builder = ClientContextBuilder::new(
         connection_type,
-        root_ca_cert,
+        config.root_ca_cert,
         inside_io.clone().into_io_send_callback(),
         Arc::new(ClientIpConfigCb),
     )?
@@ -262,8 +271,8 @@ pub async fn client(config: ClientConfig) -> Result<()> {
 
     let (keepalive, keepalive_task) = Keepalive::new(
         keepalive::Config {
-            interval: config.keepalive_interval.into(),
-            timeout: config.keepalive_timeout.into(),
+            interval: config.keepalive_interval,
+            timeout: config.keepalive_timeout,
         },
         Arc::downgrade(&conn),
     );

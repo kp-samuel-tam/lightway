@@ -31,10 +31,10 @@ tokio-stream = { version = "0.1.14", features = ["time"] }
 time = "0.3.29"
 serde = "1.0.189"
 twelf = { version = "0.15.0" , default-features = false, features = ["env", "clap", "yaml"]}
-derivative = "2.2.0"
 socket2 = "0.5.5"
 ctrlc = { version = "3.4.2", features = ["termination"] }
 async-channel = "2.1.1"
+educe = { version = "0.5.11", default-features = false, features = ["Debug"] }
 
 [dev-dependencies]
 more-asserts = "0.3.1"

@@ -46,10 +46,12 @@ async fn main() -> Result<()> {
         ConnectionType::Udp => ClientConnectionType::Datagram(None),
     };
 
+    let root_ca_cert = RootCertificate::PemFileOrDirectory(&config.ca_cert);
+
     let config = ClientConfig {
         mode,
         auth,
-        ca_cert: config.ca_cert,
+        root_ca_cert,
         outside_mtu: config.outside_mtu,
         inside_mtu: config.inside_mtu,
         tun_name: config.tun_name,
@@ -59,8 +61,8 @@ async fn main() -> Result<()> {
         cipher: config.cipher,
         #[cfg(feature = "postquantum")]
         enable_pqc: config.enable_pqc,
-        keepalive_interval: config.keepalive_interval,
-        keepalive_timeout: config.keepalive_timeout,
+        keepalive_interval: config.keepalive_interval.into(),
+        keepalive_timeout: config.keepalive_timeout.into(),
         sndbuf: config.sndbuf,
         rcvbuf: config.rcvbuf,
         enable_pmtud: config.enable_pmtud,
