@@ -34,7 +34,7 @@ futures = "0.3.30"
 tokio-util = "0.7.10"
 ctrlc = { version = "3.4.2", features = ["termination"] }
 pnet = "0.35.0"
-educe = { version = "0.5.11", default-features = false, features = ["Debug"] }
+educe = { version = "0.6.0", default-features = false, features = ["Debug"] }
 
 [dev-dependencies]
 more-asserts = "0.3.1"
