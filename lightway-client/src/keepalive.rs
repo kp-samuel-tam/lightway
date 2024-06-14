@@ -357,7 +357,7 @@ mod tests {
                 .any(|ev| matches!(ev, FixtureEvent::TimeoutExpired))
         }
 
-        fn sleep_for_interval(&self) -> futures::future::BoxFuture<()> {
+        fn sleep_for_interval(&self) -> impl futures::Future<Output = ()> + std::marker::Send {
             println!("sleep_for_interval");
             let mut inner = self.0.lock().unwrap();
 
@@ -368,7 +368,7 @@ mod tests {
             Box::pin(async move { rx.await.unwrap() })
         }
 
-        fn sleep_for_timeout(&self) -> futures::future::BoxFuture<()> {
+        fn sleep_for_timeout(&self) -> impl futures::Future<Output = ()> + std::marker::Send {
             println!("sleep_for_timeout");
             let mut inner = self.0.lock().unwrap();
 
