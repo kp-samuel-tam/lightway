@@ -4,6 +4,7 @@ use bytes::{BufMut, BytesMut};
 use dashmap::DashMap;
 use thiserror::Error;
 
+use crate::metrics::tun_iouring_data_dropped;
 use io_uring::{
     cqueue::Entry as CEntry, opcode, squeue::Entry as SEntry, types::Fixed, CompletionQueue,
     IoUring,
@@ -190,11 +191,17 @@ impl<T: AsRawFd> IOUring<T> {
 
     /// Try Send packet to Tun device
     pub fn try_send(&self, buf: BytesMut) -> IOUringResult<()> {
-        self.inner
-            .send_q
-            .tx
-            .try_send(buf)
-            .map_err(IOUringError::SendError)
+        let try_send_res = self.inner.send_q.tx.try_send(buf);
+        match try_send_res {
+            Ok(()) => Ok(()),
+            Err(e) if e.is_full() => {
+                // it is effectively the same scenario as a buffer in a network
+                // switch/router filling up so dropping the traffic is appropriate
+                tun_iouring_data_dropped();
+                Ok(())
+            }
+            Err(e) => Err(IOUringError::SendError(e)),
+        }
     }
 }
 

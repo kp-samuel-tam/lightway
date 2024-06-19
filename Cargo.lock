@@ -992,6 +992,7 @@ dependencies = [
  "humantime",
  "io-uring",
  "lightway-core",
+ "metrics",
  "pnet",
  "serde",
  "serde_with",
