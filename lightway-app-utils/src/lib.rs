@@ -26,5 +26,6 @@ pub use iouring::IOUring;
 
 pub use tun::Tun;
 
+mod metrics;
 mod utils;
 pub use utils::is_file_path_valid;
