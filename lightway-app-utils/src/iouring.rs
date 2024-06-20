@@ -4,7 +4,7 @@ use bytes::{BufMut, BytesMut};
 use dashmap::DashMap;
 use thiserror::Error;
 
-use crate::metrics::tun_iouring_data_dropped;
+use crate::metrics::tun_iouring_packet_dropped;
 use io_uring::{
     cqueue::Entry as CEntry, opcode, squeue::Entry as SEntry, types::Fixed, CompletionQueue,
     IoUring,
@@ -197,7 +197,7 @@ impl<T: AsRawFd> IOUring<T> {
             Err(e) if e.is_full() => {
                 // it is effectively the same scenario as a buffer in a network
                 // switch/router filling up so dropping the traffic is appropriate
-                tun_iouring_data_dropped();
+                tun_iouring_packet_dropped();
                 Ok(())
             }
             Err(e) => Err(IOUringError::SendError(e)),
