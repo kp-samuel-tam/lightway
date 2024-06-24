@@ -1,8 +1,9 @@
 VERSION 0.8
 ARG --global debian = bookworm
 
-# Importing https://github.com/earthly/lib/tree/3.0.1/rust via commit hash pinning because git tags can be changed
-IMPORT github.com/earthly/lib/rust:1a4a008e271c7a5583e7bd405da8fd3624c05610 AS lib-rust
+# Using commit hash pinning because git tags can be changed
+# Ref: https://github.com/earthly/lib/tree/3.0.3
+IMPORT github.com/earthly/lib/rust:a49d2a0f4028cd15666d19904f8fc5fbd0b9ba87 AS lib-rust
 
 install-build-dependencies:
     FROM rust:1.79.0-$debian
