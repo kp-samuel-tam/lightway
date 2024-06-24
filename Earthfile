@@ -47,8 +47,8 @@ build:
 
     DO lib-rust+CARGO --args="build --release --target=$target" --output="$target/release/lightway-(client|server)$"
 
-    SAVE ARTIFACT ./target/$target/release/lightway-client
-    SAVE ARTIFACT ./target/$target/release/lightway-server
+    SAVE ARTIFACT ./target/$target/release/lightway-client AS LOCAL ./target/$target/release/
+    SAVE ARTIFACT ./target/$target/release/lightway-server AS LOCAL ./target/$target/release/
 
 # build-arm64 build for arm64. Support building from an amd64 or arm64 host
 build-arm64:
