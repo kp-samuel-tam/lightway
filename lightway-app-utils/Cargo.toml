@@ -29,7 +29,7 @@ async-channel = { version = "2.1.1", optional = true }
 anyhow = "1.0.79"
 bytes = "1.5.0"
 tokio-eventfd = "0.2.1"
-dashmap = "5.5.3"
+dashmap = "6.0.1"
 thiserror = "1.0.57"
 tokio-tun = "0.11.2"
 metrics = "0.23.0"
