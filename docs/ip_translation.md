@@ -110,7 +110,7 @@ block-beta
 
 ```
 
-### Packet flow steps (as marked yellow in above picutre):
+### Packet flow steps (as marked yellow in above picture):
 1. When we start a ping from the client device to an IP say 1.2.3.4, client OS creates a ICMP packet with src IP as tunnel IP and destination IP as actual desctination (since default route will be pointing towards tunnel) and sends the packet to the tunel interface.
 1. ICMP packet will then be received by the LightwayClient. It then updates the source IP of the ICMP packet to tun_local_ip from server's network config message. The packet is then passed to lightway-core
 1. Lightway-core then encapsulates the ICMP packet inside TLS/DTLS connection and forwards it to Lightway-server device
