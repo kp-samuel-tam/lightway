@@ -74,8 +74,8 @@ pub enum FromWireError {
     #[error("Insufficient data")]
     InsufficientData,
     /// Invalid Magic Number
-    #[error("Invalid magic number")]
-    InvalidMagicNumber,
+    #[error("Invalid magic number: {0:02x}{1:02x}")]
+    InvalidMagicNumber(u8, u8),
     /// An unknown value was encountered in an enum-like field
     #[error("Invalid enum encoding")]
     InvalidEnumEncoding,
@@ -86,8 +86,8 @@ pub enum FromWireError {
     #[error("Field too large")]
     FieldTooLarge,
     /// Wire contains an invalid protocol version
-    #[error("Invalid protocol version")]
-    InvalidProtocolVersion,
+    #[error("Invalid protocol version {0}.{1}")]
+    InvalidProtocolVersion(u8, u8),
 }
 
 /// The result of an attempted wire decode.
@@ -190,7 +190,7 @@ impl Header {
         let he1 = buf.get_u8();
 
         if he0 != b'H' || he1 != b'e' {
-            return Err(FromWireError::InvalidMagicNumber);
+            return Err(FromWireError::InvalidMagicNumber(he0, he1));
         }
 
         let major_version = buf.get_u8();
@@ -202,8 +202,9 @@ impl Header {
         let mut session = SessionId::EMPTY;
         buf.copy_to_slice(session.as_mut_slice());
 
-        let version = crate::Version::try_new(major_version, minor_version)
-            .ok_or(FromWireError::InvalidProtocolVersion)?;
+        let version = crate::Version::try_new(major_version, minor_version).ok_or(
+            FromWireError::InvalidProtocolVersion(major_version, minor_version),
+        )?;
 
         Ok(Header {
             version,
@@ -445,7 +446,7 @@ mod test_header {
 
         assert!(matches!(
             Header::try_from_wire(&mut buf).err().unwrap(),
-            FromWireError::InvalidMagicNumber
+            FromWireError::InvalidMagicNumber(actual_a, actual_b) if a == actual_a && b == actual_b
         ));
     }
 
