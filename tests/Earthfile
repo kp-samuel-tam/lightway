@@ -94,6 +94,14 @@ run-udp-max-inside-mtu-pmtud-test:
 run-tcp-max-inside-mtu-test:
     DO +TEST --MODE=tcp --SERVER_PORT=443 --CLIENT_EXTRA_ARGS="--inside-mtu=1500"
 
+# run-udp-keepalive-test runs e2e test of UDP with client using keepalive
+run-udp-keepalive-test:
+    DO +TEST --MODE=udp --SERVER_PORT=27690 --CLIENT_EXTRA_ARGS="--keepalive-interval=2s --keepalive-timeout=6s"
+
+# run-tcp-keepalive-test runs e2e test of TCP with client using keepalive
+run-tcp-keepalive-test:
+    DO +TEST --MODE=tcp --SERVER_PORT=443 --CLIENT_EXTRA_ARGS="--keepalive-interval=2s --keepalive-timeout=6s"
+
 # run-all-tests runs all tests
 run-all-tests:
     BUILD +run-tcp-aes256-test
@@ -111,3 +119,5 @@ run-all-tests:
     BUILD +run-udp-max-inside-mtu-test
     BUILD +run-udp-max-inside-mtu-pmtud-test
     BUILD +run-tcp-max-inside-mtu-test
+    BUILD +run-udp-keepalive-test
+    BUILD +run-tcp-keepalive-test
