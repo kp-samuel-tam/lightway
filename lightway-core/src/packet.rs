@@ -48,7 +48,7 @@ impl OutsidePacket {
                     ConnectionType::Stream => Ok(Self::TcpFrame(buf)),
                     ConnectionType::Datagram => {
                         let hdr = Header::try_from_wire(&mut buf)
-                            .map_err(|e| OutsidePacketError::PluginError(e.into()))?;
+                            .map_err(|e| OutsidePacketError::BadWireHeader(e.into()))?;
                         Ok(Self::UdpFrame(buf, hdr))
                     }
                 }
@@ -63,6 +63,10 @@ impl OutsidePacket {
 /// An error with [`OutsidePacket`]
 #[derive(Debug, Error)]
 pub enum OutsidePacketError {
+    /// The UDP packet had an incorrect `wire::Header`
+    #[error("Bad Wire Header: {0}")]
+    BadWireHeader(Box<dyn std::error::Error + Sync + Send>),
+
     /// Plugin dropped the packet
     #[error("Plugin dropped outside packet")]
     PluginDrop,
