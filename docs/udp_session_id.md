@@ -109,7 +109,7 @@ sequenceDiagram
     Client->>Server: Src: 192.168.100.43, Session: B
     Note over Server: Lookup Connection by peer addr 192.168.100.43 ✅<br/><br/>Since "B = Pending Session B" finalize rotation:<br/>Session ← B<br/>Pending Session ← None
     deactivate Server
-    Server->>Client: Dst: 10.1.2.3, Session: B
+    Server->>Client: Dst: 192.168.100.43, Session: B
 ```
 
 ### Case 5: Raciness + Network change

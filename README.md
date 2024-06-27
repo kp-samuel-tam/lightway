@@ -19,9 +19,20 @@ In addition there is:
 Protocol and design documentation can be found in the
 [`docs`](docs/README.md) folder.
 
+
+## Supported platforms
+
+Lightway rust implementation currently supports Linux OS. Both x86_64 and arm64 platforms are
+supported and built as part of CI.
+
+Support for other platforms will be added soon.
+
 ## Development steps
 
-Lightway core and reference applications can be built using Earthly:
+Lightway core and reference applications can be built using [Earthly](https://github.com/earthly/earthly)
+without setting up the complete development environment locally.
+
+Refer to [Earthly](https://docs.earthly.dev/) documentation on how to install earthly.
 
 ```bash
 earthly +build
@@ -43,6 +54,8 @@ For more information about the different Earthly targets available, run:
 earthly doc
 ```
 
+Note: Lightway can also be built using standard cargo tools
+
 ## Configuration
 
 ### Lightway-server
@@ -58,6 +71,9 @@ lightway-server --config-file './tests/server/server_config.yaml'
 We can also override configs (except config-file), either by using env variables or by using cli arguments.
 Env variables should have the prefix `LW_SERVER_`.
 Cli arguments has the highest priority.
+
+Please note that when providing env variables it should be in upper case and using "_" as a word separator,
+while using as cli config, it should be in lower case with "-" as the word separator.
 
 #### Example:
 
@@ -105,16 +121,28 @@ Check `tests/Earthfile` or `earthly doc ./tests` for other `run-*-test` targets.
 
 To start the stack for your own testing:
 ```bash
-earthly -P ./tests/+save-all-test-containers  && MODE=udp SERVER_PORT=20719 docker compose -f tests/docker-compose.yml up
+earthly -P ./tests/+save-all-test-containers  && SERVER_ARGS="--config-file server_config.yaml" CLIENT_ARGS="--config-file client_config.yaml" docker compose -f tests/e2e/docker-compose.yml up
 ```
 
 Then you can use e.g.
 
 ```
-docker compose -f tests/docker-compose.yml exec client bash
+docker compose -f tests/e2e/docker-compose.yml exec client bash
 ```
 
 To run things within the containers
+
+## Contributing
+
+We appreciate feedback and contribution to this repository! Before you get started, please see link:
+
+[CONTRIBUTING](./CONTRIBUTING.adoc)
+
+## Reporting a vulnerability
+
+To report security vulnerabilities, please see section on link:
+
+[Reporting a vulnerability](SECURITY.adoc#reporting-a-vulnerability)
 
 ## Dev-Testing
 
