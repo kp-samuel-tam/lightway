@@ -88,7 +88,7 @@ impl Keepalive {
             );
         }
 
-        let (tx, rx) = mpsc::channel(3);
+        let (tx, rx) = mpsc::channel(1024);
         let task = tokio::spawn(keepalive(config, conn, rx, cancel.clone()));
         let cancel = Arc::new(cancel.drop_guard());
         (
