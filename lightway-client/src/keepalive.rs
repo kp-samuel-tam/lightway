@@ -88,7 +88,7 @@ impl Keepalive {
             );
         }
 
-        let (tx, rx) = mpsc::channel(3);
+        let (tx, rx) = mpsc::channel(1024);
         let task = tokio::spawn(keepalive(config, conn, rx, cancel.clone()));
         let cancel = Arc::new(cancel.drop_guard());
         (
@@ -110,7 +110,7 @@ impl Keepalive {
     /// Signal that outside activity was observed
     pub async fn outside_activity(&self) {
         if let Some(tx) = &self.tx {
-            let _ = tx.send(Message::OutsideActivity).await;
+            let _ = tx.try_send(Message::OutsideActivity);
         }
     }
 
