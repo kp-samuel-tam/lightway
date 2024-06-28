@@ -110,7 +110,7 @@ impl Keepalive {
     /// Signal that outside activity was observed
     pub async fn outside_activity(&self) {
         if let Some(tx) = &self.tx {
-            let _ = tx.send(Message::OutsideActivity).await;
+            let _ = tx.try_send(Message::OutsideActivity);
         }
     }
 
