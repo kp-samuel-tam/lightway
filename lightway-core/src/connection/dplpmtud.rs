@@ -11,7 +11,7 @@ use more_asserts::*;
 const MAX_PROBES: usize = 3;
 
 /// The BASE_PLPMTU is a configured size expected to work for most paths
-const BASE_PLPMTU: u16 = 1200;
+const BASE_PLPMTU: u16 = 1250;
 
 /// Number of bytes to increase for the next probe
 const PROBE_BIG_STEP: u16 = 32;
@@ -563,10 +563,10 @@ mod tests {
         }
     }
 
-    #[test_case(State::Base, 1200 => None)]
-    #[test_case(State::Error, 1200 => None)]
-    #[test_case(State::Searching, 1200 => Some((1265, 1197, 1192)))]
-    #[test_case(State::SearchComplete, 1200 => Some((1265, 1197, 1192)))]
+    #[test_case(State::Base, 1250 => None)]
+    #[test_case(State::Error, 1250 => None)]
+    #[test_case(State::Searching, 1250 => Some((1315, 1247, 1240)))]
+    #[test_case(State::SearchComplete, 1250 => Some((1315,  1247, 1240)))]
     fn test_effective_pmtu_and_maximum_packet_sizes(
         state: State,
         plpmtu: u16,
@@ -604,10 +604,10 @@ mod tests {
         assert!(pmtud.effective_pmtu().is_none());
         assert_eq!(pmtud.probe_count, 1);
         assert!(
-            matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1200 })
+            matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1250 })
         );
         assert!(
-            matches!(action, Action::SendProbe{id, size} if id == expected_id && size == 1200 - 1 - 4)
+            matches!(action, Action::SendProbe{id, size} if id == expected_id && size == 1250 - 1 - 4)
         );
         timer.expect_pending(Duration::from_secs(5));
 
@@ -620,10 +620,10 @@ mod tests {
             assert!(pmtud.effective_pmtu().is_none());
             assert_eq!(pmtud.probe_count, attempt as usize);
             assert!(
-                matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1200 })
+                matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1250 })
             );
             assert!(
-                matches!(action, Action::SendProbe{id, size} if id == expected_id && size == 1200 - 1 - 4)
+                matches!(action, Action::SendProbe{id, size} if id == expected_id && size == 1250 - 1 - 4)
             );
             timer.expect_pending(Duration::from_secs(5));
         }
@@ -642,10 +642,10 @@ mod tests {
         assert!(pmtud.effective_pmtu().is_some());
         assert_eq!(pmtud.probe_count, 1);
         assert!(
-            matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1232 })
+            matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1282 })
         );
         assert!(
-            matches!(action, Action::SendProbe{id, size} if id == expected_id && size == 1232 - 1 - 4)
+            matches!(action, Action::SendProbe{id, size} if id == expected_id && size == 1282 - 1 - 4)
         );
         timer.expect_pending(Duration::from_secs(5));
     }
@@ -666,10 +666,10 @@ mod tests {
         assert!(matches!(pmtud.state, State::Base));
         assert_eq!(pmtud.probe_count, 1);
         assert!(
-            matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1200 })
+            matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1250 })
         );
         assert!(
-            matches!(action, Action::SendProbe{id, size} if id == expected_id && size == 1200 - 1 - 4)
+            matches!(action, Action::SendProbe{id, size} if id == expected_id && size == 1250 - 1 - 4)
         );
         timer.expect_pending(Duration::from_secs(5));
 
@@ -680,10 +680,10 @@ mod tests {
         assert!(matches!(pmtud.state, State::Base));
         assert_eq!(pmtud.probe_count, 2);
         assert!(
-            matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1200 })
+            matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1250 })
         );
         assert!(
-            matches!(action, Action::SendProbe{id, size} if id == expected_id && size == 1200 - 1 - 4)
+            matches!(action, Action::SendProbe{id, size} if id == expected_id && size == 1250 - 1 - 4)
         );
         timer.expect_pending(Duration::from_secs(5));
 
@@ -700,7 +700,7 @@ mod tests {
         assert!(pmtud.effective_pmtu().is_none());
         assert_eq!(pmtud.probe_count, 2);
         assert!(
-            matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1200 })
+            matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1250 })
         );
         assert!(matches!(action, Action::None));
         timer.expect_pending(Duration::from_secs(5));
@@ -718,10 +718,10 @@ mod tests {
         assert!(pmtud.effective_pmtu().is_some());
         assert_eq!(pmtud.probe_count, 1);
         assert!(
-            matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1232 })
+            matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1282 })
         );
         assert!(
-            matches!(action, Action::SendProbe{id, size} if id == expected_id && size == 1232 - 1 - 4)
+            matches!(action, Action::SendProbe{id, size} if id == expected_id && size == 1282 - 1 - 4)
         );
         timer.expect_pending(Duration::from_secs(5));
     }
@@ -741,10 +741,10 @@ mod tests {
         assert!(matches!(pmtud.state, State::Base));
         assert_eq!(pmtud.probe_count, expected_id.as_u16() as usize);
         assert!(
-            matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1200 })
+            matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1250 })
         );
         assert!(
-            matches!(action, Action::SendProbe{id, size} if id == expected_id && size == 1200 - 1 - 4)
+            matches!(action, Action::SendProbe{id, size} if id == expected_id && size == 1250 - 1 - 4)
         );
         timer.expect_pending(Duration::from_secs(5));
 
@@ -755,10 +755,10 @@ mod tests {
         assert!(matches!(pmtud.state, State::Base));
         assert_eq!(pmtud.probe_count, expected_id.as_u16() as usize);
         assert!(
-            matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1200 })
+            matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1250 })
         );
         assert!(
-            matches!(action, Action::SendProbe{id, size} if id == expected_id && size == 1200 - 1 - 4)
+            matches!(action, Action::SendProbe{id, size} if id == expected_id && size == 1250 - 1 - 4)
         );
         timer.expect_pending(Duration::from_secs(5));
 
@@ -769,10 +769,10 @@ mod tests {
         assert!(matches!(pmtud.state, State::Base));
         assert_eq!(pmtud.probe_count, expected_id.as_u16() as usize);
         assert!(
-            matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1200 })
+            matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1250 })
         );
         assert!(
-            matches!(action, Action::SendProbe{id, size} if id == expected_id && size == 1200 - 1 - 4)
+            matches!(action, Action::SendProbe{id, size} if id == expected_id && size == 1250 - 1 - 4)
         );
         timer.expect_pending(Duration::from_secs(5));
 
@@ -784,10 +784,10 @@ mod tests {
         assert!(pmtud.effective_pmtu().is_none());
         assert_eq!(pmtud.probe_count, 1);
         assert!(
-            matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1200 })
+            matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1250 })
         );
         assert!(
-            matches!(action, Action::SendProbe{id, size} if id == expected_id && size == 1200 - 1 - 4)
+            matches!(action, Action::SendProbe{id, size} if id == expected_id && size == 1250 - 1 - 4)
         );
         timer.expect_pending(Duration::from_secs(5));
 
@@ -799,10 +799,10 @@ mod tests {
         assert!(pmtud.effective_pmtu().is_none());
         assert_eq!(pmtud.probe_count, 2);
         assert!(
-            matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1200 })
+            matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1250 })
         );
         assert!(
-            matches!(action, Action::SendProbe{id, size} if id == expected_id && size == 1200 - 1 - 4)
+            matches!(action, Action::SendProbe{id, size} if id == expected_id && size == 1250 - 1 - 4)
         );
         timer.expect_pending(Duration::from_secs(5));
     }
@@ -841,10 +841,10 @@ mod tests {
         assert!(pmtud.effective_pmtu().is_some());
         assert_eq!(pmtud.probe_count, 1);
         assert!(
-            matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1232 })
+            matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1282 })
         );
         assert!(
-            matches!(action, Action::SendProbe{id, size} if id == expected_id && size == 1232 - 1 - 4)
+            matches!(action, Action::SendProbe{id, size} if id == expected_id && size == 1282 - 1 - 4)
         );
         timer.expect_pending(Duration::from_secs(5));
     }
@@ -872,10 +872,10 @@ mod tests {
         assert!(pmtud.effective_pmtu().is_none());
         assert_eq!(pmtud.probe_count, 2);
         assert!(
-            matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1200 })
+            matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1250 })
         );
         assert!(
-            matches!(action, Action::SendProbe{id, size} if id == expected_id && size == 1200 - 1 - 4)
+            matches!(action, Action::SendProbe{id, size} if id == expected_id && size == 1250 - 1 - 4)
         );
         timer.expect_pending(Duration::from_secs(5));
 
@@ -891,7 +891,7 @@ mod tests {
         assert!(matches!(pmtud.state, State::Error));
         assert!(pmtud.effective_pmtu().is_none());
         assert!(
-            matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1200 })
+            matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1250 })
         );
         assert!(matches!(action, Action::None));
         timer.expect_pending(Duration::from_secs(5));
@@ -909,10 +909,10 @@ mod tests {
         assert!(pmtud.effective_pmtu().is_some());
         assert_eq!(pmtud.probe_count, 1);
         assert!(
-            matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1232 })
+            matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1282 })
         );
         assert!(
-            matches!(action, Action::SendProbe{id, size} if id == expected_id && size == 1232 - 1 - 4)
+            matches!(action, Action::SendProbe{id, size} if id == expected_id && size == 1282 - 1 - 4)
         );
         timer.expect_pending(Duration::from_secs(5));
     }
@@ -953,10 +953,10 @@ mod tests {
         assert!(pmtud.effective_pmtu().is_some());
         assert_eq!(pmtud.probe_count, 1);
         assert!(
-            matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1232 })
+            matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1282 })
         );
         assert!(
-            matches!(action, Action::SendProbe{id, size} if id == expected_id && size == 1232 - 1 - 4)
+            matches!(action, Action::SendProbe{id, size} if id == expected_id && size == 1282 - 1 - 4)
         );
         timer.expect_pending(Duration::from_secs(5));
 
@@ -969,10 +969,10 @@ mod tests {
             assert!(pmtud.effective_pmtu().is_some());
             assert_eq!(pmtud.probe_count, attempt as usize);
             assert!(
-                matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1232 })
+                matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1282 })
             );
             assert!(
-                matches!(action, Action::SendProbe{id, size} if id == expected_id && size == 1232 - 1 - 4)
+                matches!(action, Action::SendProbe{id, size} if id == expected_id && size == 1282 - 1 - 4)
             );
             timer.expect_pending(Duration::from_secs(5));
         }
@@ -991,10 +991,10 @@ mod tests {
         assert!(pmtud.effective_pmtu().is_some());
         assert_eq!(pmtud.probe_count, 1);
         assert!(
-            matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1264 })
+            matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1314 })
         );
         assert!(
-            matches!(action, Action::SendProbe{id, size} if id == expected_id && size == 1264 - 1 - 4)
+            matches!(action, Action::SendProbe{id, size} if id == expected_id && size == 1314 - 1 - 4)
         );
         timer.expect_pending(Duration::from_secs(5));
     }
@@ -1017,10 +1017,10 @@ mod tests {
         assert!(pmtud.effective_pmtu().is_some());
         assert_eq!(pmtud.probe_count, 1);
         assert!(
-            matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1232 })
+            matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1282 })
         );
         assert!(
-            matches!(action, Action::SendProbe{id, size} if id == expected_id && size == 1232 - 1 - 4)
+            matches!(action, Action::SendProbe{id, size} if id == expected_id && size == 1282 - 1 - 4)
         );
         timer.expect_pending(Duration::from_secs(5));
 
@@ -1032,10 +1032,10 @@ mod tests {
         assert!(pmtud.effective_pmtu().is_some());
         assert_eq!(pmtud.probe_count, 2);
         assert!(
-            matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1232 })
+            matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1282 })
         );
         assert!(
-            matches!(action, Action::SendProbe{id, size} if id == expected_id && size == 1232 - 1 - 4)
+            matches!(action, Action::SendProbe{id, size} if id == expected_id && size == 1282 - 1 - 4)
         );
         timer.expect_pending(Duration::from_secs(5));
 
@@ -1052,7 +1052,7 @@ mod tests {
         assert!(pmtud.effective_pmtu().is_some());
         assert_eq!(pmtud.probe_count, 2);
         assert!(
-            matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1232 })
+            matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1282 })
         );
         assert!(matches!(action, Action::None));
         timer.expect_pending(Duration::from_secs(5));
@@ -1070,17 +1070,17 @@ mod tests {
         assert!(pmtud.effective_pmtu().is_some());
         assert_eq!(pmtud.probe_count, 1);
         assert!(
-            matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1264 })
+            matches!(pmtud.pending_probe, Some(ref pending) if pending == &PendingProbe{ id: expected_id, size: 1314 })
         );
         assert!(
-            matches!(action, Action::SendProbe{id, size} if id == expected_id && size == 1264 - 1 - 4)
+            matches!(action, Action::SendProbe{id, size} if id == expected_id && size == 1314 - 1 - 4)
         );
         timer.expect_pending(Duration::from_secs(5));
     }
 
-    #[test_case(1200 => 1200; "min")]
-    #[test_case(1264 => 1264; "middle (exact multiple of big step)")]
-    #[test_case(1268 => 1264; "middle (multiple of neither big nor small step)")]
+    #[test_case(1250 => 1250; "min")]
+    #[test_case(1282 => 1282; "middle (exact multiple of big step)")]
+    #[test_case(1284 => 1282; "middle (multiple of neither big nor small step)")]
     #[test_case(max_dtls_mtu(1500) as u16 => 1419; "max")]
     #[test_case(1500 => 1419; "max wire")]
     fn full_search(actual_plpmtu: u16) -> u16 {
@@ -1132,7 +1132,7 @@ mod tests {
 
     // Helper to construct a Dplpmtud in [`State::SearchComplete`].
     //
-    // Search with MTU 1200 + 32 = 1232 (timing out all probes except
+    // Search with MTU 1250 + 32 = 1282 (timing out all probes except
     // the first) to shorten the initial search. It's important that
     // this != `BASE_PLPMTU` to properly exercise state transitions.
     //
@@ -1142,7 +1142,7 @@ mod tests {
         let (_, mut pmtud) = start_search(timer);
         assert!(matches!(pmtud.state, State::Searching));
 
-        // Complete the initial probe for 1232.
+        // Complete the initial probe for 1282.
         let pending = pmtud.pending_probe.as_ref().unwrap();
         pmtud.pong_received(
             &wire::Pong {
@@ -1166,16 +1166,16 @@ mod tests {
 
         // Search now complete with PMTU 1232 and PMTU_RAISE_TIMER pending
         assert!(matches!(pmtud.state, State::SearchComplete));
-        assert_eq!(pmtud.plpmtu, 1232);
+        assert_eq!(pmtud.plpmtu, 1282);
         timer.expect_pending(Duration::from_secs(600));
 
         (action, pmtud)
     }
 
-    #[test_case(1232 => 1232; "no increase")]
-    #[test_case(1296 => 1296; "middle (exact multiple of big step)")]
-    #[test_case(1304 => 1304; "middle (exact multiple of small step)")]
-    #[test_case(1308 => 1304; "middle (multiple of neither big nor small step)")]
+    #[test_case(1282 => 1282; "no increase")]
+    #[test_case(1314 => 1314; "middle (exact multiple of big step)")]
+    #[test_case(1322 => 1322; "middle (exact multiple of small step)")]
+    #[test_case(1324 => 1322; "middle (multiple of neither big nor small step)")]
     #[test_case(max_dtls_mtu(1500) as u16 => 1419; "max")]
     #[test_case(1500 => 1419; "max wire")]
     fn confirm_succeeds_then_raise(second_plpmtu: u16) -> u16 {
@@ -1317,7 +1317,7 @@ mod tests {
 
         // 3rd and final CONFIRM probe fails, back to `Base`
         let action = pmtud.tick(&mut ());
-        assert!(matches!(action, Action::SendProbe{size, ..} if size == 1200 - 1 - 4));
+        assert!(matches!(action, Action::SendProbe{size, ..} if size == 1250 - 1 - 4));
         assert!(matches!(pmtud.state, State::Base));
         assert_eq!(pmtud.probe_count, 1);
         timer.expect_pending(Duration::from_secs(5));
