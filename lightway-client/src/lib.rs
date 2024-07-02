@@ -149,7 +149,7 @@ struct ClientIpConfigCb;
 
 impl ClientIpConfig<ConnectionState> for ClientIpConfigCb {
     fn ip_config(&self, state: &mut ConnectionState, ip_config: InsideIpConfig) {
-        println!("Got IP from server: {ip_config:?}");
+        tracing::debug!("Got IP from server: {ip_config:?}");
         state.ip_config = Some(ip_config);
     }
 }
@@ -171,7 +171,7 @@ async fn handle_events(mut stream: EventStream, keepalive: Keepalive) {
     while let Some(event) = stream.next().await {
         match event {
             Event::StateChanged(state) => {
-                println!("State changed to {:?}", state);
+                tracing::debug!("State changed to {:?}", state);
                 if matches!(state, State::Online) {
                     keepalive.online().await
                 }
@@ -310,7 +310,7 @@ pub async fn client(config: ClientConfig<'_>) -> Result<()> {
                 if err.is_fatal(connection_type) {
                     break err.into();
                 }
-                eprintln!("Failed to process outside data: {err}");
+                tracing::error!("Failed to process outside data: {err}");
             }
 
             keepalive.outside_activity().await
