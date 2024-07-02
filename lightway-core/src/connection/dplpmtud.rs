@@ -1112,14 +1112,14 @@ mod tests {
                 pmtud.tick(&mut ())
             };
 
-            // BASE_PLPMTU (1200) .. 1500 is 300 bytes.
+            // BASE_PLPMTU (1250) .. 1500 is 250 bytes.
             //
-            // 300 / PROBE_BIG_STEP = 37.5 and PROBE_BIG_STEP /
+            // 250 / PROBE_BIG_STEP = 7.8 and PROBE_BIG_STEP /
             // PROBE_SMALL_STEP = 4.
             //
-            // Therefore we must converge in fewer than 38 + 4 == 42
+            // Therefore we must converge in fewer than 7.8 + 4 = ~12
             // steps.
-            assert_lt!(iterations.next().unwrap(), 42);
+            assert_lt!(iterations.next().unwrap(), 12);
         }
 
         assert!(matches!(action, Action::None));
@@ -1222,14 +1222,14 @@ mod tests {
                 pmtud.tick(&mut ())
             };
 
-            // BASE_PLPMTU (1200) .. 1500 is 300 bytes.
+            // BASE_PLPMTU (1250) .. 1500 is 250 bytes.
             //
-            // 300 / PROBE_BIG_STEP = 37.5 and PROBE_BIG_STEP /
+            // 250 / PROBE_BIG_STEP = 7.8 and PROBE_BIG_STEP /
             // PROBE_SMALL_STEP = 4.
             //
-            // Therefore we must converge in fewer than 38 + 4 == 42
+            // Therefore we must converge in fewer than 7.8 + 4 = ~12
             // steps.
-            assert_lt!(iterations.next().unwrap(), 42);
+            assert_lt!(iterations.next().unwrap(), 12);
         }
 
         assert!(matches!(action, Action::None));
