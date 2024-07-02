@@ -81,7 +81,7 @@ const fn max_dtls_mtu(outside_mtu: usize) -> usize {
 }
 
 /// The smallest supported inside MTU.
-pub const MIN_INSIDE_MTU: usize = 1200;
+pub const MIN_INSIDE_MTU: usize = 1250;
 
 /// The largest supported inside MTU.
 pub const MAX_INSIDE_MTU: usize = 1500;
