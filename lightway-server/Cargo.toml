@@ -4,7 +4,7 @@ version = "0.1.0"
 repository = "https://github.com/expressvpn/lightway"
 edition = "2021"
 authors = ["lightway-developers@expressvpn.com"]
-license = "GPL-2.0"
+license = "GPL-2.0-only"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
