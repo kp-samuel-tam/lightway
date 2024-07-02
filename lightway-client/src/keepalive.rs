@@ -147,14 +147,14 @@ async fn keepalive<CONFIG: SleepManager, CONNECTION: Connection>(
     loop {
         tokio::select! {
             _ = token.cancelled() => {
-                println!("Keepalive cancelled");
+                tracing::debug!("Keepalive cancelled");
                 return KeepaliveResult::Cancelled;
             }
             Some(msg) = rx.recv() => {
                 match msg {
                     Message::Online  => {
                         if matches!(state, State::Offline) {
-                            println!("Starting keepalives");
+                            tracing::info!("Starting keepalives");
                             state = State::Waiting;
                         }
                     },
@@ -182,7 +182,7 @@ async fn keepalive<CONFIG: SleepManager, CONNECTION: Connection>(
 
             _ = config.sleep_for_interval(), if matches!(state, State::Waiting | State::Pending) => {
                 if let Err(e) = conn.keepalive() {
-                    eprintln!("Send Keepalive failed: {e:?}");
+                    tracing::error!("Send Keepalive failed: {e:?}");
                 }
                 if matches!(state, State::Waiting) && !config.timeout_is_zero() {
                     state = State::Pending;

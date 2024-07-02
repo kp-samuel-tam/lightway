@@ -25,7 +25,7 @@ impl Tls13SecretCallbacks for WiresharkKeyLogger {
         };
 
         if let Err(e) = keylog_file.write_all(secret.as_bytes()) {
-            eprintln!("Failed to write in file {:?}", e);
+            tracing::error!("Failed to write in file {:?}", e);
         }
     }
 }
