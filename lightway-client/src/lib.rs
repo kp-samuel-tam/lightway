@@ -13,8 +13,8 @@ use lightway_app_utils::{
 };
 use lightway_core::{
     ipv4_update_destination, ipv4_update_source, BuilderPredicates, ClientContextBuilder,
-    ClientIpConfig, ConnectionError, ConnectionType, Event, IOCallbackResult, InsideIpConfig,
-    OutsidePacket, State,
+    ClientIpConfig, ConnectionError, ConnectionType, Event, EventCallback, IOCallbackResult,
+    InsideIpConfig, OutsidePacket, State,
 };
 
 // re-export so client app does not need to depend on lightway-core
@@ -60,7 +60,7 @@ impl std::fmt::Debug for ClientConnectionType {
 
 #[derive(educe::Educe)]
 #[educe(Debug)]
-pub struct ClientConfig<'cert> {
+pub struct ClientConfig<'cert, A: 'static + Send + EventCallback> {
     /// Connection mode
     pub mode: ClientConnectionType,
 
@@ -136,6 +136,10 @@ pub struct ClientConfig<'cert> {
     /// Specifies if the program responds to INT/TERM signals
     pub exit_on_ctrlc: bool,
 
+    /// Allow injection of a custom handler for event callback
+    #[educe(Debug(ignore))]
+    pub event_handler: Option<A>,
+
     /// File path to save wireshark keylog
     #[cfg(feature = "debug")]
     pub keylog: Option<PathBuf>,
@@ -170,11 +174,14 @@ impl ConnectionTickerState for ConnectionState {
     }
 }
 
-async fn handle_events(mut stream: EventStream, keepalive: Keepalive) {
+async fn handle_events<A: 'static + Send + EventCallback>(
+    mut stream: EventStream,
+    keepalive: Keepalive,
+    event_handler: Option<A>,
+) {
     while let Some(event) = stream.next().await {
-        match event {
+        match &event {
             Event::StateChanged(state) => {
-                tracing::debug!("State changed to {:?}", state);
                 if matches!(state, State::Online) {
                     keepalive.online().await
                 }
@@ -186,10 +193,15 @@ async fn handle_events(mut stream: EventStream, keepalive: Keepalive) {
                 unreachable!("server only event received");
             }
         }
+        if let Some(ref handler) = event_handler {
+            handler.event(event);
+        }
     }
 }
 
-pub async fn client(config: ClientConfig<'_>) -> Result<()> {
+pub async fn client<A: 'static + Send + EventCallback>(
+    mut config: ClientConfig<'_, A>,
+) -> Result<()> {
     println!("Client starting with config:\n{:#?}", &config);
 
     let (connection_type, outside_io): (ConnectionType, Arc<dyn io::outside::OutsideIO>) =
@@ -280,7 +292,12 @@ pub async fn client(config: ClientConfig<'_>) -> Result<()> {
         Arc::downgrade(&conn),
     );
 
-    tokio::spawn(handle_events(event_stream, keepalive.clone()));
+    let event_handler = config.event_handler.take();
+    tokio::spawn(handle_events(
+        event_stream,
+        keepalive.clone(),
+        event_handler,
+    ));
 
     ticker_task.spawn(Arc::downgrade(&conn));
     pmtud_timer_task.spawn(Arc::downgrade(&conn));
