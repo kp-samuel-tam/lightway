@@ -133,6 +133,9 @@ pub struct ClientConfig<'cert> {
     #[educe(Debug(method(debug_fmt_plugin_list)))]
     pub outside_plugins: PluginFactoryList,
 
+    /// Specifies if the program responds to INT/TERM signals
+    pub exit_on_ctrlc: bool,
+
     /// File path to save wireshark keylog
     #[cfg(feature = "debug")]
     pub keylog: Option<PathBuf>,
@@ -368,15 +371,17 @@ pub async fn client(config: ClientConfig<'_>) -> Result<()> {
     });
 
     let (ctrlc_tx, mut ctrlc_rx) = tokio::sync::mpsc::channel(1);
-    ctrlc::set_handler(move || {
-        ctrlc_tx.blocking_send(()).expect("CtrlC handler failed");
-    })?;
+    if config.exit_on_ctrlc {
+        ctrlc::set_handler(move || {
+            ctrlc_tx.blocking_send(()).expect("CtrlC handler failed");
+        })?;
+    }
 
     tokio::select! {
         Some(_) = keepalive_task => Err(anyhow!("Keepalive timeout")),
         io = outside_io_loop => Err(anyhow!("Outside IO loop exited: {io:?}")),
         io = inside_io_loop => Err(anyhow!("Inside IO loop exited: {io:?}")),
-        _ = ctrlc_rx.recv() => {
+        _ = ctrlc_rx.recv(), if config.exit_on_ctrlc => {
             info!("sigint/sigterm received, gracefully shutting down");
             let _ = conn.lock().unwrap().disconnect();
             Err(anyhow!("sigint/sigterm received"))

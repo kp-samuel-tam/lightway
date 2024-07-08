@@ -72,6 +72,7 @@ async fn main() -> Result<()> {
         server: config.server,
         inside_plugins: Default::default(),
         outside_plugins: Default::default(),
+        exit_on_ctrlc: true,
         #[cfg(feature = "debug")]
         keylog: config.keylog,
     };
