@@ -112,11 +112,13 @@ pub struct ClientConfig<'cert> {
     pub enable_pmtud: bool,
 
     /// Enable IO-uring interface for Tunnel
+    #[cfg(feature = "io-uring")]
     pub enable_tun_iouring: bool,
 
     /// IO-uring submission queue count. Only applicable when
     /// `enable_tun_iouring` is `true`
     // Any value more than 1024 negatively impact the throughput
+    #[cfg(feature = "io-uring")]
     pub iouring_entry_count: usize,
 
     /// Server domain name to validate
@@ -209,6 +211,7 @@ pub async fn client(config: ClientConfig<'_>) -> Result<()> {
         outside_io.set_recv_buffer_size(size.as_u64().try_into()?)?;
     }
 
+    #[cfg(feature = "io-uring")]
     let iouring = if config.enable_tun_iouring {
         Some(config.iouring_entry_count)
     } else {
@@ -221,6 +224,7 @@ pub async fn client(config: ClientConfig<'_>) -> Result<()> {
             config.tun_local_ip,
             config.tun_dns_ip,
             config.inside_mtu,
+            #[cfg(feature = "io-uring")]
             iouring,
         )
         .await?,

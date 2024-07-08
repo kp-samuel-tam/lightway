@@ -1,12 +1,13 @@
 use anyhow::{anyhow, Context, Result};
 use bytes::BytesMut;
 use lightway_core::IOCallbackResult;
-use std::{
-    os::fd::{AsRawFd, RawFd},
-    sync::Arc,
-};
+
+use std::os::fd::{AsRawFd, RawFd};
+#[cfg(feature = "io-uring")]
+use std::sync::Arc;
 use tokio_tun::Tun as TokioTun;
 
+#[cfg(feature = "io-uring")]
 use crate::IOUring;
 
 /// Tun enum interface to read/write packets
@@ -14,6 +15,7 @@ pub enum Tun {
     /// using direct read/write
     Direct(TunDirect),
     /// using io_uring read/write
+    #[cfg(feature = "io-uring")]
     IoUring(TunIoUring),
 }
 
@@ -24,6 +26,7 @@ impl Tun {
     }
 
     /// Create new `Tun` instance with iouring read/write
+    #[cfg(feature = "io-uring")]
     pub async fn iouring(name: &str, mtu: Option<i32>, ring_size: usize) -> Result<Self> {
         Ok(Self::IoUring(TunIoUring::new(name, ring_size, mtu).await?))
     }
@@ -32,6 +35,7 @@ impl Tun {
     pub async fn recv_buf(&self) -> IOCallbackResult<bytes::BytesMut> {
         match self {
             Tun::Direct(t) => t.recv_buf().await,
+            #[cfg(feature = "io-uring")]
             Tun::IoUring(t) => t.recv_buf().await,
         }
     }
@@ -40,6 +44,7 @@ impl Tun {
     pub fn try_send(&self, buf: BytesMut) -> IOCallbackResult<usize> {
         match self {
             Tun::Direct(t) => t.try_send(buf),
+            #[cfg(feature = "io-uring")]
             Tun::IoUring(t) => t.try_send(buf),
         }
     }
@@ -48,6 +53,7 @@ impl Tun {
     pub fn mtu(&self) -> usize {
         match self {
             Tun::Direct(t) => t.mtu(),
+            #[cfg(feature = "io-uring")]
             Tun::IoUring(t) => t.mtu(),
         }
     }
@@ -57,6 +63,7 @@ impl AsRawFd for Tun {
     fn as_raw_fd(&self) -> RawFd {
         match self {
             Tun::Direct(t) => t.as_raw_fd(),
+            #[cfg(feature = "io-uring")]
             Tun::IoUring(t) => t.as_raw_fd(),
         }
     }
@@ -131,10 +138,12 @@ impl AsRawFd for TunDirect {
 }
 
 /// TunIoUring struct
+#[cfg(feature = "io-uring")]
 pub struct TunIoUring {
     tun_io_uring: IOUring<TunDirect>,
 }
 
+#[cfg(feature = "io-uring")]
 impl TunIoUring {
     /// Create `TunIoUring` struct
     pub async fn new(name: &str, ring_size: usize, mtu: Option<i32>) -> Result<Self> {
@@ -174,6 +183,7 @@ impl TunIoUring {
     }
 }
 
+#[cfg(feature = "io-uring")]
 impl AsRawFd for TunIoUring {
     fn as_raw_fd(&self) -> RawFd {
         self.tun_io_uring.owned_fd().as_raw_fd()
