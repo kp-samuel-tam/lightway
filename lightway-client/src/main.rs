@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::{anyhow, Result};
 use clap::CommandFactory;
+use lightway_core::{Event, EventCallback};
 use twelf::reexports::log::error;
 use twelf::Layer;
 
@@ -10,6 +11,16 @@ use lightway_client::*;
 
 mod args;
 use args::Config;
+
+struct EventHandler;
+
+impl EventCallback for EventHandler {
+    fn event(&self, event: lightway_core::Event) {
+        if let Event::StateChanged(state) = event {
+            tracing::debug!("State changed to {:?}", state);
+        }
+    }
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -74,6 +85,8 @@ async fn main() -> Result<()> {
         server: config.server,
         inside_plugins: Default::default(),
         outside_plugins: Default::default(),
+        exit_on_ctrlc: true,
+        event_handler: Some(EventHandler),
         #[cfg(feature = "debug")]
         keylog: config.keylog,
     };
