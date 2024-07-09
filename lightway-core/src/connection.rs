@@ -63,24 +63,25 @@ const WOLF_TICK_DTLS13_QUICK_TIMEOUT_DIVISOR: u32 = 4;
 
 /// Connection state
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[repr(u8)]
 pub enum State {
     /// Secure connection is being established.
-    Connecting,
+    Connecting = 2,
 
     /// Secure connection is established
-    LinkUp,
+    LinkUp = 6,
 
     /// Connection is established, client is authenticating
-    Authenticating,
+    Authenticating = 5,
     // Configuring,
     /// Tunnel is online
-    Online,
+    Online = 7,
 
     /// Disconnect is in progress
-    Disconnecting,
+    Disconnecting = 4,
 
     /// Connection has been disconnected
-    Disconnected,
+    Disconnected = 1,
 }
 
 #[derive(Debug, Error)]
