@@ -66,7 +66,9 @@ async fn main() -> Result<()> {
         sndbuf: config.sndbuf,
         rcvbuf: config.rcvbuf,
         enable_pmtud: config.enable_pmtud,
+        #[cfg(feature = "io-uring")]
         enable_tun_iouring: config.enable_tun_iouring,
+        #[cfg(feature = "io-uring")]
         iouring_entry_count: config.iouring_entry_count,
         server_dn: config.server_dn,
         server: config.server,

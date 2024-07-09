@@ -26,12 +26,15 @@ impl Tun {
         ip: Ipv4Addr,
         dns_ip: Ipv4Addr,
         mtu: Option<i32>,
-        iouring: Option<usize>,
+        #[cfg(feature = "io-uring")] iouring: Option<usize>,
     ) -> Result<Self> {
+        #[cfg(feature = "io-uring")]
         let tun = match iouring {
             Some(ring_size) => AppUtilsTun::iouring(name, mtu, ring_size).await?,
             None => AppUtilsTun::direct(name, mtu).await?,
         };
+        #[cfg(not(feature = "io-uring"))]
+        let tun = AppUtilsTun::direct(name, mtu).await?;
         Ok(Tun { tun, ip, dns_ip })
     }
 
