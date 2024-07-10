@@ -76,7 +76,7 @@ pub struct ClientConfig<'cert, A: 'static + Send + EventCallback> {
     pub outside_mtu: usize,
 
     /// Inside (tunnel) MTU (requires `CAP_NET_ADMIN`)
-    pub inside_mtu: Option<i32>,
+    pub inside_mtu: Option<u16>,
 
     /// Tun device to use
     pub tun: TunConfig,

@@ -29,13 +29,13 @@ pub enum Tun {
 
 impl Tun {
     /// Create new `Tun` instance with direct read/write
-    pub async fn direct(config: TunConfig, mtu: Option<i32>) -> Result<Self> {
+    pub async fn direct(config: TunConfig, mtu: Option<u16>) -> Result<Self> {
         Ok(Self::Direct(TunDirect::new(config, mtu)?))
     }
 
     /// Create new `Tun` instance with iouring read/write
     #[cfg(feature = "io-uring")]
-    pub async fn iouring(config: TunConfig, mtu: Option<i32>, ring_size: usize) -> Result<Self> {
+    pub async fn iouring(config: TunConfig, mtu: Option<u16>, ring_size: usize) -> Result<Self> {
         Ok(Self::IoUring(
             TunIoUring::new(config, ring_size, mtu).await?,
         ))
@@ -88,15 +88,15 @@ pub struct TunDirect {
 
 impl TunDirect {
     /// Create a new `Tun` struct
-    pub fn new(config: TunConfig, mtu: Option<i32>) -> Result<Self> {
+    pub fn new(config: TunConfig, mtu: Option<u16>) -> Result<Self> {
         let mut tun2_config = tun2::Configuration::default();
 
         match config {
             TunConfig::Name(n) => tun2_config.tun_name(n),
         };
 
-        if let Some(m) = mtu {
-            let _ = tun2_config.mtu(m as u16);
+        if let Some(value) = mtu {
+            let _ = tun2_config.mtu(value);
         }
 
         let tun = tun2::create_as_async(&tun2_config)?;
@@ -157,7 +157,7 @@ pub struct TunIoUring {
 #[cfg(feature = "io-uring")]
 impl TunIoUring {
     /// Create `TunIoUring` struct
-    pub async fn new(config: TunConfig, ring_size: usize, mtu: Option<i32>) -> Result<Self> {
+    pub async fn new(config: TunConfig, ring_size: usize, mtu: Option<u16>) -> Result<Self> {
         let tun = TunDirect::new(config, mtu)?;
         let mtu = tun.mtu();
         let tun_io_uring = IOUring::new(Arc::new(tun), ring_size, ring_size, mtu).await?;

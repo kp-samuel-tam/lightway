@@ -25,7 +25,7 @@ impl Tun {
         tun: TunConfig,
         ip: Ipv4Addr,
         dns_ip: Ipv4Addr,
-        mtu: Option<i32>,
+        mtu: Option<u16>,
         #[cfg(feature = "io-uring")] iouring: Option<usize>,
     ) -> Result<Self> {
         #[cfg(feature = "io-uring")]

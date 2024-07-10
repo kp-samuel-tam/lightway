@@ -35,7 +35,7 @@ pub struct Config {
 
     /// Inside (tunnel) MTU (requires `CAP_NET_ADMIN`)
     #[clap(long)]
-    pub inside_mtu: Option<i32>,
+    pub inside_mtu: Option<u16>,
 
     /// Tun device name to use
     #[clap(short, long, default_value = "lightway")]
