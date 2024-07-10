@@ -6,7 +6,7 @@ use lightway_core::{Event, EventCallback};
 use twelf::reexports::log::error;
 use twelf::Layer;
 
-use lightway_app_utils::{args::ConnectionType, is_file_path_valid};
+use lightway_app_utils::{args::ConnectionType, is_file_path_valid, TunConfig};
 use lightway_client::*;
 
 mod args;
@@ -59,13 +59,15 @@ async fn main() -> Result<()> {
 
     let root_ca_cert = RootCertificate::PemFileOrDirectory(&config.ca_cert);
 
+    let tun = TunConfig::Name(config.tun_name);
+
     let config = ClientConfig {
         mode,
         auth,
         root_ca_cert,
         outside_mtu: config.outside_mtu,
         inside_mtu: config.inside_mtu,
-        tun_name: config.tun_name,
+        tun,
         tun_local_ip: config.tun_local_ip,
         tun_peer_ip: config.tun_peer_ip,
         tun_dns_ip: config.tun_dns_ip,

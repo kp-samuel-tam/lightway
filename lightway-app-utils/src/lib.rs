@@ -25,7 +25,9 @@ pub use event_stream::{EventStream, EventStreamCallback};
 #[cfg(feature = "io-uring")]
 pub use iouring::IOUring;
 
-pub use tun::Tun;
+pub use tun::{Tun, TunConfig, TunDirect};
+#[cfg(feature = "io-uring")]
+pub use tun::TunIoUring;
 
 #[cfg(feature = "io-uring")]
 mod metrics;

@@ -11,7 +11,7 @@ use tracing::{error, trace};
 use twelf::Layer;
 
 use args::Config;
-use lightway_app_utils::is_file_path_valid;
+use lightway_app_utils::{is_file_path_valid, TunConfig};
 use lightway_server::{server, ServerAuth, ServerAuthResult, ServerConfig};
 
 struct Auth {
@@ -91,12 +91,14 @@ async fn main() -> Result<()> {
         password: config.password.to_string(),
     };
 
+    let tun = TunConfig::Name(config.tun_name.into());
+
     let config = ServerConfig {
         connection_type: config.mode.into(),
         auth,
         server_cert: config.server_cert,
         server_key: config.server_key,
-        tun_name: config.tun_name,
+        tun,
         ip_pool: config.ip_pool,
         tun_ip: config.tun_ip,
         lightway_server_ip: config.lightway_server_ip,

@@ -9,7 +9,7 @@ use bytesize::ByteSize;
 use keepalive::Keepalive;
 use lightway_app_utils::{
     args::Cipher, connection_ticker_cb, ConnectionTicker, ConnectionTickerState, DplpmtudTimer,
-    EventStream, EventStreamCallback,
+    EventStream, EventStreamCallback, TunConfig,
 };
 use lightway_core::{
     ipv4_update_destination, ipv4_update_source, BuilderPredicates, ClientContextBuilder,
@@ -78,8 +78,8 @@ pub struct ClientConfig<'cert, A: 'static + Send + EventCallback> {
     /// Inside (tunnel) MTU (requires `CAP_NET_ADMIN`)
     pub inside_mtu: Option<i32>,
 
-    /// Tun device name to use
-    pub tun_name: String,
+    /// Tun device to use
+    pub tun: TunConfig,
 
     /// Local IP to use in Tun device
     pub tun_local_ip: Ipv4Addr,
@@ -235,7 +235,7 @@ pub async fn client<A: 'static + Send + EventCallback>(
 
     let inside_io = Arc::new(
         io::inside::Tun::new(
-            &config.tun_name,
+            config.tun,
             config.tun_local_ip,
             config.tun_dns_ip,
             config.inside_mtu,

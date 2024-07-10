@@ -10,6 +10,13 @@ use tokio_tun::Tun as TokioTun;
 #[cfg(feature = "io-uring")]
 use crate::IOUring;
 
+/// TunConfig enum interface to read/write packets
+#[derive(Debug)]
+pub enum TunConfig {
+    /// Tunnel interface name
+    Name(String),
+}
+
 /// Tun enum interface to read/write packets
 pub enum Tun {
     /// using direct read/write
@@ -21,14 +28,14 @@ pub enum Tun {
 
 impl Tun {
     /// Create new `Tun` instance with direct read/write
-    pub async fn direct(name: &str, mtu: Option<i32>) -> Result<Self> {
-        Ok(Self::Direct(TunDirect::new(name, mtu)?))
+    pub async fn direct(config: TunConfig, mtu: Option<i32>) -> Result<Self> {
+        Ok(Self::Direct(TunDirect::new(config, mtu)?))
     }
 
     /// Create new `Tun` instance with iouring read/write
     #[cfg(feature = "io-uring")]
-    pub async fn iouring(name: &str, mtu: Option<i32>, ring_size: usize) -> Result<Self> {
-        Ok(Self::IoUring(TunIoUring::new(name, ring_size, mtu).await?))
+    pub async fn iouring(config: TunConfig, mtu: Option<i32>, ring_size: usize) -> Result<Self> {
+        Ok(Self::IoUring(TunIoUring::new(config, ring_size, mtu).await?))
     }
 
     /// Recv a packet from `Tun`
@@ -77,8 +84,10 @@ pub struct TunDirect {
 
 impl TunDirect {
     /// Create a new `Tun` struct
-    pub fn new(name: &str, mtu: Option<i32>) -> Result<Self> {
-        let tun_builder = TokioTun::builder().name(name).tap(false).packet_info(false);
+    pub fn new(config: TunConfig, mtu: Option<i32>) -> Result<Self> {
+        let tun_builder = match config {
+            TunConfig::Name(n) => TokioTun::builder().name(&n).tap(false).packet_info(false)
+        };
 
         let tun_builder = if let Some(mtu) = mtu {
             tun_builder.mtu(mtu)
@@ -146,8 +155,8 @@ pub struct TunIoUring {
 #[cfg(feature = "io-uring")]
 impl TunIoUring {
     /// Create `TunIoUring` struct
-    pub async fn new(name: &str, ring_size: usize, mtu: Option<i32>) -> Result<Self> {
-        let tun = TunDirect::new(name, mtu)?;
+    pub async fn new(config: TunConfig, ring_size: usize, mtu: Option<i32>) -> Result<Self> {
+        let tun = TunDirect::new(config, mtu)?;
         let mtu = tun.mtu();
         let tun_io_uring = IOUring::new(Arc::new(tun), ring_size, ring_size, mtu).await?;
 
