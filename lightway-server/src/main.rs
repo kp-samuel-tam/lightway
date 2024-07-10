@@ -91,7 +91,7 @@ async fn main() -> Result<()> {
         password: config.password.to_string(),
     };
 
-    let tun = TunConfig::Name(config.tun_name.into());
+    let tun = TunConfig::Name(config.tun_name);
 
     let config = ServerConfig {
         connection_type: config.mode.into(),

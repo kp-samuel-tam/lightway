@@ -1,11 +1,12 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::Result;
 use bytes::BytesMut;
 use lightway_core::IOCallbackResult;
 
 use std::os::fd::{AsRawFd, RawFd};
+use tun2::{AbstractDevice, AsyncDevice as TokioTun};
+
 #[cfg(feature = "io-uring")]
 use std::sync::Arc;
-use tokio_tun::Tun as TokioTun;
 
 #[cfg(feature = "io-uring")]
 use crate::IOUring;
@@ -35,7 +36,9 @@ impl Tun {
     /// Create new `Tun` instance with iouring read/write
     #[cfg(feature = "io-uring")]
     pub async fn iouring(config: TunConfig, mtu: Option<i32>, ring_size: usize) -> Result<Self> {
-        Ok(Self::IoUring(TunIoUring::new(config, ring_size, mtu).await?))
+        Ok(Self::IoUring(
+            TunIoUring::new(config, ring_size, mtu).await?,
+        ))
     }
 
     /// Recv a packet from `Tun`
@@ -79,35 +82,33 @@ impl AsRawFd for Tun {
 /// Tun struct
 pub struct TunDirect {
     tun: TokioTun,
-    mtu: usize,
+    mtu: u16,
+    fd: RawFd,
 }
 
 impl TunDirect {
     /// Create a new `Tun` struct
     pub fn new(config: TunConfig, mtu: Option<i32>) -> Result<Self> {
-        let tun_builder = match config {
-            TunConfig::Name(n) => TokioTun::builder().name(&n).tap(false).packet_info(false)
+        let mut tun2_config = tun2::Configuration::default();
+
+        match config {
+            TunConfig::Name(n) => tun2_config.tun_name(n),
         };
 
-        let tun_builder = if let Some(mtu) = mtu {
-            tun_builder.mtu(mtu)
-        } else {
-            tun_builder
-        };
+        if let Some(m) = mtu {
+            let _ = tun2_config.mtu(m as u16);
+        }
 
-        let tun = tun_builder
-            .try_build()
-            .map_err(|e| anyhow!(e))
-            .context("Tun creation")?;
+        let tun = tun2::create_as_async(&tun2_config)?;
+        let fd = tun.as_ref().as_raw_fd();
+        let mtu = tun.as_ref().mtu()?;
 
-        let mtu: usize = tun.mtu()? as usize;
-
-        Ok(TunDirect { tun, mtu })
+        Ok(TunDirect { tun, mtu, fd })
     }
 
     /// Recv from Tun
     pub async fn recv_buf(&self) -> IOCallbackResult<bytes::BytesMut> {
-        let mut buf = BytesMut::zeroed(self.mtu);
+        let mut buf = BytesMut::zeroed(self.mtu as usize);
         match self.tun.recv(buf.as_mut()).await {
             // TODO: Check whether we can use poll
             // Getting spurious reads
@@ -124,8 +125,9 @@ impl TunDirect {
     }
 
     /// Try write from Tun
-    pub fn try_send(&self, mut buf: BytesMut) -> IOCallbackResult<usize> {
-        match self.tun.try_send(buf.as_mut()) {
+    pub fn try_send(&self, buf: BytesMut) -> IOCallbackResult<usize> {
+        let try_send_res = self.tun.as_ref().send(&buf[..]);
+        match try_send_res {
             Ok(nr) => IOCallbackResult::Ok(nr),
             Err(err) if matches!(err.kind(), std::io::ErrorKind::WouldBlock) => {
                 IOCallbackResult::WouldBlock
@@ -136,13 +138,13 @@ impl TunDirect {
 
     /// MTU of Tun
     pub fn mtu(&self) -> usize {
-        self.mtu
+        self.mtu as usize
     }
 }
 
 impl AsRawFd for TunDirect {
     fn as_raw_fd(&self) -> RawFd {
-        self.tun.as_raw_fd()
+        self.fd
     }
 }
 
