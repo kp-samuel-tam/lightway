@@ -241,7 +241,7 @@ pub async fn server<SA: ServerAuth + Sync + Send + 'static>(
         _ = ctrlc_rx.recv() => {
             info!("Sigterm or Sigint received");
             conn_manager.close_all_connections();
-            Err(anyhow!("sigint/sigterm received"))
+            Ok(())
         }
     }
 }
