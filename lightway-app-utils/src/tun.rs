@@ -16,6 +16,8 @@ use crate::IOUring;
 pub enum TunConfig {
     /// Tunnel interface name
     Name(String),
+    /// Tunnel RawFd
+    Fd(RawFd),
 }
 
 /// Tun enum interface to read/write packets
@@ -93,6 +95,7 @@ impl TunDirect {
 
         match config {
             TunConfig::Name(n) => tun2_config.tun_name(n),
+            TunConfig::Fd(fd) => tun2_config.raw_fd(fd),
         };
 
         if let Some(value) = mtu {
