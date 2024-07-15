@@ -65,6 +65,11 @@ async fn main() -> Result<()> {
         tun_config.mtu(*inside_mtu);
     }
 
+    let (ctrlc_tx, ctrlc_rx) = tokio::sync::mpsc::channel(1);
+    ctrlc::set_handler(move || {
+        ctrlc_tx.blocking_send(()).expect("CtrlC handler failed");
+    })?;
+
     let config = ClientConfig {
         mode,
         auth,
@@ -91,7 +96,7 @@ async fn main() -> Result<()> {
         server: config.server,
         inside_plugins: Default::default(),
         outside_plugins: Default::default(),
-        exit_on_ctrlc: true,
+        stop_signal: ctrlc_rx,
         event_handler: Some(EventHandler),
         #[cfg(feature = "debug")]
         keylog: config.keylog,

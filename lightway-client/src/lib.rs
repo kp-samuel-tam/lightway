@@ -34,6 +34,7 @@ use std::{
 use tokio::{
     net::{TcpStream, UdpSocket},
     task::JoinHandle,
+    sync::mpsc::Receiver
 };
 use tokio_stream::StreamExt;
 use tracing::info;
@@ -136,7 +137,8 @@ pub struct ClientConfig<'cert, A: 'static + Send + EventCallback> {
     pub outside_plugins: PluginFactoryList,
 
     /// Specifies if the program responds to INT/TERM signals
-    pub exit_on_ctrlc: bool,
+    #[educe(Debug(ignore))]
+    pub stop_signal: Receiver<()>,
 
     /// Allow injection of a custom handler for event callback
     #[educe(Debug(ignore))]
@@ -390,19 +392,12 @@ pub async fn client<A: 'static + Send + EventCallback>(
         }
     });
 
-    let (ctrlc_tx, mut ctrlc_rx) = tokio::sync::mpsc::channel(1);
-    if config.exit_on_ctrlc {
-        ctrlc::set_handler(move || {
-            ctrlc_tx.blocking_send(()).expect("CtrlC handler failed");
-        })?;
-    }
-
     tokio::select! {
         Some(_) = keepalive_task => Err(anyhow!("Keepalive timeout")),
         io = outside_io_loop => Err(anyhow!("Outside IO loop exited: {io:?}")),
         io = inside_io_loop => Err(anyhow!("Inside IO loop exited: {io:?}")),
-        _ = ctrlc_rx.recv(), if config.exit_on_ctrlc => {
-            info!("sigint/sigterm received, gracefully shutting down");
+        _ = config.stop_signal.recv() => {
+            info!("client shutting down ..");
             let _ = conn.lock().unwrap().disconnect();
             Ok(())
         }
