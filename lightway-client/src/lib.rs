@@ -79,7 +79,7 @@ pub struct ClientConfig<'cert, A: 'static + Send + EventCallback> {
     pub inside_mtu: Option<u16>,
 
     /// Tun device to use
-    pub tun: TunConfig,
+    pub tun_config: TunConfig,
 
     /// Local IP to use in Tun device
     pub tun_local_ip: Ipv4Addr,
@@ -235,10 +235,9 @@ pub async fn client<A: 'static + Send + EventCallback>(
 
     let inside_io = Arc::new(
         io::inside::Tun::new(
-            config.tun,
+            config.tun_config,
             config.tun_local_ip,
             config.tun_dns_ip,
-            config.inside_mtu,
             #[cfg(feature = "io-uring")]
             iouring,
         )

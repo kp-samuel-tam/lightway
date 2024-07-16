@@ -66,7 +66,7 @@ pub struct ServerConfig<SA: ServerAuth> {
     pub server_key: PathBuf,
 
     /// Tun device name to use
-    pub tun: TunConfig,
+    pub tun_config: TunConfig,
 
     /// IP pool to assign clients
     pub ip_pool: Ipv4Net,
@@ -156,7 +156,7 @@ pub async fn server<SA: ServerAuth + Sync + Send + 'static>(
     } else {
         None
     };
-    let inside_io = Arc::new(io::inside::Tun::new(config.tun, iouring).await?);
+    let inside_io = Arc::new(io::inside::Tun::new(config.tun_config, iouring).await?);
 
     let ctx = ServerContextBuilder::new(
         connection_type,

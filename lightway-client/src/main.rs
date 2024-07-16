@@ -59,7 +59,11 @@ async fn main() -> Result<()> {
 
     let root_ca_cert = RootCertificate::PemFileOrDirectory(&config.ca_cert);
 
-    let tun = TunConfig::Name(config.tun_name);
+    let mut tun_config = TunConfig::default();
+    tun_config.tun_name(config.tun_name);
+    if let Some(inside_mtu) = &config.inside_mtu {
+        tun_config.mtu(*inside_mtu);
+    }
 
     let config = ClientConfig {
         mode,
@@ -67,7 +71,7 @@ async fn main() -> Result<()> {
         root_ca_cert,
         outside_mtu: config.outside_mtu,
         inside_mtu: config.inside_mtu,
-        tun,
+        tun_config,
         tun_local_ip: config.tun_local_ip,
         tun_peer_ip: config.tun_peer_ip,
         tun_dns_ip: config.tun_dns_ip,

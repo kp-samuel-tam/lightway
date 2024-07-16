@@ -16,8 +16,8 @@ pub(crate) struct Tun(AppUtilsTun);
 impl Tun {
     pub async fn new(tun: TunConfig, iouring: Option<usize>) -> Result<Self> {
         let tun = match iouring {
-            Some(ring_size) => AppUtilsTun::iouring(tun, None, ring_size).await?,
-            None => AppUtilsTun::direct(tun, None).await?,
+            Some(ring_size) => AppUtilsTun::iouring(tun, ring_size).await?,
+            None => AppUtilsTun::direct(tun).await?,
         };
         Ok(Tun(tun))
     }
