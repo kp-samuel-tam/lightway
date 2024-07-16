@@ -3,7 +3,7 @@ mod io;
 mod keepalive;
 
 use crate::io::inside::InsideIO;
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use bytes::BytesMut;
 use bytesize::ByteSize;
 use keepalive::Keepalive;
@@ -33,8 +33,8 @@ use std::{
 };
 use tokio::{
     net::{TcpStream, UdpSocket},
+    sync::mpsc::Receiver,
     task::JoinHandle,
-    sync::mpsc::Receiver
 };
 use tokio_stream::StreamExt;
 use tracing::info;
@@ -211,11 +211,15 @@ pub async fn client<A: 'static + Send + EventCallback>(
     let (connection_type, outside_io): (ConnectionType, Arc<dyn io::outside::OutsideIO>) =
         match config.mode {
             ClientConnectionType::Datagram(maybe_sock) => {
-                let sock = io::outside::Udp::new(&config.server, maybe_sock).await?;
+                let sock = io::outside::Udp::new(&config.server, maybe_sock)
+                    .await
+                    .context("Outside IO UDP")?;
                 (ConnectionType::Datagram, sock)
             }
             ClientConnectionType::Stream(maybe_sock) => {
-                let sock = io::outside::Tcp::new(&config.server, maybe_sock).await?;
+                let sock = io::outside::Tcp::new(&config.server, maybe_sock)
+                    .await
+                    .context("Outside IO TCP")?;
                 (ConnectionType::Stream, sock)
             }
         };
@@ -243,7 +247,8 @@ pub async fn client<A: 'static + Send + EventCallback>(
             #[cfg(feature = "io-uring")]
             iouring,
         )
-        .await?,
+        .await
+        .context("Tun creation")?,
     );
 
     let (event_cb, event_stream) = EventStreamCallback::new();
