@@ -405,7 +405,7 @@ pub async fn client<A: 'static + Send + EventCallback>(
         _ = ctrlc_rx.recv(), if config.exit_on_ctrlc => {
             info!("sigint/sigterm received, gracefully shutting down");
             let _ = conn.lock().unwrap().disconnect();
-            Err(anyhow!("sigint/sigterm received"))
+            Ok(())
         }
     }
 }
