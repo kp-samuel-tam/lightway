@@ -237,6 +237,7 @@ enum ConnectionMode<AppState> {
         auth_handle: Option<Box<dyn ServerAuthHandle + Sync + Send>>,
         ip_pool: ServerIpPoolArg<AppState>,
         key_update_interval: Duration,
+        key_update_pending: bool,
         last_key_update: Instant,
         rng: Arc<Mutex<dyn rand_core::CryptoRngCore + Send>>,
         /// `Some(_)` iff a session ID rotation is in progress.
@@ -1022,6 +1023,7 @@ impl<AppState: Send> Connection<AppState> {
         // Only if a server
         let ConnectionMode::Server {
             key_update_interval,
+            key_update_pending,
             last_key_update,
             ..
         } = &mut self.mode
@@ -1029,8 +1031,11 @@ impl<AppState: Send> Connection<AppState> {
             return Ok(());
         };
 
-        // Only if enabled and due
-        if !key_update_interval.is_zero() && last_key_update.elapsed() < *key_update_interval {
+        // Only if enabled, not already pending and due
+        if !key_update_interval.is_zero()
+            && !*key_update_pending
+            && last_key_update.elapsed() < *key_update_interval
+        {
             return Ok(());
         }
 
@@ -1053,6 +1058,7 @@ impl<AppState: Send> Connection<AppState> {
             // actual update will happen at some future `try_write`.
             wolfssl::Poll::PendingWrite | wolfssl::Poll::PendingRead | wolfssl::Poll::Ready(_) => {
                 *last_key_update = Instant::now();
+                *key_update_pending = true;
                 self.event(Event::TlsKeysUpdateStart);
                 Ok(())
             }
@@ -1160,6 +1166,16 @@ impl<AppState: Send> Connection<AppState> {
         }
 
         self.maybe_update_tls_keys()?;
+        if let ConnectionMode::Server {
+            key_update_pending, ..
+        } = &mut self.mode
+        {
+            let pending = self.session.is_update_keys_pending();
+            if *key_update_pending && !pending {
+                *key_update_pending = false;
+                self.event(Event::TlsKeysUpdateCompleted);
+            }
+        }
 
         Ok(frames_read)
     }

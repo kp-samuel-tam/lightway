@@ -22,4 +22,8 @@ pub enum Event {
     ///
     /// Server connections only
     TlsKeysUpdateStart,
+    /// A key rollover was completed for a TLS or DTLS 1.3 connection.
+    ///
+    /// Server connections only
+    TlsKeysUpdateCompleted,
 }

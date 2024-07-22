@@ -339,6 +339,7 @@ impl<'a, AppState: Send + 'static> ServerConnectionBuilder<'a, AppState> {
                 auth_handle: None,
                 ip_pool: self.ip_pool,
                 key_update_interval: self.ctx.key_update_interval,
+                key_update_pending: false,
                 last_key_update: std::time::Instant::now(),
                 rng: self.ctx.rng.clone(),
                 pending_session_id: None,

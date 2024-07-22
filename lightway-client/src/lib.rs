@@ -195,7 +195,9 @@ async fn handle_events<A: 'static + Send + EventCallback>(
             Event::KeepaliveReply => keepalive.reply_received().await,
 
             // Server only events
-            Event::SessionIdRotationAcknowledged { .. } | Event::TlsKeysUpdateStart => {
+            Event::SessionIdRotationAcknowledged { .. }
+            | Event::TlsKeysUpdateStart
+            | Event::TlsKeysUpdateCompleted => {
                 unreachable!("server only event received");
             }
         }

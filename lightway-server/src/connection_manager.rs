@@ -163,6 +163,7 @@ async fn handle_events(mut stream: EventStream, conn: Weak<Connection>) {
                 handle_finalize_session_rotation(&conn, old, new);
             }
             Event::TlsKeysUpdateStart => handle_tls_keys_update_start(&conn),
+            Event::TlsKeysUpdateCompleted => {}
         }
     }
 }
