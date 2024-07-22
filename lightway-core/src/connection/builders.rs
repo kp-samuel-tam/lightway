@@ -8,7 +8,7 @@ use thiserror::Error;
 use wolfssl::Tls13SecretCallbacksArg;
 
 use crate::{
-    connection::{dplpmtud, fragment_map::FragmentMap, EventCallbackArg},
+    connection::{dplpmtud, fragment_map::FragmentMap, key_update, EventCallbackArg},
     context::ServerAuthArg,
     dtls_required_outside_mtu, max_dtls_outside_mtu,
     plugin::PluginFactoryError,
@@ -338,9 +338,7 @@ impl<'a, AppState: Send + 'static> ServerConnectionBuilder<'a, AppState> {
                 auth: self.auth,
                 auth_handle: None,
                 ip_pool: self.ip_pool,
-                key_update_interval: self.ctx.key_update_interval,
-                key_update_pending: false,
-                last_key_update: std::time::Instant::now(),
+                key_update: key_update::State::new(self.ctx.key_update_interval),
                 rng: self.ctx.rng.clone(),
                 pending_session_id: None,
             },

@@ -3,6 +3,7 @@ pub(crate) mod dplpmtud;
 mod event;
 mod fragment_map;
 mod io_adapter;
+mod key_update;
 
 use bytes::{Bytes, BytesMut};
 use rand::Rng;
@@ -236,9 +237,7 @@ enum ConnectionMode<AppState> {
         /// Set after successful authentication.
         auth_handle: Option<Box<dyn ServerAuthHandle + Sync + Send>>,
         ip_pool: ServerIpPoolArg<AppState>,
-        key_update_interval: Duration,
-        key_update_pending: bool,
-        last_key_update: Instant,
+        key_update: key_update::State,
         rng: Arc<Mutex<dyn rand_core::CryptoRngCore + Send>>,
         /// `Some(_)` iff a session ID rotation is in progress.
         pending_session_id: Option<SessionId>,
@@ -564,11 +563,8 @@ impl<AppState: Send> Connection<AppState> {
             return;
         }
 
-        let key_update_pending = if let ConnectionMode::Server {
-            key_update_pending, ..
-        } = &self.mode
-        {
-            *key_update_pending
+        let key_update_pending = if let ConnectionMode::Server { key_update, .. } = &self.mode {
+            key_update.is_pending()
         } else {
             false
         };
@@ -1024,34 +1020,20 @@ impl<AppState: Send> Connection<AppState> {
     // Trigger a periodic key update for TLS/DTLS 1.3 server
     // connections.
     fn maybe_update_tls_keys(&mut self) -> ConnectionResult<()> {
-        // Only if online
-        if !matches!(self.state, State::Online) {
-            return Ok(());
-        }
-
-        // Only if a server
-        let ConnectionMode::Server {
-            key_update_interval,
-            key_update_pending,
-            last_key_update,
-            ..
-        } = &mut self.mode
-        else {
-            return Ok(());
-        };
-
-        // Only if enabled, not already pending and due
-        if !key_update_interval.is_zero()
-            && !*key_update_pending
-            && last_key_update.elapsed() < *key_update_interval
-        {
-            return Ok(());
-        }
-
         // Only for TLS/DTLS 1.3
         match self.tls_protocol_version() {
             ProtocolVersion::DtlsV1_3 | ProtocolVersion::TlsV1_3 => {}
             _ => return Ok(()),
+        }
+
+        // Only if a server
+        let ConnectionMode::Server { key_update, .. } = &mut self.mode else {
+            return Ok(());
+        };
+
+        // Is a key update required
+        if !key_update.required() {
+            return Ok(());
         }
 
         // It's time to update keys!
@@ -1066,7 +1048,6 @@ impl<AppState: Send> Connection<AppState> {
             // So we need not worry about `PendingWrite` here -- the
             // actual update will happen at some future `try_write`.
             wolfssl::Poll::PendingWrite | wolfssl::Poll::PendingRead | wolfssl::Poll::Ready(_) => {
-                *key_update_pending = true;
                 self.event(Event::TlsKeysUpdateStart);
                 self.update_tick_interval();
                 Ok(())
@@ -1175,16 +1156,9 @@ impl<AppState: Send> Connection<AppState> {
         }
 
         self.maybe_update_tls_keys()?;
-        if let ConnectionMode::Server {
-            last_key_update,
-            key_update_pending,
-            ..
-        } = &mut self.mode
-        {
+        if let ConnectionMode::Server { key_update, .. } = &mut self.mode {
             let pending = self.session.is_update_keys_pending();
-            if *key_update_pending && !pending {
-                *key_update_pending = false;
-                *last_key_update = Instant::now();
+            if !pending && key_update.complete() {
                 self.event(Event::TlsKeysUpdateCompleted);
                 self.update_tick_interval()
             }
@@ -1238,7 +1212,7 @@ impl<AppState: Send> Connection<AppState> {
             auth,
             auth_handle,
             ip_pool,
-            last_key_update,
+            key_update,
             ..
         } = &mut self.mode
         else {
@@ -1265,7 +1239,7 @@ impl<AppState: Send> Connection<AppState> {
                 tunnel_protocol_version,
                 handle,
             } => {
-                *last_key_update = Instant::now();
+                key_update.online();
 
                 let msg = wire::Frame::AuthSuccessWithConfigV4(wire::AuthSuccessWithConfigV4 {
                     local_ip: ip_config.client_ip.to_string(),
