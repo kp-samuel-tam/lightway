@@ -1209,6 +1209,7 @@ impl<AppState: Send> Connection<AppState> {
             auth,
             auth_handle,
             ip_pool,
+            last_key_update,
             ..
         } = &mut self.mode
         else {
@@ -1235,6 +1236,8 @@ impl<AppState: Send> Connection<AppState> {
                 tunnel_protocol_version,
                 handle,
             } => {
+                *last_key_update = Instant::now();
+
                 let msg = wire::Frame::AuthSuccessWithConfigV4(wire::AuthSuccessWithConfigV4 {
                     local_ip: ip_config.client_ip.to_string(),
                     peer_ip: ip_config.server_ip.to_string(),
