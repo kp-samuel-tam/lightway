@@ -564,7 +564,16 @@ impl<AppState: Send> Connection<AppState> {
             return;
         }
 
-        if matches!(self.state, State::Online) {
+        let key_update_pending = if let ConnectionMode::Server {
+            key_update_pending, ..
+        } = &self.mode
+        {
+            *key_update_pending
+        } else {
+            false
+        };
+
+        if matches!(self.state, State::Online) && !key_update_pending {
             self.wolfssl_tick_interval = None;
             return;
         }
@@ -1060,6 +1069,7 @@ impl<AppState: Send> Connection<AppState> {
                 *last_key_update = Instant::now();
                 *key_update_pending = true;
                 self.event(Event::TlsKeysUpdateStart);
+                self.update_tick_interval();
                 Ok(())
             }
             wolfssl::Poll::AppData(_) => {
@@ -1174,6 +1184,7 @@ impl<AppState: Send> Connection<AppState> {
             if *key_update_pending && !pending {
                 *key_update_pending = false;
                 self.event(Event::TlsKeysUpdateCompleted);
+                self.update_tick_interval()
             }
         }
 
