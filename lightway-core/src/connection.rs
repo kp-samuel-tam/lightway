@@ -1066,7 +1066,6 @@ impl<AppState: Send> Connection<AppState> {
             // So we need not worry about `PendingWrite` here -- the
             // actual update will happen at some future `try_write`.
             wolfssl::Poll::PendingWrite | wolfssl::Poll::PendingRead | wolfssl::Poll::Ready(_) => {
-                *last_key_update = Instant::now();
                 *key_update_pending = true;
                 self.event(Event::TlsKeysUpdateStart);
                 self.update_tick_interval();
@@ -1177,12 +1176,15 @@ impl<AppState: Send> Connection<AppState> {
 
         self.maybe_update_tls_keys()?;
         if let ConnectionMode::Server {
-            key_update_pending, ..
+            last_key_update,
+            key_update_pending,
+            ..
         } = &mut self.mode
         {
             let pending = self.session.is_update_keys_pending();
             if *key_update_pending && !pending {
                 *key_update_pending = false;
+                *last_key_update = Instant::now();
                 self.event(Event::TlsKeysUpdateCompleted);
                 self.update_tick_interval()
             }
