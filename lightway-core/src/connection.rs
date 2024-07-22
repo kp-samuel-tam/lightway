@@ -1053,7 +1053,7 @@ impl<AppState: Send> Connection<AppState> {
             // actual update will happen at some future `try_write`.
             wolfssl::Poll::PendingWrite | wolfssl::Poll::PendingRead | wolfssl::Poll::Ready(_) => {
                 *last_key_update = Instant::now();
-                self.event(Event::TlsKeysUpdate);
+                self.event(Event::TlsKeysUpdateStart);
                 Ok(())
             }
             wolfssl::Poll::AppData(_) => {

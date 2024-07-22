@@ -142,7 +142,7 @@ fn handle_finalize_session_rotation(conn: &Weak<Connection>, old: SessionId, new
 }
 
 #[instrument(level = "trace", skip_all)]
-fn handle_tls_keys_update(conn: &Weak<Connection>) {
+fn handle_tls_keys_update_start(conn: &Weak<Connection>) {
     let Some(conn) = conn.upgrade() else {
         info!("Connection has gone away, stopping");
         return;
@@ -162,7 +162,7 @@ async fn handle_events(mut stream: EventStream, conn: Weak<Connection>) {
             Event::SessionIdRotationAcknowledged { old, new } => {
                 handle_finalize_session_rotation(&conn, old, new);
             }
-            Event::TlsKeysUpdate => handle_tls_keys_update(&conn),
+            Event::TlsKeysUpdateStart => handle_tls_keys_update_start(&conn),
         }
     }
 }

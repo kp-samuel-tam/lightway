@@ -18,8 +18,8 @@ pub enum Event {
         /// The new [`SessionId`]
         new: SessionId,
     },
-    /// A key rollover as triggered for a TLS or DTLS 1.3 connection.
+    /// A key rollover was started for a TLS or DTLS 1.3 connection.
     ///
     /// Server connections only
-    TlsKeysUpdate,
+    TlsKeysUpdateStart,
 }
