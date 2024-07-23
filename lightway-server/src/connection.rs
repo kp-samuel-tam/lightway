@@ -154,8 +154,6 @@ impl Connection {
         };
 
         self.manager.begin_session_id_rotation(self, new_session);
-
-        metrics::udp_session_rotation_begin();
     }
 
     pub fn finalize_session_id_rotation(self: &Arc<Self>, old: SessionId, new: SessionId) {
