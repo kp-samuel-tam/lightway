@@ -86,6 +86,12 @@ pub const MIN_INSIDE_MTU: usize = 1250;
 /// The largest supported inside MTU.
 pub const MAX_INSIDE_MTU: usize = 1500;
 
+/// Enable debug logging from WolfSSL
+#[cfg(feature = "debug")]
+pub fn enable_tls_debug() {
+    wolfssl::enable_debugging(true)
+}
+
 #[cfg(feature = "fuzzing_api")]
 pub use wire::{FromWireError, FromWireResult};
 

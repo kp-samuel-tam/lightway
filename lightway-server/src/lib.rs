@@ -5,6 +5,9 @@ mod ip_manager;
 mod metrics;
 mod statistics;
 
+// re-export so server app does not need to depend on lightway-core
+#[cfg(feature = "debug")]
+pub use lightway_core::enable_tls_debug;
 pub use lightway_core::{
     PluginFactoryError, PluginFactoryList, ServerAuth, ServerAuthHandle, ServerAuthResult, Version,
 };

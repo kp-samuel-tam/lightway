@@ -10,6 +10,7 @@ license = "GPL-2.0-only"
 
 [features]
 default = ["io-uring"]
+debug = ["lightway-core/debug"]
 io-uring = ["lightway-app-utils/io-uring"]
 
 [dependencies]

@@ -12,7 +12,7 @@ use twelf::Layer;
 
 use args::Config;
 use lightway_app_utils::{is_file_path_valid, TunConfig};
-use lightway_server::{server, ServerAuth, ServerAuthResult, ServerConfig};
+use lightway_server::*;
 
 struct Auth {
     user: String,
@@ -79,6 +79,11 @@ async fn main() -> Result<()> {
         Layer::Env(Some(String::from("LW_SERVER_"))),
         Layer::Clap(matches),
     ])?;
+
+    #[cfg(feature = "debug")]
+    if config.tls_debug {
+        enable_tls_debug();
+    }
 
     let fmt = tracing_subscriber::fmt().with_max_level(config.log_level);
 
