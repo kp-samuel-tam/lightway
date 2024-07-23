@@ -655,7 +655,7 @@ impl<AppState: Send> Connection<AppState> {
     /// Valid for server connections only.
     pub fn authentication_expired(&self) -> ConnectionResult<bool> {
         let ConnectionMode::Server { auth_handle, .. } = &self.mode else {
-            return Err(ConnectionError::InvalidState);
+            return Err(ConnectionError::InvalidMode);
         };
 
         let Some(auth_handle) = auth_handle else {
@@ -1280,7 +1280,7 @@ impl<AppState: Send> Connection<AppState> {
             ip_config_cb.ip_config(&mut self.app_state, ip_config);
         } else {
             // Server should never be authenticating.
-            return Err(ConnectionError::InvalidState);
+            return Err(ConnectionError::InvalidMode);
         }
 
         // Set connection state to Online
