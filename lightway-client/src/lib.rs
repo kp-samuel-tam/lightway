@@ -3,13 +3,13 @@ mod io;
 mod keepalive;
 
 use crate::io::inside::InsideIO;
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use bytes::BytesMut;
 use bytesize::ByteSize;
 use keepalive::Keepalive;
 use lightway_app_utils::{
     args::Cipher, connection_ticker_cb, ConnectionTicker, ConnectionTickerState, DplpmtudTimer,
-    EventStream, EventStreamCallback,
+    EventStream, EventStreamCallback, TunConfig,
 };
 use lightway_core::{
     ipv4_update_destination, ipv4_update_source, BuilderPredicates, ClientContextBuilder,
@@ -33,6 +33,7 @@ use std::{
 };
 use tokio::{
     net::{TcpStream, UdpSocket},
+    sync::mpsc::Receiver,
     task::JoinHandle,
 };
 use tokio_stream::StreamExt;
@@ -76,10 +77,10 @@ pub struct ClientConfig<'cert, A: 'static + Send + EventCallback> {
     pub outside_mtu: usize,
 
     /// Inside (tunnel) MTU (requires `CAP_NET_ADMIN`)
-    pub inside_mtu: Option<i32>,
+    pub inside_mtu: Option<u16>,
 
-    /// Tun device name to use
-    pub tun_name: String,
+    /// Tun device to use
+    pub tun_config: TunConfig,
 
     /// Local IP to use in Tun device
     pub tun_local_ip: Ipv4Addr,
@@ -136,7 +137,8 @@ pub struct ClientConfig<'cert, A: 'static + Send + EventCallback> {
     pub outside_plugins: PluginFactoryList,
 
     /// Specifies if the program responds to INT/TERM signals
-    pub exit_on_ctrlc: bool,
+    #[educe(Debug(ignore))]
+    pub stop_signal: Receiver<()>,
 
     /// Allow injection of a custom handler for event callback
     #[educe(Debug(ignore))]
@@ -209,11 +211,15 @@ pub async fn client<A: 'static + Send + EventCallback>(
     let (connection_type, outside_io): (ConnectionType, Arc<dyn io::outside::OutsideIO>) =
         match config.mode {
             ClientConnectionType::Datagram(maybe_sock) => {
-                let sock = io::outside::Udp::new(&config.server, maybe_sock).await?;
+                let sock = io::outside::Udp::new(&config.server, maybe_sock)
+                    .await
+                    .context("Outside IO UDP")?;
                 (ConnectionType::Datagram, sock)
             }
             ClientConnectionType::Stream(maybe_sock) => {
-                let sock = io::outside::Tcp::new(&config.server, maybe_sock).await?;
+                let sock = io::outside::Tcp::new(&config.server, maybe_sock)
+                    .await
+                    .context("Outside IO TCP")?;
                 (ConnectionType::Stream, sock)
             }
         };
@@ -235,14 +241,14 @@ pub async fn client<A: 'static + Send + EventCallback>(
 
     let inside_io = Arc::new(
         io::inside::Tun::new(
-            &config.tun_name,
+            config.tun_config,
             config.tun_local_ip,
             config.tun_dns_ip,
-            config.inside_mtu,
             #[cfg(feature = "io-uring")]
             iouring,
         )
-        .await?,
+        .await
+        .context("Tun creation")?,
     );
 
     let (event_cb, event_stream) = EventStreamCallback::new();
@@ -391,19 +397,12 @@ pub async fn client<A: 'static + Send + EventCallback>(
         }
     });
 
-    let (ctrlc_tx, mut ctrlc_rx) = tokio::sync::mpsc::channel(1);
-    if config.exit_on_ctrlc {
-        ctrlc::set_handler(move || {
-            ctrlc_tx.blocking_send(()).expect("CtrlC handler failed");
-        })?;
-    }
-
     tokio::select! {
         Some(_) = keepalive_task => Err(anyhow!("Keepalive timeout")),
         io = outside_io_loop => Err(anyhow!("Outside IO loop exited: {io:?}")),
         io = inside_io_loop => Err(anyhow!("Inside IO loop exited: {io:?}")),
-        _ = ctrlc_rx.recv(), if config.exit_on_ctrlc => {
-            info!("sigint/sigterm received, gracefully shutting down");
+        _ = config.stop_signal.recv() => {
+            info!("client shutting down ..");
             let _ = conn.lock().unwrap().disconnect();
             Ok(())
         }

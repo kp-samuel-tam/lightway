@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use bytes::BytesMut;
 use pnet::packet::ipv4::Ipv4Packet;
 
-use lightway_app_utils::Tun as AppUtilsTun;
+use lightway_app_utils::{Tun as AppUtilsTun, TunConfig};
 use lightway_core::{
     ipv4_update_destination, ipv4_update_source, IOCallbackResult, InsideIOSendCallback,
     InsideIOSendCallbackArg, InsideIpConfig,
@@ -22,19 +22,18 @@ pub struct Tun {
 
 impl Tun {
     pub async fn new(
-        name: &str,
+        tun: TunConfig,
         ip: Ipv4Addr,
         dns_ip: Ipv4Addr,
-        mtu: Option<i32>,
         #[cfg(feature = "io-uring")] iouring: Option<usize>,
     ) -> Result<Self> {
         #[cfg(feature = "io-uring")]
         let tun = match iouring {
-            Some(ring_size) => AppUtilsTun::iouring(name, mtu, ring_size).await?,
-            None => AppUtilsTun::direct(name, mtu).await?,
+            Some(ring_size) => AppUtilsTun::iouring(tun, ring_size).await?,
+            None => AppUtilsTun::direct(tun).await?,
         };
         #[cfg(not(feature = "io-uring"))]
-        let tun = AppUtilsTun::direct(name, mtu).await?;
+        let tun = AppUtilsTun::direct(tun).await?;
         Ok(Tun { tun, ip, dns_ip })
     }
 

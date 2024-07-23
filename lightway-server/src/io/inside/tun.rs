@@ -4,7 +4,7 @@ use crate::connection::ConnectionState;
 use anyhow::Result;
 use async_trait::async_trait;
 use bytes::BytesMut;
-use lightway_app_utils::Tun as AppUtilsTun;
+use lightway_app_utils::{Tun as AppUtilsTun, TunConfig};
 use lightway_core::{
     ipv4_update_source, IOCallbackResult, InsideIOSendCallback, InsideIOSendCallbackArg,
 };
@@ -14,10 +14,10 @@ use std::sync::Arc;
 pub(crate) struct Tun(AppUtilsTun);
 
 impl Tun {
-    pub async fn new(name: &str, iouring: Option<usize>) -> Result<Self> {
+    pub async fn new(tun: TunConfig, iouring: Option<usize>) -> Result<Self> {
         let tun = match iouring {
-            Some(ring_size) => AppUtilsTun::iouring(name, None, ring_size).await?,
-            None => AppUtilsTun::direct(name, None).await?,
+            Some(ring_size) => AppUtilsTun::iouring(tun, ring_size).await?,
+            None => AppUtilsTun::direct(tun).await?,
         };
         Ok(Tun(tun))
     }

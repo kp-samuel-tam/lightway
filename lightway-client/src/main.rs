@@ -6,7 +6,7 @@ use lightway_core::{Event, EventCallback};
 use twelf::reexports::log::error;
 use twelf::Layer;
 
-use lightway_app_utils::{args::ConnectionType, is_file_path_valid};
+use lightway_app_utils::{args::ConnectionType, is_file_path_valid, TunConfig};
 use lightway_client::*;
 
 mod args;
@@ -59,13 +59,24 @@ async fn main() -> Result<()> {
 
     let root_ca_cert = RootCertificate::PemFileOrDirectory(&config.ca_cert);
 
+    let mut tun_config = TunConfig::default();
+    tun_config.tun_name(config.tun_name);
+    if let Some(inside_mtu) = &config.inside_mtu {
+        tun_config.mtu(*inside_mtu);
+    }
+
+    let (ctrlc_tx, ctrlc_rx) = tokio::sync::mpsc::channel(1);
+    ctrlc::set_handler(move || {
+        ctrlc_tx.blocking_send(()).expect("CtrlC handler failed");
+    })?;
+
     let config = ClientConfig {
         mode,
         auth,
         root_ca_cert,
         outside_mtu: config.outside_mtu,
         inside_mtu: config.inside_mtu,
-        tun_name: config.tun_name,
+        tun_config,
         tun_local_ip: config.tun_local_ip,
         tun_peer_ip: config.tun_peer_ip,
         tun_dns_ip: config.tun_dns_ip,
@@ -85,7 +96,7 @@ async fn main() -> Result<()> {
         server: config.server,
         inside_plugins: Default::default(),
         outside_plugins: Default::default(),
-        exit_on_ctrlc: true,
+        stop_signal: ctrlc_rx,
         event_handler: Some(EventHandler),
         #[cfg(feature = "debug")]
         keylog: config.keylog,

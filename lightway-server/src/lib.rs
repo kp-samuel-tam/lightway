@@ -11,7 +11,7 @@ pub use lightway_core::{
 
 use anyhow::{anyhow, Context, Result};
 use ipnet::Ipv4Net;
-use lightway_app_utils::connection_ticker_cb;
+use lightway_app_utils::{connection_ticker_cb, TunConfig};
 use lightway_core::{
     ipv4_update_destination, AuthMethod, BuilderPredicates, ConnectionError, ConnectionType,
     IOCallbackResult, InsideIpConfig, Secret, ServerContextBuilder,
@@ -66,7 +66,7 @@ pub struct ServerConfig<SA: ServerAuth> {
     pub server_key: PathBuf,
 
     /// Tun device name to use
-    pub tun_name: String,
+    pub tun_config: TunConfig,
 
     /// IP pool to assign clients
     pub ip_pool: Ipv4Net,
@@ -156,7 +156,7 @@ pub async fn server<SA: ServerAuth + Sync + Send + 'static>(
     } else {
         None
     };
-    let inside_io = Arc::new(io::inside::Tun::new(&config.tun_name, iouring).await?);
+    let inside_io = Arc::new(io::inside::Tun::new(config.tun_config, iouring).await?);
 
     let ctx = ServerContextBuilder::new(
         connection_type,
