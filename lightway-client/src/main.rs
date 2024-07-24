@@ -43,6 +43,11 @@ async fn main() -> Result<()> {
         Layer::Clap(matches),
     ])?;
 
+    #[cfg(feature = "debug")]
+    if config.tls_debug {
+        enable_tls_debug();
+    }
+
     tracing_subscriber::fmt()
         .with_max_level(config.log_level)
         .init();

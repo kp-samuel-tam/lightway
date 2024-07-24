@@ -18,6 +18,8 @@ use lightway_core::{
 };
 
 // re-export so client app does not need to depend on lightway-core
+#[cfg(feature = "debug")]
+pub use lightway_core::enable_tls_debug;
 pub use lightway_core::{
     AuthMethod, PluginFactoryError, PluginFactoryList, RootCertificate, Version, MAX_INSIDE_MTU,
     MAX_OUTSIDE_MTU,

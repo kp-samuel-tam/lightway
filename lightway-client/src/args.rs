@@ -107,4 +107,9 @@ pub struct Config {
     #[cfg(feature = "debug")]
     #[clap(long, default_value = None)]
     pub keylog: Option<PathBuf>,
+
+    /// Enable WolfSSL debug logging
+    #[cfg(feature = "debug")]
+    #[clap(long)]
+    pub tls_debug: bool,
 }

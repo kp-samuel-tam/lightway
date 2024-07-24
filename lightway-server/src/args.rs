@@ -91,4 +91,9 @@ pub struct Config {
     /// Address to listen to
     #[clap(long, default_value = "0.0.0.0:27690")]
     pub bind_address: SocketAddr,
+
+    /// Enable WolfSSL debug logging
+    #[cfg(feature = "debug")]
+    #[clap(long)]
+    pub tls_debug: bool,
 }
