@@ -1035,7 +1035,7 @@ impl<AppState: Send> Connection<AppState> {
         }
 
         // Only for TLS/DTLS 1.3
-        match self.session.version() {
+        match self.tls_protocol_version() {
             ProtocolVersion::DtlsV1_3 | ProtocolVersion::TlsV1_3 => {}
             _ => return Ok(()),
         }
