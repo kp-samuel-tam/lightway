@@ -70,9 +70,12 @@ async fn main() -> Result<()> {
         tun_config.mtu(*inside_mtu);
     }
 
-    let (ctrlc_tx, ctrlc_rx) = tokio::sync::mpsc::channel(1);
+    let (ctrlc_tx, ctrlc_rx) = tokio::sync::oneshot::channel();
+    let mut ctrlc_tx = Some(ctrlc_tx);
     ctrlc::set_handler(move || {
-        ctrlc_tx.blocking_send(()).expect("CtrlC handler failed");
+        if let Some(tx) = ctrlc_tx.take() {
+            tx.send(()).expect("CtrlC handler failed");
+        }
     })?;
 
     let config = ClientConfig {
