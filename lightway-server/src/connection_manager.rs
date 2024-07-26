@@ -142,7 +142,10 @@ fn handle_finalize_session_rotation(conn: &Weak<Connection>, old: SessionId, new
 }
 
 #[instrument(level = "trace", skip_all)]
-fn handle_tls_keys_update(conn: &Weak<Connection>) {
+fn handle_tls_keys_update_start(conn: &Weak<Connection>) {
+    metrics::connection_key_update_start();
+
+    // For UDP connections begin a session ID rotation
     let Some(conn) = conn.upgrade() else {
         info!("Connection has gone away, stopping");
         return;
@@ -154,6 +157,11 @@ fn handle_tls_keys_update(conn: &Weak<Connection>) {
 }
 
 #[instrument(level = "trace", skip_all)]
+fn handle_tls_keys_update_complete() {
+    metrics::connection_key_update_complete();
+}
+
+#[instrument(level = "trace", skip_all)]
 async fn handle_events(mut stream: EventStream, conn: Weak<Connection>) {
     while let Some(event) = stream.next().await {
         match event {
@@ -162,7 +170,8 @@ async fn handle_events(mut stream: EventStream, conn: Weak<Connection>) {
             Event::SessionIdRotationAcknowledged { old, new } => {
                 handle_finalize_session_rotation(&conn, old, new);
             }
-            Event::TlsKeysUpdate => handle_tls_keys_update(&conn),
+            Event::TlsKeysUpdateStart => handle_tls_keys_update_start(&conn),
+            Event::TlsKeysUpdateCompleted => handle_tls_keys_update_complete(),
         }
     }
 }

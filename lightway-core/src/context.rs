@@ -142,8 +142,8 @@ impl<AppState> ClientContextBuilder<AppState> {
         }
 
         let protocol = match connection_type {
-            ConnectionType::Stream => wolfssl::Protocol::TlsClientV1_3,
-            ConnectionType::Datagram => wolfssl::Protocol::DtlsClientV1_3,
+            ConnectionType::Stream => wolfssl::Method::TlsClientV1_3,
+            ConnectionType::Datagram => wolfssl::Method::DtlsClientV1_3,
         };
 
         let wolfssl = wolfssl::ContextBuilder::new(protocol)?
@@ -336,9 +336,9 @@ impl<AppState> ServerContextBuilder<AppState> {
         inside_io: InsideIOSendCallbackArg<AppState>,
     ) -> ContextBuilderResult<Self> {
         let protocol = match connection_type {
-            ConnectionType::Stream => wolfssl::Protocol::TlsServerV1_3,
-            // `wolfssl::Protocol::DtlsServer` supports both DTLS 1.2 and 1.3
-            ConnectionType::Datagram => wolfssl::Protocol::DtlsServer,
+            ConnectionType::Stream => wolfssl::Method::TlsServerV1_3,
+            // `wolfssl::Method::DtlsServer` supports both DTLS 1.2 and 1.3
+            ConnectionType::Datagram => wolfssl::Method::DtlsServer,
         };
 
         let cipher_list = match connection_type {

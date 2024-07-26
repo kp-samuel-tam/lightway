@@ -14,6 +14,8 @@ const METRIC_CONNECTION_UNKNOWN_ERROR: &str = "conn_unknown_error";
 const METRIC_CONNECTION_AGED_OUT: &str = "conn_aged_out";
 const METRIC_CONNECTION_EVICTED: &str = "user_auth_eviction";
 const METRIC_CONNECTION_CLOSED: &str = "conn_closed";
+const METRIC_CONNECTION_KEY_UPDATE_START: &str = "key_update_start";
+const METRIC_CONNECTION_KEY_UPDATE_COMPLETE: &str = "key_update_complete";
 
 // UDP specific session and version handling
 const METRIC_UDP_CONNECTION_RECOVERED_VIA_SESSION: &str = "udp_conn_recovered_via_session";
@@ -133,6 +135,13 @@ pub(crate) fn connection_expired() {
 /// Connection lifecycle: [`lightway_core::Connection`] closed.
 pub(crate) fn connection_closed() {
     counter!(METRIC_CONNECTION_CLOSED).increment(1);
+}
+
+pub(crate) fn connection_key_update_start() {
+    counter!(METRIC_CONNECTION_KEY_UPDATE_START).increment(1);
+}
+pub(crate) fn connection_key_update_complete() {
+    counter!(METRIC_CONNECTION_KEY_UPDATE_COMPLETE).increment(1);
 }
 
 /// UDP: Session recovered

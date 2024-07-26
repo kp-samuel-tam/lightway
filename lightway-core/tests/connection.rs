@@ -340,7 +340,8 @@ async fn client<S: TestSock>(
                 Event::SessionIdRotationAcknowledged { .. } => {
                     eprintln!("Got SessionIdRotationAcknowledged")
                 }
-                Event::TlsKeysUpdate => println!("Got TlsKeysUpdate"),
+                Event::TlsKeysUpdateStart => println!("Got TlsKeysUpdateStart"),
+                Event::TlsKeysUpdateCompleted => println!("Got TlsKeysUpdateEnd"),
             }
         }
     });
