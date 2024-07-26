@@ -14,32 +14,32 @@ debug = ["lightway-core/debug"]
 io-uring = ["lightway-app-utils/io-uring"]
 
 [dependencies]
-lightway-core = { path = "../lightway-core", features = ["postquantum"] }
-lightway-app-utils = { path = "../lightway-app-utils" }
-tokio = { version = "1.31.0", features = ["rt-multi-thread", "macros", "net", "time", "sync", "io-util"] }
-clap = { version = "4.4.1", features = ["derive"] }
-anyhow = "1.0.75"
-async-trait = "0.1.73"
-bytes = "1.4.0"
-delegate = "0.12.0"
-thiserror = "1.0.48"
-tracing-subscriber = { version = "0.3.17", features = ["json"] }
-tracing-log = "0.2.0"
-tracing = "0.1.37"
+anyhow = { workspace = true }
+async-channel = { workspace = true, optional = true }
+async-trait = { workspace = true }
+bytes = { workspace = true }
+clap = { workspace = true }
+ctrlc = { workspace = true }
+delegate = { workspace = true }
+educe = { workspace = true }
 ipnet = { version = "2.8.0", features = ["serde"]}
-metrics = "0.23.0"
+lightway-app-utils = { workspace = true }
+lightway-core = { workspace = true, features = ["postquantum"] }
+metrics = { workspace = true }
 metrics-util = "0.17.0"
-pnet = "0.35.0"
-rand = "0.8.5"
-tokio-stream = { version = "0.1.14", features = ["time"] }
+pnet = { workspace = true }
+rand = { workspace = true }
+serde = { workspace = true }
+socket2 = { workspace = true }
+thiserror = { workspace = true }
 time = "0.3.29"
-serde = "1.0.189"
-twelf = { version = "0.15.0" , default-features = false, features = ["env", "clap", "yaml"]}
-socket2 = "0.5.5"
-ctrlc = { version = "3.4.2", features = ["termination"] }
-async-channel = "2.1.1"
-educe = { version = "0.6.0", default-features = false, features = ["Debug"] }
+tokio = { workspace = true }
+tokio-stream = { workspace = true, features = ["time"] }
+tracing = { workspace = true }
+tracing-log = "0.2.0"
+tracing-subscriber = { workspace = true, features = ["json"] }
+twelf = { workspace = true }
 
 [dev-dependencies]
-more-asserts = "0.3.1"
-test-case = "3.2.1"
+more-asserts = { workspace = true }
+test-case = { workspace = true }

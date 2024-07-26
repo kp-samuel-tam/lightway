@@ -11,10 +11,10 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
-bytes = "1.4.0"
+bytes = { workspace = true }
 
 [dependencies.lightway-core]
-path = ".."
+workspace = true
 features = ["fuzzing_api"]
 
 [[bin]]
