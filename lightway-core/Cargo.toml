@@ -18,24 +18,24 @@ postquantum = ["wolfssl/postquantum"]
 
 [dependencies]
 bytes = { workspace = true }
-num_enum = "0.7.0"
-thiserror = { workspace = true }
+delegate = { workspace = true }
+if_chain = "1.0.2"
+lru = "0.12.1"
+metrics = { workspace = true }
 more-asserts = { workspace = true }
-wolfssl = { git = "https://github.com/expressvpn/wolfssl-rs", default-features = false }
+num_enum = "0.7.0"
+once_cell = "1.19.0"
+pnet = { workspace = true }
 rand = { workspace = true }
 rand_core = "0.6.4"
+thiserror = { workspace = true }
 tracing = { workspace = true }
-pnet = { workspace = true }
-delegate = { workspace = true }
-lru = "0.12.1"
-once_cell = "1.19.0"
-metrics = { workspace = true }
-if_chain = "1.0.2"
+wolfssl = { git = "https://github.com/expressvpn/wolfssl-rs", default-features = false }
 
 [dev-dependencies]
 async-trait = { workspace = true }
-test-case = { workspace = true }
 itertools = "0.13.0"
+lightway-app-utils = { workspace = true }
+test-case = { workspace = true }
 tokio = { workspace = true }
 tokio-stream = { workspace = true }
-lightway-app-utils = { workspace = true }

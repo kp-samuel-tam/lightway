@@ -11,27 +11,27 @@ readme = "README.md"
 
 [features]
 default = [ "tokio" ]
-tokio = [ "dep:tokio", "dep:tokio-stream" ]
 io-uring = [ "dep:io-uring", "dep:async-channel", "dep:tokio", "dep:tokio-eventfd" ]
+tokio = [ "dep:tokio", "dep:tokio-stream" ]
 
 [dependencies]
-lightway-core = { workspace = true }
+anyhow = { workspace = true }
+async-channel = { workspace = true, optional = true }
+bytes = { workspace = true }
+clap = { workspace = true }
+dashmap = "6.0.1"
 humantime = "2.1.0"
+io-uring = {  version = "0.6.3", optional = true }
+lightway-core = { workspace = true }
+metrics = { workspace = true }
 serde = { workspace = true }
 serde_with = "3.4.0"
-tokio = { workspace = true, optional = true }
-tokio-stream = { workspace = true, optional = true }
-clap = { workspace = true }
-tracing-subscriber = { workspace = true, features = ["json"] }
-tokio-util = { workspace = true }
-io-uring = {  version = "0.6.3", optional = true }
-async-channel = { workspace = true, optional = true }
-tokio-eventfd = { version = "0.2.1", optional = true }
-anyhow = { workspace = true }
-bytes = { workspace = true }
-dashmap = "6.0.1"
 thiserror = { workspace = true }
-metrics = { workspace = true }
+tokio = { workspace = true, optional = true }
+tokio-eventfd = { version = "0.2.1", optional = true }
+tokio-stream = { workspace = true, optional = true }
+tokio-util = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["json"] }
 tun2 = { version = "2.0.3", features = ["async"] }
 
 [[example]]
