@@ -35,7 +35,7 @@ use std::{
 };
 use tokio::{
     net::{TcpStream, UdpSocket},
-    sync::mpsc::Receiver,
+    sync::oneshot::Receiver,
     task::JoinHandle,
 };
 use tokio_stream::StreamExt;
@@ -405,7 +405,7 @@ pub async fn client<A: 'static + Send + EventCallback>(
         Some(_) = keepalive_task => Err(anyhow!("Keepalive timeout")),
         io = outside_io_loop => Err(anyhow!("Outside IO loop exited: {io:?}")),
         io = inside_io_loop => Err(anyhow!("Inside IO loop exited: {io:?}")),
-        _ = config.stop_signal.recv() => {
+        _ = config.stop_signal => {
             info!("client shutting down ..");
             let _ = conn.lock().unwrap().disconnect();
             Ok(())

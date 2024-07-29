@@ -233,15 +233,18 @@ pub async fn server<SA: ServerAuth + Sync + Send + 'static>(
         }
     });
 
-    let (ctrlc_tx, mut ctrlc_rx) = tokio::sync::mpsc::channel(1);
+    let (ctrlc_tx, ctrlc_rx) = tokio::sync::oneshot::channel();
+    let mut ctrlc_tx = Some(ctrlc_tx);
     ctrlc::set_handler(move || {
-        ctrlc_tx.blocking_send(()).expect("CtrlC handler failed");
+        if let Some(tx) = ctrlc_tx.take() {
+            tx.send(()).expect("CtrlC handler failed");
+        }
     })?;
 
     tokio::select! {
         err = server.run() => err.context("Outside IO loop exited"),
         io = inside_io_loop =>  io.map_err(|e| anyhow!(e).context("Inside IO loop panicked"))?.context("Inside IO loop exited"),
-        _ = ctrlc_rx.recv() => {
+        _ = ctrlc_rx => {
             info!("Sigterm or Sigint received");
             conn_manager.close_all_connections();
             Ok(())
