@@ -25,7 +25,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::task::JoinHandle;
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::io::inside::InsideIO;
 use crate::ip_manager::IpManager;
@@ -236,8 +236,8 @@ pub async fn server<SA: ServerAuth + Sync + Send + 'static>(
     let (ctrlc_tx, ctrlc_rx) = tokio::sync::oneshot::channel();
     let mut ctrlc_tx = Some(ctrlc_tx);
     ctrlc::set_handler(move || {
-        if let Some(tx) = ctrlc_tx.take() {
-            tx.send(()).expect("CtrlC handler failed");
+        if let Some(Err(err)) = ctrlc_tx.take().map(|tx| tx.send(())) {
+            warn!("Failed to send Ctrl-C signal: {err:?}");
         }
     })?;
 
