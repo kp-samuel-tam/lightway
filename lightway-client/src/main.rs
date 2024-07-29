@@ -73,8 +73,8 @@ async fn main() -> Result<()> {
     let (ctrlc_tx, ctrlc_rx) = tokio::sync::oneshot::channel();
     let mut ctrlc_tx = Some(ctrlc_tx);
     ctrlc::set_handler(move || {
-        if let Some(tx) = ctrlc_tx.take() {
-            tx.send(()).expect("CtrlC handler failed");
+        if let Some(Err(err)) = ctrlc_tx.take().map(|tx| tx.send(())) {
+            tracing::warn!("Failed to send Ctrl-C signal: {err:?}");
         }
     })?;
 
