@@ -48,6 +48,7 @@ skip = [
     { name = "indexmap", version = "1.9.3" },
     { name = "nix", version = "0.28.0" },
     { name = "syn", version = "1.0.109" },
+    { name = "zerocopy", version = "0.6.6" },
 ]
 
 [sources]
