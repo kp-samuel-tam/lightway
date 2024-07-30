@@ -53,12 +53,27 @@ pub(super) fn get_ip_mtu_discover(sock: &tokio::net::UdpSocket) -> std::io::Resu
     let mut value: MaybeUninit<libc::c_int> = MaybeUninit::uninit();
     let mut len = std::mem::size_of::<libc::c_int>() as libc::socklen_t;
 
+    let level: i32;
+    let optname: i32;
+
+    #[cfg(target_os = "macos")]
+    {
+        level = libc::IPPROTO_IP;
+        optname = libc::IP_DONTFRAG;
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        level = libc::SOL_IP;
+        optname = libc::IP_MTU_DISCOVER;
+    }
+
     // SAFETY: `getsockopt` requires an fd and a valid buffer of `c_int` size
     let res = unsafe {
         libc::getsockopt(
             sock.as_raw_fd(),
-            libc::SOL_IP,
-            libc::IP_MTU_DISCOVER,
+            level,
+            optname,
             value.as_mut_ptr().cast(),
             &mut len,
         )
@@ -86,12 +101,27 @@ pub(super) fn set_ip_mtu_discover(
     let pmtudisc: libc::c_int = pmtudisc.into();
     let len = std::mem::size_of::<libc::c_int>() as libc::socklen_t;
 
+    let level: i32;
+    let optname: i32;
+
+    #[cfg(target_os = "macos")]
+    {
+        level = libc::IPPROTO_IP;
+        optname = libc::IP_DONTFRAG;
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        level = libc::SOL_IP;
+        optname = libc::IP_MTU_DISCOVER;
+    }
+
     // SAFETY: `setsockopt` requires an fd and a valid buffer of `c_int` size
     let res = unsafe {
         libc::setsockopt(
             sock.as_raw_fd(),
-            libc::SOL_IP,
-            libc::IP_MTU_DISCOVER,
+            level,
+            optname,
             &pmtudisc as *const libc::c_int as *const libc::c_void,
             len,
         )
