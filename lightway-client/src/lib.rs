@@ -105,6 +105,10 @@ pub struct ClientConfig<'cert, A: 'static + Send + EventCallback> {
     /// Keepalive timeout
     pub keepalive_timeout: Duration,
 
+    /// Enables keepalives to be sent constantly instead
+    /// of only during network change events
+    pub continuous_keepalive: bool,
+
     /// Socket send buffer size
     pub sndbuf: Option<ByteSize>,
     /// Socket receive buffer size
@@ -392,6 +396,7 @@ pub async fn client<A: 'static + Send + EventCallback>(
         keepalive::Config {
             interval: config.keepalive_interval,
             timeout: config.keepalive_timeout,
+            continuous: config.continuous_keepalive,
         },
         Arc::downgrade(&conn),
     );

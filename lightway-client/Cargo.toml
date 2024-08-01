@@ -40,3 +40,4 @@ twelf.workspace = true
 
 [dev-dependencies]
 more-asserts.workspace = true
+test-case.workspace = true
