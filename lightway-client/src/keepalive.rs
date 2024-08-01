@@ -13,7 +13,7 @@ pub trait Connection: Send {
     fn keepalive(&self) -> lightway_core::ConnectionResult<()>;
 }
 
-impl Connection for Weak<Mutex<lightway_core::Connection<ConnectionState>>> {
+impl<T: Send + Sync> Connection for Weak<Mutex<lightway_core::Connection<ConnectionState<T>>>> {
     fn keepalive(&self) -> lightway_core::ConnectionResult<()> {
         let Some(conn) = self.upgrade() else {
             return Ok(());

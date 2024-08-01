@@ -64,8 +64,8 @@ impl InsideIO for Tun {
     }
 }
 
-impl InsideIOSendCallback<ConnectionState> for Tun {
-    fn send(&self, mut buf: BytesMut, state: &mut ConnectionState) -> IOCallbackResult<usize> {
+impl<T: Send + Sync> InsideIOSendCallback<ConnectionState<T>> for Tun {
+    fn send(&self, mut buf: BytesMut, state: &mut ConnectionState<T>) -> IOCallbackResult<usize> {
         // Update destination IP from server provided inside ip to TUN device ip
         ipv4_update_destination(buf.as_mut(), self.ip);
 

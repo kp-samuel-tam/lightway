@@ -159,21 +159,23 @@ fn debug_fmt_plugin_list(
 
 pub struct ClientIpConfigCb;
 
-impl ClientIpConfig<ConnectionState> for ClientIpConfigCb {
-    fn ip_config(&self, state: &mut ConnectionState, ip_config: InsideIpConfig) {
+impl<T: Send + Sync> ClientIpConfig<ConnectionState<T>> for ClientIpConfigCb {
+    fn ip_config(&self, state: &mut ConnectionState<T>, ip_config: InsideIpConfig) {
         tracing::debug!("Got IP from server: {ip_config:?}");
         state.ip_config = Some(ip_config);
     }
 }
 
-pub struct ConnectionState {
+pub struct ConnectionState<T: Send + Sync = ()> {
     /// Handler for tick callbacks.
     pub ticker: ConnectionTicker,
     /// InsideIpConfig received from server
     pub ip_config: Option<InsideIpConfig>,
+    /// Other extended state
+    pub extended: T,
 }
 
-impl ConnectionTickerState for ConnectionState {
+impl<T: Send + Sync> ConnectionTickerState for ConnectionState<T> {
     fn connection_ticker(&self) -> &ConnectionTicker {
         &self.ticker
     }
@@ -206,8 +208,8 @@ async fn handle_events<A: 'static + Send + EventCallback>(
     }
 }
 
-pub async fn outside_io_task(
-    conn: Arc<Mutex<Connection<ConnectionState>>>,
+pub async fn outside_io_task<T: Send + Sync>(
+    conn: Arc<Mutex<Connection<ConnectionState<T>>>>,
     mtu: usize,
     connection_type: ConnectionType,
     outside_io: Arc<dyn io::outside::OutsideIO>,
@@ -240,8 +242,8 @@ pub async fn outside_io_task(
     }
 }
 
-pub async fn inside_io_task(
-    conn: Arc<Mutex<Connection<ConnectionState>>>,
+pub async fn inside_io_task<T: Send + Sync>(
+    conn: Arc<Mutex<Connection<ConnectionState<T>>>>,
     inside_io: Arc<dyn io::inside::InsideIO>,
     tun_dns_ip: Ipv4Addr,
 ) -> Result<()> {
@@ -302,6 +304,7 @@ pub async fn client<A: 'static + Send + EventCallback>(
                 let sock = io::outside::Udp::new(&config.server, maybe_sock)
                     .await
                     .context("Outside IO UDP")?;
+
                 (ConnectionType::Datagram, sock)
             }
             ClientConnectionType::Stream(maybe_sock) => {
@@ -345,6 +348,7 @@ pub async fn client<A: 'static + Send + EventCallback>(
     let state = ConnectionState {
         ticker,
         ip_config: None,
+        extended: (),
     };
     let (pmtud_timer, pmtud_timer_task) = DplpmtudTimer::new();
 
