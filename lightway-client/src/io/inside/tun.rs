@@ -36,9 +36,16 @@ impl Tun {
         let tun = AppUtilsTun::direct(tun).await?;
         Ok(Tun { tun, ip, dns_ip })
     }
+}
+
+#[async_trait]
+impl InsideIO for Tun {
+    async fn recv_buf(&self) -> IOCallbackResult<BytesMut> {
+        self.tun.recv_buf().await
+    }
 
     /// Api to send packet in the tunnel
-    pub fn try_send(&self, mut pkt: BytesMut, ip_config: Option<InsideIpConfig>) -> Result<usize> {
+    fn try_send(&self, mut pkt: BytesMut, ip_config: Option<InsideIpConfig>) -> Result<usize> {
         let pkt_len = pkt.len();
         // Update destination IP from server provided inside ip to TUN device ip
         ipv4_update_destination(pkt.as_mut(), self.ip);
@@ -55,13 +62,6 @@ impl Tun {
 
         self.tun.try_send(pkt);
         Ok(pkt_len)
-    }
-}
-
-#[async_trait]
-impl InsideIO for Tun {
-    async fn recv_buf(&self) -> IOCallbackResult<BytesMut> {
-        self.tun.recv_buf().await
     }
 
     fn into_io_send_callback(self: Arc<Self>) -> InsideIOSendCallbackArg<ConnectionState> {
