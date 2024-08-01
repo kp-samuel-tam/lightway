@@ -13,8 +13,8 @@ use lightway_app_utils::{
 };
 use lightway_core::{
     ipv4_update_destination, ipv4_update_source, BuilderPredicates, ClientContextBuilder,
-    ClientIpConfig, ConnectionError, ConnectionType, Event, EventCallback, IOCallbackResult,
-    InsideIpConfig, OutsidePacket, State,
+    ClientIpConfig, Connection, ConnectionError, ConnectionType, Event, EventCallback,
+    IOCallbackResult, InsideIpConfig, OutsidePacket, State,
 };
 
 // re-export so client app does not need to depend on lightway-core
@@ -207,6 +207,91 @@ async fn handle_events<A: 'static + Send + EventCallback>(
     }
 }
 
+pub async fn outside_io_task(
+    conn: Arc<Mutex<Connection<ConnectionState>>>,
+    mtu: usize,
+    connection_type: ConnectionType,
+    outside_io: Arc<dyn io::outside::OutsideIO>,
+    keepalive: Keepalive,
+) -> Result<()> {
+    loop {
+        // Unrecoverable errors: https://github.com/tokio-rs/tokio/discussions/5552
+        outside_io.poll(tokio::io::Interest::READABLE).await?;
+
+        let mut buf = BytesMut::with_capacity(mtu);
+
+        match outside_io.recv_buf(&mut buf) {
+            IOCallbackResult::Ok(_nr) => {}
+            IOCallbackResult::WouldBlock => continue, // Spuriously failed to read, keep waiting
+            IOCallbackResult::Err(err) => {
+                // Fatal error
+                return Err(err.into());
+            }
+        };
+
+        let pkt = OutsidePacket::Wire(buf, connection_type);
+        if let Err(err) = conn.lock().unwrap().outside_data_received(pkt) {
+            if err.is_fatal(connection_type) {
+                return Err(err.into());
+            }
+            tracing::error!("Failed to process outside data: {err}");
+        }
+
+        keepalive.outside_activity().await
+    }
+}
+
+pub async fn inside_io_task(
+    conn: Arc<Mutex<Connection<ConnectionState>>>,
+    inside_io: Arc<dyn io::inside::InsideIO>,
+    tun_dns_ip: Ipv4Addr,
+) -> Result<()> {
+    loop {
+        let mut buf = match inside_io.recv_buf().await {
+            IOCallbackResult::Ok(buf) => buf,
+            IOCallbackResult::WouldBlock => continue, // Spuriously failed to read, keep waiting
+            IOCallbackResult::Err(err) => {
+                // Fatal error
+                return Err(err.into());
+            }
+        };
+
+        let mut conn = conn.lock().unwrap();
+
+        // Update source IP address to server assigned IP address
+        let ip_config = conn.app_state().ip_config;
+        if let Some(ip_config) = &ip_config {
+            ipv4_update_source(buf.as_mut(), ip_config.client_ip);
+
+            // Update TUN device DNS IP address to server provided DNS address
+            let packet = Ipv4Packet::new(buf.as_ref());
+            if let Some(packet) = packet {
+                if packet.get_destination() == tun_dns_ip {
+                    ipv4_update_destination(buf.as_mut(), ip_config.dns_ip);
+                }
+            };
+        }
+
+        match conn.inside_data_received(buf) {
+            Ok(()) => {}
+            Err(ConnectionError::PluginDropWithReply(reply)) => {
+                // Send the reply packet to inside path
+                let _ = inside_io.try_send(reply, ip_config);
+            }
+            Err(ConnectionError::InvalidState) => {
+                // Ignore the packet till the connection is online
+            }
+            Err(ConnectionError::InvalidInsidePacket(_)) => {
+                // Ignore invalid inside packet
+            }
+            Err(err) => {
+                // Fatal error
+                return Err(err.into());
+            }
+        }
+    }
+}
+
 pub async fn client<A: 'static + Send + EventCallback>(
     mut config: ClientConfig<'_, A>,
 ) -> Result<()> {
@@ -316,90 +401,16 @@ pub async fn client<A: 'static + Send + EventCallback>(
     ticker_task.spawn(Arc::downgrade(&conn));
     pmtud_timer_task.spawn(Arc::downgrade(&conn));
 
-    let outside_io_loop_conn = conn.clone();
-    let outside_io_loop: JoinHandle<anyhow::Error> = tokio::spawn(async move {
-        let conn = outside_io_loop_conn;
+    let outside_io_loop: JoinHandle<anyhow::Result<()>> = tokio::spawn(outside_io_task(
+        conn.clone(),
+        config.outside_mtu,
+        connection_type,
+        outside_io,
+        keepalive,
+    ));
 
-        loop {
-            let poll_result = outside_io.poll(tokio::io::Interest::READABLE).await;
-
-            if let Err(e) = poll_result {
-                // Unrecoverable errors: https://github.com/tokio-rs/tokio/discussions/5552
-                break e;
-            }
-
-            let mut buf = BytesMut::with_capacity(config.outside_mtu);
-
-            match outside_io.recv_buf(&mut buf) {
-                IOCallbackResult::Ok(_nr) => {}
-                IOCallbackResult::WouldBlock => continue, // Spuriously failed to read, keep waiting
-                IOCallbackResult::Err(err) => {
-                    // Fatal error
-                    break err.into();
-                }
-            };
-
-            let pkt = OutsidePacket::Wire(buf, connection_type);
-            if let Err(err) = conn.lock().unwrap().outside_data_received(pkt) {
-                if err.is_fatal(connection_type) {
-                    break err.into();
-                }
-                tracing::error!("Failed to process outside data: {err}");
-            }
-
-            keepalive.outside_activity().await
-        }
-    });
-
-    let inside_io_loop_conn = conn.clone();
-    let inside_io_loop: JoinHandle<anyhow::Error> = tokio::spawn(async move {
-        let conn = inside_io_loop_conn;
-
-        loop {
-            let mut buf = match inside_io.recv_buf().await {
-                IOCallbackResult::Ok(buf) => buf,
-                IOCallbackResult::WouldBlock => continue, // Spuriously failed to read, keep waiting
-                IOCallbackResult::Err(err) => {
-                    // Fatal error
-                    break err.into();
-                }
-            };
-
-            let mut conn = conn.lock().unwrap();
-
-            // Update source IP address to server assigned IP address
-            let ip_config = conn.app_state().ip_config;
-            if let Some(ip_config) = &ip_config {
-                ipv4_update_source(buf.as_mut(), ip_config.client_ip);
-
-                // Update TUN device DNS IP address to server provided DNS address
-                let packet = Ipv4Packet::new(buf.as_ref());
-                if let Some(packet) = packet {
-                    if packet.get_destination() == config.tun_dns_ip {
-                        ipv4_update_destination(buf.as_mut(), ip_config.dns_ip);
-                    }
-                };
-            }
-
-            match conn.inside_data_received(buf) {
-                Ok(()) => {}
-                Err(ConnectionError::PluginDropWithReply(reply)) => {
-                    // Send the reply packet to inside path
-                    let _ = inside_io.try_send(reply, ip_config);
-                }
-                Err(ConnectionError::InvalidState) => {
-                    // Ignore the packet till the connection is online
-                }
-                Err(ConnectionError::InvalidInsidePacket(_)) => {
-                    // Ignore invalid inside packet
-                }
-                Err(err) => {
-                    // Fatal error
-                    break err.into();
-                }
-            }
-        }
-    });
+    let inside_io_loop: JoinHandle<anyhow::Result<()>> =
+        tokio::spawn(inside_io_task(conn.clone(), inside_io, config.tun_dns_ip));
 
     tokio::select! {
         Some(_) = keepalive_task => Err(anyhow!("Keepalive timeout")),
