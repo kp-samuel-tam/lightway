@@ -5,7 +5,7 @@ use std::{
 };
 
 use lightway_core::{Connection, ConnectionResult};
-use tokio::sync::mpsc;
+use tokio::{sync::mpsc, task::JoinSet};
 use tokio_util::sync::CancellationToken;
 
 /// Implements `lightway_core::DplpmtudTimer` using Tokio.
@@ -78,9 +78,10 @@ impl DplpmtudTimerTask {
     pub fn spawn<T: DplpmtudTickable + 'static>(
         self,
         weak: Weak<T>,
-    ) -> tokio::task::JoinHandle<()> {
+        join_set: &mut JoinSet<()>,
+    ) -> tokio::task::AbortHandle {
         let mut ticks = self.0;
-        tokio::spawn(async move {
+        join_set.spawn(async move {
             while let Some(()) = ticks.recv().await {
                 let Some(tickable) = weak.upgrade() else {
                     return;
@@ -119,7 +120,9 @@ mod tests {
 
         let conn = Arc::new(Dummy(Mutex::new(Some(tx))));
 
-        timer_task.spawn(Arc::downgrade(&conn));
+        let mut join_set = JoinSet::new();
+
+        timer_task.spawn(Arc::downgrade(&conn), &mut join_set);
 
         timer.start(Duration::ZERO, &mut ());
 
@@ -147,7 +150,8 @@ mod tests {
 
         let conn = Arc::new(Dummy(Mutex::new(Some(tx))));
 
-        timer_task.spawn(Arc::downgrade(&conn));
+        let mut join_set = JoinSet::new();
+        timer_task.spawn(Arc::downgrade(&conn), &mut join_set);
 
         // this needs to be long enough that we can replace it before
         // it fires but slow enough that we can wait for it not to
@@ -180,7 +184,8 @@ mod tests {
 
         let conn = Arc::new(Dummy);
 
-        timer_task.spawn(Arc::downgrade(&conn));
+        let mut join_set = JoinSet::new();
+        timer_task.spawn(Arc::downgrade(&conn), &mut join_set);
 
         // this needs to be long enough that we can stop it before it
         // fires but slow enough that we can wait for it not to happen
@@ -211,11 +216,13 @@ mod tests {
 
         let conn = Arc::new(Dummy);
 
-        let task = timer_task.spawn(Arc::downgrade(&conn));
+        let mut join_set = JoinSet::new();
+        timer_task.spawn(Arc::downgrade(&conn), &mut join_set);
 
         drop(timer);
 
-        task.await.unwrap(); // Task should exit cleanly
+        // Should get the tick
+        while (join_set.join_next().await).is_some() {}
     }
 
     #[tokio::test]
@@ -234,12 +241,14 @@ mod tests {
 
         let conn = Arc::new(Dummy);
 
-        let task = timer_task.spawn(Arc::downgrade(&conn));
+        let mut join_set = JoinSet::new();
+        timer_task.spawn(Arc::downgrade(&conn), &mut join_set);
 
         drop(conn);
 
         timer.start(Duration::ZERO, &mut ());
 
-        task.await.unwrap(); // Task should exit cleanly
+        // Should get the tick
+        while (join_set.join_next().await).is_some() {}
     }
 }

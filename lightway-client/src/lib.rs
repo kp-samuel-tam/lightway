@@ -35,7 +35,7 @@ use std::{
 use tokio::{
     net::{TcpStream, UdpSocket},
     sync::oneshot::Receiver,
-    task::JoinHandle,
+    task::{JoinHandle, JoinSet},
 };
 use tokio_stream::StreamExt;
 use tracing::info;
@@ -298,6 +298,8 @@ pub async fn client<A: 'static + Send + EventCallback>(
 ) -> Result<()> {
     println!("Client starting with config:\n{:#?}", &config);
 
+    let mut join_set = JoinSet::new();
+
     let (connection_type, outside_io): (ConnectionType, Arc<dyn io::outside::OutsideIO>) =
         match config.mode {
             ClientConnectionType::Datagram(maybe_sock) => {
@@ -395,14 +397,14 @@ pub async fn client<A: 'static + Send + EventCallback>(
     );
 
     let event_handler = config.event_handler.take();
-    tokio::spawn(handle_events(
+    join_set.spawn(handle_events(
         event_stream,
         keepalive.clone(),
         event_handler,
     ));
 
-    ticker_task.spawn(Arc::downgrade(&conn));
-    pmtud_timer_task.spawn(Arc::downgrade(&conn));
+    ticker_task.spawn(Arc::downgrade(&conn), &mut join_set);
+    pmtud_timer_task.spawn(Arc::downgrade(&conn), &mut join_set);
 
     let outside_io_loop: JoinHandle<anyhow::Result<()>> = tokio::spawn(outside_io_task(
         conn.clone(),

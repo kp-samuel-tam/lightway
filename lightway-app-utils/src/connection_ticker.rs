@@ -5,7 +5,7 @@ use std::{
     sync::{Mutex, Weak},
     time::Duration,
 };
-use tokio::sync::mpsc;
+use tokio::{sync::mpsc, task::JoinSet};
 
 /// App state compatible with [`connection_ticker_cb`]
 pub trait ConnectionTickerState {
@@ -74,9 +74,13 @@ pub struct ConnectionTickerTask(mpsc::UnboundedReceiver<()>);
 
 impl ConnectionTickerTask {
     /// Spawn the handler task
-    pub fn spawn<T: Tickable + 'static>(self, weak: Weak<T>) -> tokio::task::JoinHandle<()> {
+    pub fn spawn<T: Tickable + 'static>(
+        self,
+        weak: Weak<T>,
+        join_set: &mut JoinSet<()>,
+    ) -> tokio::task::AbortHandle {
         let mut recv = self.0;
-        tokio::spawn(async move {
+        join_set.spawn(async move {
             while let Some(()) = recv.recv().await {
                 let Some(tickable) = weak.upgrade() else {
                     return;
@@ -112,8 +116,9 @@ mod tests {
         }
 
         let conn = Arc::new(Dummy(Mutex::new(Some(tx))));
+        let mut join_set = JoinSet::new();
 
-        ticker_task.spawn(Arc::downgrade(&conn));
+        ticker_task.spawn(Arc::downgrade(&conn), &mut join_set);
 
         ticker.schedule(Duration::ZERO);
 
@@ -135,12 +140,13 @@ mod tests {
         }
 
         let conn = Arc::new(Dummy);
+        let mut join_set = JoinSet::new();
 
-        let task = ticker_task.spawn(Arc::downgrade(&conn));
+        ticker_task.spawn(Arc::downgrade(&conn), &mut join_set);
 
         drop(ticker);
 
-        task.await.unwrap(); // Task should exit cleanly
+        while (join_set.join_next().await).is_some() {}
     }
 
     #[tokio::test]
@@ -158,13 +164,15 @@ mod tests {
         }
 
         let conn = Arc::new(Dummy);
+        let mut join_set = JoinSet::new();
 
-        let task = ticker_task.spawn(Arc::downgrade(&conn));
+        ticker_task.spawn(Arc::downgrade(&conn), &mut join_set);
 
         drop(conn);
 
         ticker.schedule(Duration::ZERO);
 
-        task.await.unwrap(); // Task should exit cleanly
+        // Task should exit cleanly
+        while (join_set.join_next().await).is_some() {}
     }
 }
