@@ -1,2 +1,2 @@
-pub(crate) mod inside;
-pub(crate) mod outside;
+pub mod inside;
+pub mod outside;

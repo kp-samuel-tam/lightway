@@ -1,6 +1,6 @@
 mod debug;
-mod io;
-mod keepalive;
+pub mod io;
+pub mod keepalive;
 
 use crate::io::inside::InsideIO;
 use anyhow::{anyhow, Context, Result};
@@ -158,7 +158,7 @@ fn debug_fmt_plugin_list(
     write!(f, "{} plugins", list.len())
 }
 
-struct ClientIpConfigCb;
+pub struct ClientIpConfigCb;
 
 impl ClientIpConfig<ConnectionState> for ClientIpConfigCb {
     fn ip_config(&self, state: &mut ConnectionState, ip_config: InsideIpConfig) {
@@ -167,11 +167,11 @@ impl ClientIpConfig<ConnectionState> for ClientIpConfigCb {
     }
 }
 
-pub(crate) struct ConnectionState {
-    // Handler for tick callbacks.
-    ticker: ConnectionTicker,
-    // InsideIpConfig received from server
-    pub(crate) ip_config: Option<InsideIpConfig>,
+pub struct ConnectionState {
+    /// Handler for tick callbacks.
+    pub ticker: ConnectionTicker,
+    /// InsideIpConfig received from server
+    pub ip_config: Option<InsideIpConfig>,
 }
 
 impl ConnectionTickerState for ConnectionState {
