@@ -1,5 +1,4 @@
 use std::net::Ipv4Addr;
-use std::sync::Arc;
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -9,7 +8,7 @@ use pnet::packet::ipv4::Ipv4Packet;
 use lightway_app_utils::{Tun as AppUtilsTun, TunConfig};
 use lightway_core::{
     ipv4_update_destination, ipv4_update_source, IOCallbackResult, InsideIOSendCallback,
-    InsideIOSendCallbackArg, InsideIpConfig,
+    InsideIpConfig,
 };
 
 use crate::{io::inside::InsideIO, ConnectionState};
@@ -36,9 +35,16 @@ impl Tun {
         let tun = AppUtilsTun::direct(tun).await?;
         Ok(Tun { tun, ip, dns_ip })
     }
+}
+
+#[async_trait]
+impl InsideIO for Tun {
+    async fn recv_buf(&self) -> IOCallbackResult<BytesMut> {
+        self.tun.recv_buf().await
+    }
 
     /// Api to send packet in the tunnel
-    pub fn try_send(&self, mut pkt: BytesMut, ip_config: Option<InsideIpConfig>) -> Result<usize> {
+    fn try_send(&self, mut pkt: BytesMut, ip_config: Option<InsideIpConfig>) -> Result<usize> {
         let pkt_len = pkt.len();
         // Update destination IP from server provided inside ip to TUN device ip
         ipv4_update_destination(pkt.as_mut(), self.ip);
@@ -58,19 +64,8 @@ impl Tun {
     }
 }
 
-#[async_trait]
-impl InsideIO for Tun {
-    async fn recv_buf(&self) -> IOCallbackResult<BytesMut> {
-        self.tun.recv_buf().await
-    }
-
-    fn into_io_send_callback(self: Arc<Self>) -> InsideIOSendCallbackArg<ConnectionState> {
-        self
-    }
-}
-
-impl InsideIOSendCallback<ConnectionState> for Tun {
-    fn send(&self, mut buf: BytesMut, state: &mut ConnectionState) -> IOCallbackResult<usize> {
+impl<T: Send + Sync> InsideIOSendCallback<ConnectionState<T>> for Tun {
+    fn send(&self, mut buf: BytesMut, state: &mut ConnectionState<T>) -> IOCallbackResult<usize> {
         // Update destination IP from server provided inside ip to TUN device ip
         ipv4_update_destination(buf.as_mut(), self.ip);
 

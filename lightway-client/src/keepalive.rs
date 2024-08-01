@@ -9,11 +9,11 @@ use tokio_util::sync::{CancellationToken, DropGuard};
 
 use crate::ConnectionState;
 
-pub(crate) trait Connection: Send {
+pub trait Connection: Send {
     fn keepalive(&self) -> lightway_core::ConnectionResult<()>;
 }
 
-impl Connection for Weak<Mutex<lightway_core::Connection<ConnectionState>>> {
+impl<T: Send + Sync> Connection for Weak<Mutex<lightway_core::Connection<ConnectionState<T>>>> {
     fn keepalive(&self) -> lightway_core::ConnectionResult<()> {
         let Some(conn) = self.upgrade() else {
             return Ok(());
@@ -23,16 +23,16 @@ impl Connection for Weak<Mutex<lightway_core::Connection<ConnectionState>>> {
     }
 }
 
-pub(crate) trait SleepManager: Send {
+pub trait SleepManager: Send {
     fn interval_is_zero(&self) -> bool;
     fn timeout_is_zero(&self) -> bool;
     fn sleep_for_interval(&self) -> impl std::future::Future<Output = ()> + std::marker::Send;
     fn sleep_for_timeout(&self) -> impl std::future::Future<Output = ()> + std::marker::Send;
 }
 
-pub(crate) struct Config {
-    pub(crate) interval: Duration,
-    pub(crate) timeout: Duration,
+pub struct Config {
+    pub interval: Duration,
+    pub timeout: Duration,
 }
 
 impl SleepManager for Config {
@@ -53,26 +53,26 @@ impl SleepManager for Config {
     }
 }
 
-pub(crate) enum Message {
+pub enum Message {
     Online,
     OutsideActivity,
     ReplyReceived,
 }
 
-pub(crate) enum KeepaliveResult {
+pub enum KeepaliveResult {
     Cancelled,
     Timedout,
 }
 
 #[derive(Clone)]
-pub(crate) struct Keepalive {
+pub struct Keepalive {
     tx: Option<mpsc::Sender<Message>>,
     _cancellation: Arc<DropGuard>,
 }
 
 impl Keepalive {
     /// Create a new keepalive manager for the given connection
-    pub(crate) fn new<CONFIG: SleepManager + 'static, CONNECTION: Connection + 'static>(
+    pub fn new<CONFIG: SleepManager + 'static, CONNECTION: Connection + 'static>(
         config: CONFIG,
         conn: CONNECTION,
     ) -> (Self, OptionFuture<JoinHandle<KeepaliveResult>>) {

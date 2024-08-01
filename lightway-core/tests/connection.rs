@@ -10,6 +10,7 @@ use test_case::test_case;
 use tokio::{
     net::{UnixDatagram, UnixStream},
     sync::mpsc,
+    task::JoinSet,
 };
 use tokio_stream::StreamExt;
 
@@ -207,7 +208,9 @@ async fn server<S: TestSock>(sock: Arc<S>, pqc: PQCrypto) {
             .unwrap(),
     ));
 
-    ticker_task.spawn(Arc::downgrade(&conn));
+    let mut join_set = JoinSet::new();
+
+    ticker_task.spawn(Arc::downgrade(&conn), &mut join_set);
     loop {
         tokio::select! {
             // Inside data received
@@ -298,6 +301,8 @@ async fn client<S: TestSock>(
     let (tun, mut inside_rx) = ChannelTun::new();
     let client = Arc::new(Client);
 
+    let mut join_set = JoinSet::new();
+
     let (event_cb, mut event_stream) = EventStreamCallback::new();
 
     let (ticker, ticker_task) = ConnectionTicker::new();
@@ -318,7 +323,7 @@ async fn client<S: TestSock>(
         .unwrap();
     let client = Arc::new(Mutex::new(client));
 
-    ticker_task.spawn(Arc::downgrade(&client));
+    ticker_task.spawn(Arc::downgrade(&client), &mut join_set);
 
     let event_client = client.clone();
     tokio::spawn(async move {
