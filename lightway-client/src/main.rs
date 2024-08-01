@@ -106,10 +106,11 @@ async fn main() -> Result<()> {
         inside_plugins: Default::default(),
         outside_plugins: Default::default(),
         stop_signal: ctrlc_rx,
+        network_change_signal: None,
         event_handler: Some(EventHandler),
         #[cfg(feature = "debug")]
         keylog: config.keylog,
     };
 
-    client(config).await
+    client(config).await.map(|_| ())
 }
