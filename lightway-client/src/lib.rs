@@ -2,7 +2,6 @@ mod debug;
 pub mod io;
 pub mod keepalive;
 
-use crate::io::inside::InsideIO;
 use anyhow::{anyhow, Context, Result};
 use bytes::BytesMut;
 use bytesize::ByteSize;
@@ -352,7 +351,7 @@ pub async fn client<A: 'static + Send + EventCallback>(
     let conn_builder = ClientContextBuilder::new(
         connection_type,
         config.root_ca_cert,
-        inside_io.clone().into_io_send_callback(),
+        inside_io.clone(),
         Arc::new(ClientIpConfigCb),
     )?
     .with_cipher(config.cipher.into())?

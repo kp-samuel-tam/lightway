@@ -1,5 +1,4 @@
 use std::net::Ipv4Addr;
-use std::sync::Arc;
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -9,7 +8,7 @@ use pnet::packet::ipv4::Ipv4Packet;
 use lightway_app_utils::{Tun as AppUtilsTun, TunConfig};
 use lightway_core::{
     ipv4_update_destination, ipv4_update_source, IOCallbackResult, InsideIOSendCallback,
-    InsideIOSendCallbackArg, InsideIpConfig,
+    InsideIpConfig,
 };
 
 use crate::{io::inside::InsideIO, ConnectionState};
@@ -62,10 +61,6 @@ impl InsideIO for Tun {
 
         self.tun.try_send(pkt);
         Ok(pkt_len)
-    }
-
-    fn into_io_send_callback(self: Arc<Self>) -> InsideIOSendCallbackArg<ConnectionState> {
-        self
     }
 }
 
