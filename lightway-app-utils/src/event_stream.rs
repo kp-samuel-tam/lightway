@@ -6,6 +6,7 @@ use tokio_stream::wrappers::ReceiverStream;
 
 /// Helper to propagate events into an async stream. Pass this type to
 /// `with_event_cb`.
+#[derive(Clone)]
 pub struct EventStreamCallback(mpsc::Sender<Event>);
 
 /// A stream of [`Event`].
