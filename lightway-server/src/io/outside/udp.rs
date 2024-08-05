@@ -10,6 +10,7 @@ use lightway_core::{
     ConnectionType, Header, IOCallbackResult, OutsideIOSendCallback, OutsidePacket, SessionId,
     Version, MAX_OUTSIDE_MTU,
 };
+use tokio::io::Interest;
 use tracing::{info, instrument, warn};
 
 use crate::{connection_manager::ConnectionManager, metrics};
@@ -178,7 +179,10 @@ impl Server for UdpServer {
         loop {
             let mut buf = BytesMut::with_capacity(MAX_OUTSIDE_MTU);
 
-            let (_len, addr) = self.sock.recv_buf_from(&mut buf).await?;
+            let (_len, addr) = self
+                .sock
+                .async_io(Interest::READABLE, || self.sock.try_recv_buf_from(&mut buf))
+                .await?;
 
             self.data_received(addr, buf).await;
         }
