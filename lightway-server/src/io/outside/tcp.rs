@@ -7,6 +7,7 @@ use lightway_core::{
     ConnectionType, IOCallbackResult, OutsideIOSendCallback, OutsidePacket, Version,
     MAX_OUTSIDE_MTU,
 };
+use socket2::SockRef;
 use tracing::{info, instrument, warn};
 
 use crate::connection::Connection;
@@ -93,6 +94,21 @@ impl Server for TcpServer {
 
         loop {
             let (sock, addr) = self.sock.accept().await?;
+
+            let local_addr = match SockRef::from(&sock).local_addr() {
+                Ok(local_addr) => local_addr,
+                Err(err) => {
+                    // Since we have a bound socket this shouldn't happen.
+                    tracing::debug!(?err, "Failed to get local addr");
+                    return Err(err.into());
+                }
+            };
+            let Some(local_addr) = local_addr.as_socket() else {
+                // Since we only bind to IP sockets this shouldn't happen.
+                tracing::debug!("Failed to convert local addr to socketaddr");
+                return Err(anyhow!("Failed to convert local addr to socketaddr"));
+            };
+            tracing::debug!(?local_addr, "New connection");
 
             let sock = Arc::new(sock);
 
