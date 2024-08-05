@@ -194,6 +194,7 @@ impl ConnectionError {
                     Goodbye => true,
                     WireError(_) => true,
                     WolfSSL(wolfssl::Error::Fatal(ErrorKind::DomainNameMismatch)) => true,
+                    WolfSSL(wolfssl::Error::Fatal(ErrorKind::DuplicateMessage)) => true,
 
                     InvalidState => false, // Can be due to out of order or repeated messages
                     UnknownSessionID => false,
