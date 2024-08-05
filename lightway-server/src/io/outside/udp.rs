@@ -10,6 +10,7 @@ use lightway_core::{
     ConnectionType, Header, IOCallbackResult, OutsideIOSendCallback, OutsidePacket, SessionId,
     Version, MAX_OUTSIDE_MTU,
 };
+use socket2::SockRef;
 use tokio::io::Interest;
 use tracing::{info, instrument, warn};
 
@@ -179,9 +180,30 @@ impl Server for UdpServer {
         loop {
             let mut buf = BytesMut::with_capacity(MAX_OUTSIDE_MTU);
 
-            let (_len, addr) = self
+            let addr = self
                 .sock
-                .async_io(Interest::READABLE, || self.sock.try_recv_buf_from(&mut buf))
+                .async_io(Interest::READABLE, || {
+                    let sock = SockRef::from(self.sock.as_ref());
+                    let raw_buf = buf.spare_capacity_mut();
+
+                    let (len, addr) = sock.recv_from(raw_buf)?;
+
+                    // SAFETY: We rely on recv_from giving us the correct size
+                    #[allow(unsafe_code)]
+                    unsafe {
+                        buf.set_len(len)
+                    };
+
+                    let Some(addr) = addr.as_socket() else {
+                        // Since we only bind to IP sockets this shouldn't happen.
+                        return Err(std::io::Error::new(
+                            std::io::ErrorKind::InvalidInput,
+                            "failed to convert local addr to socketaddr",
+                        ));
+                    };
+
+                    Ok(addr)
+                })
                 .await?;
 
             self.data_received(addr, buf).await;
