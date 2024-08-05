@@ -232,6 +232,14 @@ async fn process_cqe_task(
                 match op {
                     Operation::RX => {
                         if res > 0 {
+                            // SAFETY: upon completion `Operation::RX`
+                            // has initialized `res` bytes of the
+                            // buffer. We know that
+                            // `IOUringInner::recv_task` injects
+                            // matched pairs of `Operation:RX` and a
+                            // buffer into the queue so they must
+                            // correspond.
+                            #[allow(unsafe_code)]
                             unsafe {
                                 buf.advance_mut(res as _);
                             }
@@ -280,7 +288,13 @@ async fn main_task(fd: RawFd, ring_size: usize, inner: IOUringInner) -> Result<(
                 let id = inner_clone.id.fetch_add(1, Ordering::Relaxed);
                 sqe = sqe.user_data(id);
 
-                match unsafe { sq.push(&sqe) } {
+                #[allow(unsafe_code)]
+                // SAFETY: We only construct valid `sqe`s in
+                // `IOUringInner::{send_task,recv_task}` which feed
+                // `sqe_channel_rx` above.
+                let push_result = unsafe { sq.push(&sqe) };
+
+                match push_result {
                     Ok(_) => {
                         inner_clone.submit_map.insert(id, (operation, buf));
                     },

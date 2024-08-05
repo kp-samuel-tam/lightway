@@ -16,6 +16,9 @@ debug = ["wolfssl/debug"]
 fuzzing_api = []
 postquantum = ["wolfssl/postquantum"]
 
+[lints]
+workspace = true
+
 [dependencies]
 bytes = { workspace = true }
 delegate = { workspace = true }

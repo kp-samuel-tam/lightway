@@ -13,6 +13,9 @@ default = ["io-uring"]
 debug = ["lightway-core/debug"]
 io-uring = ["lightway-app-utils/io-uring"]
 
+[lints]
+workspace = true
+
 [dependencies]
 anyhow = { workspace = true }
 async-channel = { workspace = true, optional = true }
