@@ -25,7 +25,7 @@ clap = { workspace = true }
 dashmap = "6.0.1"
 humantime = "2.1.0"
 io-uring = {  version = "0.6.3", optional = true }
-libc = "0.2.152"
+libc = { workspace = true }
 lightway-core = { workspace = true }
 metrics = { workspace = true }
 serde = { workspace = true }

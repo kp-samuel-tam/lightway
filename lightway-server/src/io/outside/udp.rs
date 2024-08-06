@@ -10,7 +10,7 @@ use lightway_core::{
     ConnectionType, Header, IOCallbackResult, OutsideIOSendCallback, OutsidePacket, SessionId,
     Version, MAX_OUTSIDE_MTU,
 };
-use socket2::SockRef;
+use socket2::{MaybeUninitSlice, MsgHdrMut, SockAddr, SockRef};
 use tokio::io::Interest;
 use tracing::{info, instrument, warn};
 
@@ -184,9 +184,32 @@ impl Server for UdpServer {
                 .sock
                 .async_io(Interest::READABLE, || {
                     let sock = SockRef::from(self.sock.as_ref());
-                    let raw_buf = buf.spare_capacity_mut();
+                    let mut raw_buf = [MaybeUninitSlice::new(buf.spare_capacity_mut())];
 
-                    let (len, addr) = sock.recv_from(raw_buf)?;
+                    #[allow(unsafe_code)]
+                    let mut sock_addr = {
+                        // SAFETY: sockaddr_storage is defined
+                        // (<https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/sys_socket.h.html>)
+                        // as being a suitable size and alignment for
+                        // "all supported protocol-specific address
+                        // structures" in the underlying OS APIs.
+                        //
+                        // All zeros is a valid representation,
+                        // corresponding to the `ss_family` having a
+                        // value of `AF_UNSPEC`.
+                        let addr_storage: libc::sockaddr_storage = unsafe { std::mem::zeroed() };
+                        let len = std::mem::size_of_val(&addr_storage) as libc::socklen_t;
+                        // SAFETY: We initialized above as `AF_UNSPEC`
+                        // so the storage is correct from that
+                        // angle. The `recvmsg` call will change this
+                        // which should be ok since `sockaddr_storage`
+                        // is big enough.
+                        unsafe { SockAddr::new(addr_storage, len) }
+                    };
+                    let mut msg = MsgHdrMut::new()
+                        .with_addr(&mut sock_addr)
+                        .with_buffers(&mut raw_buf);
+                    let len = sock.recvmsg(&mut msg, 0)?;
 
                     // SAFETY: We rely on recv_from giving us the correct size
                     #[allow(unsafe_code)]
@@ -194,7 +217,7 @@ impl Server for UdpServer {
                         buf.set_len(len)
                     };
 
-                    let Some(addr) = addr.as_socket() else {
+                    let Some(addr) = sock_addr.as_socket() else {
                         // Since we only bind to IP sockets this shouldn't happen.
                         return Err(std::io::Error::new(
                             std::io::ErrorKind::InvalidInput,
