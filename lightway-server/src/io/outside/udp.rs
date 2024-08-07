@@ -80,7 +80,7 @@ impl UdpServer {
     }
 
     #[instrument(level = "trace", skip_all)]
-    async fn data_received(&mut self, addr: SocketAddr, buf: BytesMut) {
+    async fn data_received(&mut self, addr: SocketAddr, local_addr: SocketAddr, buf: BytesMut) {
         let pkt = OutsidePacket::Wire(buf, ConnectionType::Datagram);
         let pkt = match self.conn_manager.parse_raw_outside_packet(pkt) {
             Ok(hdr) => hdr,
@@ -111,6 +111,7 @@ impl UdpServer {
                     addr,
                     hdr.version,
                     hdr.session,
+                    local_addr,
                     || {
                         Arc::new(UdpSocket {
                             sock: self.sock.clone(),
@@ -185,7 +186,7 @@ impl Server for UdpServer {
         loop {
             let mut buf = BytesMut::with_capacity(MAX_OUTSIDE_MTU);
 
-            let addr = self
+            let (addr, local_addr) = self
                 .sock
                 .async_io(Interest::READABLE, || {
                     let sock = SockRef::from(self.sock.as_ref());
@@ -263,13 +264,12 @@ impl Server for UdpServer {
                                 "recvmsg did not return IP_PKTINFO",
                             ));
                         };
-                    tracing::debug!(?local_addr, "Received data");
 
-                    Ok(addr)
+                    Ok((addr, local_addr))
                 })
                 .await?;
 
-            self.data_received(addr, buf).await;
+            self.data_received(addr, local_addr, buf).await;
         }
     }
 }

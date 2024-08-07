@@ -108,7 +108,6 @@ impl Server for TcpServer {
                 tracing::debug!("Failed to convert local addr to socketaddr");
                 return Err(anyhow!("Failed to convert local addr to socketaddr"));
             };
-            tracing::debug!(?local_addr, "New connection");
 
             let sock = Arc::new(sock);
 
@@ -118,9 +117,11 @@ impl Server for TcpServer {
             });
             // TCP has no version indication, default to the minimum
             // supported version.
-            let conn = self
-                .conn_manager
-                .create_streaming_connection(Version::MINIMUM, outside_io)?;
+            let conn = self.conn_manager.create_streaming_connection(
+                Version::MINIMUM,
+                local_addr,
+                outside_io,
+            )?;
 
             tokio::spawn(handle_connection(sock, conn));
         }
