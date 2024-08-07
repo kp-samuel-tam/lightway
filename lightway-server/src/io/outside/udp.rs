@@ -49,6 +49,7 @@ impl OutsideIOSendCallback for UdpSocket {
 pub(crate) struct UdpServer {
     conn_manager: Arc<ConnectionManager>,
     sock: Arc<tokio::net::UdpSocket>,
+    local_addr: SocketAddr,
 }
 
 impl UdpServer {
@@ -58,11 +59,17 @@ impl UdpServer {
     ) -> Result<UdpServer> {
         let sock = Arc::new(tokio::net::UdpSocket::bind(bind_address).await?);
 
+        let local_addr = sock.local_addr()?;
+
         let socket = socket2::SockRef::from(&sock);
         socket.set_send_buffer_size(SOCKET_BUFFER_SIZE)?;
         socket.set_recv_buffer_size(SOCKET_BUFFER_SIZE)?;
 
-        Ok(Self { conn_manager, sock })
+        Ok(Self {
+            conn_manager,
+            sock,
+            local_addr,
+        })
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -167,7 +174,7 @@ impl UdpServer {
 #[async_trait]
 impl Server for UdpServer {
     async fn run(&mut self) -> Result<()> {
-        info!("Accepting traffic on {}", self.sock.local_addr()?);
+        info!("Accepting traffic on {}", self.local_addr);
         loop {
             let mut buf = BytesMut::with_capacity(MAX_OUTSIDE_MTU);
 
