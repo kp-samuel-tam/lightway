@@ -16,9 +16,14 @@ debug = 1
 
 [workspace.lints.rust]
 unsafe_code = "deny"
+unsafe_op_in_unsafe_fn = "deny"
+unused_unsafe = "deny"
 
 [workspace.lints.clippy]
+missing_safety_doc = "deny"
+multiple_unsafe_ops_per_block = "deny"
 undocumented_unsafe_blocks = "deny"
+unnecessary_safety_comment = "deny"
 
 [workspace.dependencies]
 anyhow = "1.0.79"
