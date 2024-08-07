@@ -19,8 +19,13 @@ struct Auth {
     password: String,
 }
 
-impl ServerAuth for Auth {
-    fn authorize_user_password(&self, user: &str, password: &str) -> ServerAuthResult {
+impl ServerAuth<ConnectionState> for Auth {
+    fn authorize_user_password(
+        &self,
+        user: &str,
+        password: &str,
+        _app_state: &mut ConnectionState,
+    ) -> ServerAuthResult {
         if user == self.user && password == self.password {
             ServerAuthResult::Granted {
                 handle: None,

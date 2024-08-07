@@ -17,7 +17,7 @@ use lightway_core::{
     Version,
 };
 
-pub(crate) struct ConnectionState {
+pub struct ConnectionState {
     // Handler for tick callbacks.
     ticker: ConnectionTicker,
     // The backend IP (from IP pool) associated with this connection

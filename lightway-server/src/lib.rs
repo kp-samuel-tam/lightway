@@ -42,9 +42,11 @@ fn debug_fmt_plugin_list(
 
 struct AuthMetrics<SA>(SA);
 
-impl<SA: ServerAuth> ServerAuth for AuthMetrics<SA> {
-    fn authorize(&self, method: &AuthMethod) -> ServerAuthResult {
-        let authorized = self.0.authorize(method);
+pub use connection::ConnectionState;
+
+impl<AppState, SA: ServerAuth<AppState>> ServerAuth<AppState> for AuthMetrics<SA> {
+    fn authorize(&self, method: &AuthMethod, app_state: &mut AppState) -> ServerAuthResult {
+        let authorized = self.0.authorize(method, app_state);
         if matches!(authorized, ServerAuthResult::Denied) {
             metrics::connection_rejected_access_denied();
         }
@@ -54,7 +56,7 @@ impl<SA: ServerAuth> ServerAuth for AuthMetrics<SA> {
 
 #[derive(educe::Educe)]
 #[educe(Debug)]
-pub struct ServerConfig<SA: ServerAuth> {
+pub struct ServerConfig<SA: ServerAuth<ConnectionState>> {
     /// Connection mode
     pub connection_type: ConnectionType,
 
@@ -111,7 +113,7 @@ pub struct ServerConfig<SA: ServerAuth> {
     pub bind_address: SocketAddr,
 }
 
-pub async fn server<SA: ServerAuth + Sync + Send + 'static>(
+pub async fn server<SA: ServerAuth<ConnectionState> + Sync + Send + 'static>(
     config: ServerConfig<SA>,
 ) -> Result<()> {
     let server_key = Secret::PemFile(&config.server_key);

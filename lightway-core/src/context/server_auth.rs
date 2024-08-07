@@ -31,37 +31,42 @@ pub enum ServerAuthResult {
 
 /// Server auth backend. Servers can implement only the methods they
 /// support, all others will reject by default.
-pub trait ServerAuth {
+pub trait ServerAuth<T> {
     /// Authorize the connection based on `method`, defers to the more
     /// specific `authorize_*` methods on this trait.
-    fn authorize(&self, method: &wire::AuthMethod) -> ServerAuthResult {
+    fn authorize(&self, method: &wire::AuthMethod, app_state: &mut T) -> ServerAuthResult {
         match method {
             wire::AuthMethod::UserPass { user, password } => {
-                self.authorize_user_password(user, password)
+                self.authorize_user_password(user, password, app_state)
             }
-            wire::AuthMethod::Token { token } => self.authorize_token(token),
-            wire::AuthMethod::CustomCallback { data } => self.authorize_cb_data(data),
+            wire::AuthMethod::Token { token } => self.authorize_token(token, app_state),
+            wire::AuthMethod::CustomCallback { data } => self.authorize_cb_data(data, app_state),
         }
     }
 
     /// Authorize the given `user` with `password`.
-    fn authorize_user_password(&self, _user: &str, _password: &str) -> ServerAuthResult {
+    fn authorize_user_password(
+        &self,
+        _user: &str,
+        _password: &str,
+        _app_state: &mut T,
+    ) -> ServerAuthResult {
         info!("ServerAuth: user+password auth not supported");
         ServerAuthResult::Denied
     }
 
     /// Authorize based on the given `token`
-    fn authorize_token(&self, _token: &str) -> ServerAuthResult {
+    fn authorize_token(&self, _token: &str, _app_state: &mut T) -> ServerAuthResult {
         info!("ServerAuth: token based auth not supported");
         ServerAuthResult::Denied
     }
 
     /// Authorize based on the given callback data `cb_data`
-    fn authorize_cb_data(&self, _data: &Bytes) -> ServerAuthResult {
+    fn authorize_cb_data(&self, _data: &Bytes, _app_state: &mut T) -> ServerAuthResult {
         info!("ServerAuth: callback data auth not supported");
         ServerAuthResult::Denied
     }
 }
 
 /// Convenience type to use as function arguments
-pub type ServerAuthArg = Arc<dyn ServerAuth + Send + Sync>;
+pub type ServerAuthArg<AppState> = Arc<dyn ServerAuth<AppState> + Send + Sync>;
