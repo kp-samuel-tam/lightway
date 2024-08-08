@@ -845,9 +845,6 @@ impl<AppState: Send> Connection<AppState> {
 
         // Free the allocated IP to this connection
         if let ConnectionMode::Server { ip_pool, .. } = &self.mode {
-            // avoid conflicting borrows of self by releasing the
-            // direct binding to `self.mode.ip_pool`.
-            let ip_pool = ip_pool.clone();
             ip_pool.free(&mut self.app_state);
         }
 
@@ -1317,11 +1314,7 @@ impl<AppState: Send> Connection<AppState> {
 
         // Send packet to inside io
         self.activity.last_data_traffic_from_peer = Instant::now();
-        match self
-            .inside_io
-            .clone()
-            .send(inside_pkt, self.app_state_mut())
-        {
+        match self.inside_io.send(inside_pkt, &mut self.app_state) {
             IOCallbackResult::Ok(_nr) => {}
             IOCallbackResult::Err(err) => {
                 metrics::inside_io_send_failed(err);
