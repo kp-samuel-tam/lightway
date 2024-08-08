@@ -19,12 +19,12 @@ struct Auth {
     password: String,
 }
 
-impl ServerAuth<ConnectionState> for Auth {
+impl<'a> ServerAuth<AuthState<'a>> for Auth {
     fn authorize_user_password(
         &self,
         user: &str,
         password: &str,
-        _app_state: &mut ConnectionState,
+        _app_state: &mut AuthState<'a>,
     ) -> ServerAuthResult {
         if user == self.user && password == self.password {
             ServerAuthResult::Granted {
