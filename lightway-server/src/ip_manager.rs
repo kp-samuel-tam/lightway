@@ -48,12 +48,12 @@ impl ServerIpPool<ConnectionState> for IpManager {
         // If this connection has already been allocated an IP then
         // return the corresponding config -- otherwise allocate a new
         // IP.
-        match state.ip {
+        match state.internal_ip {
             Some(ip) => Some(self.inside_ip_config(ip)),
             None => {
                 let (allocation, config) = self.alloc(conn)?;
 
-                state.ip = Some(allocation);
+                state.internal_ip = Some(allocation);
 
                 Some(config)
             }
@@ -61,7 +61,7 @@ impl ServerIpPool<ConnectionState> for IpManager {
     }
 
     fn free(&self, state: &mut ConnectionState) {
-        if let Some(ip) = state.ip.take() {
+        if let Some(ip) = state.internal_ip.take() {
             self.free(ip);
         }
     }

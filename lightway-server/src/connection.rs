@@ -21,7 +21,7 @@ pub(crate) struct ConnectionState {
     // Handler for tick callbacks.
     ticker: ConnectionTicker,
     // The backend IP (from IP pool) associated with this connection
-    pub(crate) ip: Option<Ipv4Addr>,
+    pub(crate) internal_ip: Option<Ipv4Addr>,
     // The connection
     pub(crate) conn: std::cell::OnceCell<Weak<Connection>>,
 }
@@ -57,7 +57,7 @@ impl Connection {
         let (ticker, ticker_task) = ConnectionTicker::new();
         let state = ConnectionState {
             ticker,
-            ip: None,
+            internal_ip: None,
             conn: std::cell::OnceCell::new(),
         };
 

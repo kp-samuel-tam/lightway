@@ -48,7 +48,7 @@ impl InsideIO for Tun {
 
 impl InsideIOSendCallback<ConnectionState> for Tun {
     fn send(&self, mut buf: BytesMut, state: &mut ConnectionState) -> IOCallbackResult<usize> {
-        let Some(client_ip) = state.ip else {
+        let Some(client_ip) = state.internal_ip else {
             metrics::tun_rejected_packet_no_client_ip();
             // Ip address not found, dropping the packet
             return IOCallbackResult::Ok(buf.len());
