@@ -261,6 +261,10 @@ impl Server for UdpServer {
 
                     let len = sock.recvmsg(&mut msg, 0)?;
 
+                    if msg.flags().is_truncated() {
+                        metrics::udp_recv_truncated();
+                    }
+
                     let control_len = msg.control_len();
 
                     // SAFETY: We rely on recv_from giving us the correct size

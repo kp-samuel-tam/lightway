@@ -39,6 +39,7 @@ Lightway server also supports metrics to monitor. The following are the metrics 
 | conn_closed | server | Counter | Counts connections which have been closed for any reason |
 | udp_conn_recovered_via_session | server | Counter | Counts UDP connections which have been recovered using the session ID (which indicates that the client’s IP address changed) |
 | udp_session_rotation_attempted_via_replay | server | Counter | Counts UDP rotation attempted using duplicated packets. i.e An attack<br>ie. Some adversary capture and replay packets from different IP address.<br><br>There is also a possibility that counter is incremented due to aggressive connect.<br> |
+| udp_recv_truncated | server | Counter | Counts occurrences of UDP packet truncation on receive |
 | udp_bad_packet_version | server | Counter | Counts UDP packets where the the version in the wire protocol header was not a version supported by the server |
 | udp_rejected_session | server | Counter | Counts UDP packets which were rejected due to the session id in the wire protocol header not being recognised |
 | udp_parse_wire_failed | server | Counter | Counts UDP packets which could not be parsed. Indicates plugin ingress chain failed |
