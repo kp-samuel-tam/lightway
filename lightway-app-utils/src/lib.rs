@@ -2,6 +2,7 @@
 #![warn(missing_docs)]
 
 pub mod args;
+pub mod sockopt;
 
 #[cfg(feature = "tokio")]
 mod connection_ticker;

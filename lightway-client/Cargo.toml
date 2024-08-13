@@ -26,7 +26,6 @@ clap = { workspace = true }
 ctrlc = { workspace = true }
 educe = { workspace = true }
 futures = "0.3.30"
-libc = "0.2.152"
 lightway-app-utils = { workspace = true }
 lightway-core = { workspace = true }
 pnet = { workspace = true }

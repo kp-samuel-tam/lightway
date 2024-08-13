@@ -1,11 +1,10 @@
-mod sockopt;
-
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use std::{net::SocketAddr, sync::Arc};
 use tokio::net::UdpSocket;
 
 use super::OutsideIO;
+use lightway_app_utils::sockopt;
 use lightway_core::{IOCallbackResult, OutsideIOSendCallback, OutsideIOSendCallbackArg};
 
 pub struct Udp {

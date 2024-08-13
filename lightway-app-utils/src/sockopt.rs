@@ -17,10 +17,14 @@ use std::os::fd::AsRawFd;
 /// #define IP_PMTUDISC_PROBE               3       /* Ignore dst pmtu      */
 /// ```
 #[derive(Copy, Clone)]
-pub(super) enum IpPmtudisc {
+pub enum IpPmtudisc {
+    /// Never send DF frames
     Dont,
+    /// Use per route hints
     Want,
+    /// Always DF
     Do,
+    /// Ignore dst pmtu
     Probe,
 }
 
@@ -49,7 +53,8 @@ impl TryFrom<libc::c_int> for IpPmtudisc {
     }
 }
 
-pub(super) fn get_ip_mtu_discover(sock: &tokio::net::UdpSocket) -> std::io::Result<IpPmtudisc> {
+/// Get IP_MTU_DISCOVER sockopt
+pub fn get_ip_mtu_discover(sock: &tokio::net::UdpSocket) -> std::io::Result<IpPmtudisc> {
     let mut value: MaybeUninit<libc::c_int> = MaybeUninit::uninit();
     let mut len = std::mem::size_of::<libc::c_int>() as libc::socklen_t;
 
@@ -94,7 +99,8 @@ pub(super) fn get_ip_mtu_discover(sock: &tokio::net::UdpSocket) -> std::io::Resu
     value.try_into()
 }
 
-pub(super) fn set_ip_mtu_discover(
+/// Set IP_MTU_DISCOVER sockopt
+pub fn set_ip_mtu_discover(
     sock: &tokio::net::UdpSocket,
     pmtudisc: IpPmtudisc,
 ) -> std::io::Result<()> {
