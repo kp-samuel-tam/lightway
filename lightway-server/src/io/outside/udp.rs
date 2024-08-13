@@ -275,6 +275,7 @@ impl Server for UdpServer {
 
                     let Some(addr) = sock_addr.as_socket() else {
                         // Since we only bind to IP sockets this shouldn't happen.
+                        metrics::udp_recv_invalid_addr();
                         return Err(std::io::Error::new(
                             std::io::ErrorKind::InvalidInput,
                             "failed to convert local addr to socketaddr",
@@ -302,7 +303,10 @@ impl Server for UdpServer {
                                         _ => None,
                                     }
                                 }) else {
-                                    // Since we have a bound socket this shouldn't happen.
+                                    // Since we have a bound socket
+                                    // and we have set IP_PKTINFO
+                                    // sockopt this shouldn't happen.
+                                    metrics::udp_recv_missing_pktinfo();
                                     return Err(std::io::Error::new(
                                         std::io::ErrorKind::Other,
                                         "recvmsg did not return IP_PKTINFO",
