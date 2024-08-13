@@ -54,7 +54,7 @@ impl TryFrom<libc::c_int> for IpPmtudisc {
 }
 
 /// Get IP_MTU_DISCOVER sockopt
-pub fn get_ip_mtu_discover(sock: &tokio::net::UdpSocket) -> std::io::Result<IpPmtudisc> {
+pub fn get_ip_mtu_discover(sock: &impl AsRawFd) -> std::io::Result<IpPmtudisc> {
     let mut value: MaybeUninit<libc::c_int> = MaybeUninit::uninit();
     let mut len = std::mem::size_of::<libc::c_int>() as libc::socklen_t;
 
@@ -100,10 +100,7 @@ pub fn get_ip_mtu_discover(sock: &tokio::net::UdpSocket) -> std::io::Result<IpPm
 }
 
 /// Set IP_MTU_DISCOVER sockopt
-pub fn set_ip_mtu_discover(
-    sock: &tokio::net::UdpSocket,
-    pmtudisc: IpPmtudisc,
-) -> std::io::Result<()> {
+pub fn set_ip_mtu_discover(sock: &impl AsRawFd, pmtudisc: IpPmtudisc) -> std::io::Result<()> {
     let pmtudisc: libc::c_int = pmtudisc.into();
     let len = std::mem::size_of::<libc::c_int>() as libc::socklen_t;
 
