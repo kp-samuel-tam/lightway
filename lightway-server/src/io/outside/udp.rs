@@ -1,15 +1,20 @@
+mod cmsg;
+
 use std::{
-    net::SocketAddr,
+    net::{IpAddr, Ipv4Addr, SocketAddr},
     sync::{Arc, RwLock},
 };
 
 use anyhow::Result;
 use async_trait::async_trait;
 use bytes::BytesMut;
+use lightway_app_utils::sockopt::socket_enable_pktinfo;
 use lightway_core::{
     ConnectionType, Header, IOCallbackResult, OutsideIOSendCallback, OutsidePacket, SessionId,
     Version, MAX_OUTSIDE_MTU,
 };
+use socket2::{MaybeUninitSlice, MsgHdrMut, SockAddr, SockRef};
+use tokio::io::Interest;
 use tracing::{info, instrument, warn};
 
 use crate::{connection_manager::ConnectionManager, metrics};
@@ -17,6 +22,28 @@ use crate::{connection_manager::ConnectionManager, metrics};
 use super::Server;
 
 const SOCKET_BUFFER_SIZE: usize = 15 * 1024 * 1024;
+
+enum BindMode {
+    UnspecifiedAddress { local_port: u16 },
+    SpecificAddress { local_addr: SocketAddr },
+}
+
+impl BindMode {
+    fn needs_pktinfo(&self) -> bool {
+        matches!(self, BindMode::UnspecifiedAddress { .. })
+    }
+}
+
+impl std::fmt::Display for BindMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BindMode::UnspecifiedAddress { local_port } => {
+                write!(f, "port {local_port}")
+            }
+            BindMode::SpecificAddress { local_addr } => local_addr.fmt(f),
+        }
+    }
+}
 
 struct UdpSocket {
     sock: Arc<tokio::net::UdpSocket>,
@@ -49,6 +76,7 @@ impl OutsideIOSendCallback for UdpSocket {
 pub(crate) struct UdpServer {
     conn_manager: Arc<ConnectionManager>,
     sock: Arc<tokio::net::UdpSocket>,
+    bind_mode: BindMode,
 }
 
 impl UdpServer {
@@ -58,15 +86,33 @@ impl UdpServer {
     ) -> Result<UdpServer> {
         let sock = Arc::new(tokio::net::UdpSocket::bind(bind_address).await?);
 
+        let bind_mode = if bind_address.ip().is_unspecified() {
+            BindMode::UnspecifiedAddress {
+                local_port: bind_address.port(),
+            }
+        } else {
+            BindMode::SpecificAddress {
+                local_addr: bind_address,
+            }
+        };
+
         let socket = socket2::SockRef::from(&sock);
         socket.set_send_buffer_size(SOCKET_BUFFER_SIZE)?;
         socket.set_recv_buffer_size(SOCKET_BUFFER_SIZE)?;
 
-        Ok(Self { conn_manager, sock })
+        if bind_mode.needs_pktinfo() {
+            socket_enable_pktinfo(&sock)?;
+        }
+
+        Ok(Self {
+            conn_manager,
+            sock,
+            bind_mode,
+        })
     }
 
     #[instrument(level = "trace", skip_all)]
-    async fn data_received(&mut self, addr: SocketAddr, buf: BytesMut) {
+    async fn data_received(&mut self, addr: SocketAddr, local_addr: SocketAddr, buf: BytesMut) {
         let pkt = OutsidePacket::Wire(buf, ConnectionType::Datagram);
         let pkt = match self.conn_manager.parse_raw_outside_packet(pkt) {
             Ok(hdr) => hdr,
@@ -97,6 +143,7 @@ impl UdpServer {
                     addr,
                     hdr.version,
                     hdr.session,
+                    local_addr,
                     || {
                         Arc::new(UdpSocket {
                             sock: self.sock.clone(),
@@ -167,13 +214,114 @@ impl UdpServer {
 #[async_trait]
 impl Server for UdpServer {
     async fn run(&mut self) -> Result<()> {
-        info!("Accepting traffic on {}", self.sock.local_addr()?);
+        info!("Accepting traffic on {}", self.bind_mode);
         loop {
             let mut buf = BytesMut::with_capacity(MAX_OUTSIDE_MTU);
 
-            let (_len, addr) = self.sock.recv_buf_from(&mut buf).await?;
+            let (addr, local_addr) = self
+                .sock
+                .async_io(Interest::READABLE, || {
+                    let sock = SockRef::from(self.sock.as_ref());
+                    let mut raw_buf = [MaybeUninitSlice::new(buf.spare_capacity_mut())];
 
-            self.data_received(addr, buf).await;
+                    #[allow(unsafe_code)]
+                    let mut sock_addr = {
+                        // SAFETY: sockaddr_storage is defined
+                        // (<https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/sys_socket.h.html>)
+                        // as being a suitable size and alignment for
+                        // "all supported protocol-specific address
+                        // structures" in the underlying OS APIs.
+                        //
+                        // All zeros is a valid representation,
+                        // corresponding to the `ss_family` having a
+                        // value of `AF_UNSPEC`.
+                        let addr_storage: libc::sockaddr_storage = unsafe { std::mem::zeroed() };
+                        let len = std::mem::size_of_val(&addr_storage) as libc::socklen_t;
+                        // SAFETY: We initialized above as `AF_UNSPEC`
+                        // so the storage is correct from that
+                        // angle. The `recvmsg` call will change this
+                        // which should be ok since `sockaddr_storage`
+                        // is big enough.
+                        unsafe { SockAddr::new(addr_storage, len) }
+                    };
+
+                    // We only need this control buffer if
+                    // `self.bind_mode.needs_pktinfo()`. However the hit
+                    // on reserving a fairly small on stack buffer
+                    // should be small compared with the conditional
+                    // logic and dynamically sized buffer needed to
+                    // allow omitting it.
+                    const SIZE: usize = cmsg::Message::space::<libc::in_pktinfo>();
+                    let mut control = cmsg::Buffer::<SIZE>::new();
+
+                    let mut msg = MsgHdrMut::new()
+                        .with_addr(&mut sock_addr)
+                        .with_buffers(&mut raw_buf)
+                        .with_control(control.as_mut());
+
+                    let len = sock.recvmsg(&mut msg, 0)?;
+
+                    if msg.flags().is_truncated() {
+                        metrics::udp_recv_truncated();
+                    }
+
+                    let control_len = msg.control_len();
+
+                    // SAFETY: We rely on recv_from giving us the correct size
+                    #[allow(unsafe_code)]
+                    unsafe {
+                        buf.set_len(len)
+                    };
+
+                    let Some(addr) = sock_addr.as_socket() else {
+                        // Since we only bind to IP sockets this shouldn't happen.
+                        metrics::udp_recv_invalid_addr();
+                        return Err(std::io::Error::new(
+                            std::io::ErrorKind::InvalidInput,
+                            "failed to convert local addr to socketaddr",
+                        ));
+                    };
+
+                    #[allow(unsafe_code)]
+                    let local_addr = match self.bind_mode {
+                        BindMode::UnspecifiedAddress { local_port } => {
+                            let Some(local_addr) =
+                                // SAFETY: The call to `recvmsg` above updated
+                                // the control buffer length field.
+                                unsafe { control.iter(control_len) }.find_map(|cmsg| {
+                                    match cmsg {
+                                        cmsg::Message::IpPktinfo(pi) => {
+                                            // From https://pubs.opengroup.org/onlinepubs/009695399/basedefs/netinet/in.h.html
+                                            // the `s_addr` is an `in_addr`
+                                            // which is in network byte order
+                                            // (big endian).
+                                            let ipv4 = u32::from_be(pi.ipi_spec_dst.s_addr);
+                                            let ipv4 = Ipv4Addr::from_bits(ipv4);
+                                            let ip = IpAddr::V4(ipv4);
+                                            Some(SocketAddr::new(ip, local_port))
+                                        },
+                                        _ => None,
+                                    }
+                                }) else {
+                                    // Since we have a bound socket
+                                    // and we have set IP_PKTINFO
+                                    // sockopt this shouldn't happen.
+                                    metrics::udp_recv_missing_pktinfo();
+                                    return Err(std::io::Error::new(
+                                        std::io::ErrorKind::Other,
+                                        "recvmsg did not return IP_PKTINFO",
+                                    ));
+                                };
+                            local_addr
+                        }
+                        BindMode::SpecificAddress { local_addr } => local_addr,
+                    };
+
+                    Ok((addr, local_addr))
+                })
+                .await?;
+
+            self.data_received(addr, local_addr, buf).await;
         }
     }
 }

@@ -180,6 +180,7 @@ fn new_connection(
     manager: Arc<ConnectionManager>,
     ctx: &ServerContext<ConnectionState>,
     protocol_version: Version,
+    local_addr: SocketAddr,
     outside_io: OutsideIOSendCallbackArg,
 ) -> Result<Arc<Connection>, ConnectionManagerError> {
     metrics::connection_created(&protocol_version);
@@ -187,7 +188,14 @@ fn new_connection(
     let (event_cb, event_stream) = EventStreamCallback::new();
 
     manager.total_sessions.fetch_add(1, Ordering::Relaxed);
-    let conn = Connection::new(ctx, manager, protocol_version, outside_io, event_cb)?;
+    let conn = Connection::new(
+        ctx,
+        manager,
+        protocol_version,
+        local_addr,
+        outside_io,
+        event_cb,
+    )?;
 
     tokio::spawn(handle_events(event_stream, Arc::downgrade(&conn)));
 
@@ -227,9 +235,16 @@ impl ConnectionManager {
     pub(crate) fn create_streaming_connection(
         self: &Arc<Self>,
         protocol_version: Version,
+        socket_addr: SocketAddr,
         outside_io: OutsideIOSendCallbackArg,
     ) -> Result<Arc<Connection>, ConnectionManagerError> {
-        let conn = new_connection(self.clone(), &self.ctx, protocol_version, outside_io)?;
+        let conn = new_connection(
+            self.clone(),
+            &self.ctx,
+            protocol_version,
+            socket_addr,
+            outside_io,
+        )?;
         // TODO: what if addr was already present?
         self.connections.lock().unwrap().insert(&conn)?;
         Ok(conn)
@@ -258,6 +273,7 @@ impl ConnectionManager {
         addr: SocketAddr,
         protocol_version: Version,
         session_id: SessionId,
+        local_addr: SocketAddr,
         create_io: F,
     ) -> Result<(Arc<Connection>, bool), ConnectionManagerError>
     where
@@ -277,7 +293,13 @@ impl ConnectionManager {
             connection_map::Entry::Vacant(e) if session_id == SessionId::EMPTY => {
                 info!(?addr, %protocol_version, "New Client");
                 let outside_io = create_io();
-                let c = new_connection(self.clone(), &self.ctx, protocol_version, outside_io)?;
+                let c = new_connection(
+                    self.clone(),
+                    &self.ctx,
+                    protocol_version,
+                    local_addr,
+                    outside_io,
+                )?;
                 e.insert(&c)?;
                 Ok((c, false))
             }

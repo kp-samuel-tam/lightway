@@ -21,7 +21,9 @@ pub(crate) struct ConnectionState {
     // Handler for tick callbacks.
     ticker: ConnectionTicker,
     // The backend IP (from IP pool) associated with this connection
-    pub(crate) ip: Option<Ipv4Addr>,
+    pub(crate) internal_ip: Option<Ipv4Addr>,
+    // The local IP:PORT which the client has connected to
+    pub(crate) _local_addr: SocketAddr,
     // The connection
     pub(crate) conn: std::cell::OnceCell<Weak<Connection>>,
 }
@@ -49,15 +51,18 @@ impl Connection {
         ctx: &ServerContext<ConnectionState>,
         manager: Arc<ConnectionManager>,
         protocol_version: Version,
+        local_addr: SocketAddr,
         outside_io: OutsideIOSendCallbackArg,
         event_cb: EventStreamCallback,
     ) -> Result<Arc<Self>, ConnectionManagerError> {
+        tracing::debug!(?local_addr, "New connection");
         let connection_started = std::time::Instant::now();
 
         let (ticker, ticker_task) = ConnectionTicker::new();
         let state = ConnectionState {
             ticker,
-            ip: None,
+            internal_ip: None,
+            _local_addr: local_addr,
             conn: std::cell::OnceCell::new(),
         };
 

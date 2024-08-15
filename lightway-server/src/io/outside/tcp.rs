@@ -7,6 +7,7 @@ use lightway_core::{
     ConnectionType, IOCallbackResult, OutsideIOSendCallback, OutsidePacket, Version,
     MAX_OUTSIDE_MTU,
 };
+use socket2::SockRef;
 use tracing::{info, instrument, warn};
 
 use crate::connection::Connection;
@@ -94,6 +95,20 @@ impl Server for TcpServer {
         loop {
             let (sock, addr) = self.sock.accept().await?;
 
+            let local_addr = match SockRef::from(&sock).local_addr() {
+                Ok(local_addr) => local_addr,
+                Err(err) => {
+                    // Since we have a bound socket this shouldn't happen.
+                    tracing::debug!(?err, "Failed to get local addr");
+                    return Err(err.into());
+                }
+            };
+            let Some(local_addr) = local_addr.as_socket() else {
+                // Since we only bind to IP sockets this shouldn't happen.
+                tracing::debug!("Failed to convert local addr to socketaddr");
+                return Err(anyhow!("Failed to convert local addr to socketaddr"));
+            };
+
             let sock = Arc::new(sock);
 
             let outside_io = Arc::new(TcpStream {
@@ -102,9 +117,11 @@ impl Server for TcpServer {
             });
             // TCP has no version indication, default to the minimum
             // supported version.
-            let conn = self
-                .conn_manager
-                .create_streaming_connection(Version::MINIMUM, outside_io)?;
+            let conn = self.conn_manager.create_streaming_connection(
+                Version::MINIMUM,
+                local_addr,
+                outside_io,
+            )?;
 
             tokio::spawn(handle_connection(sock, conn));
         }

@@ -26,6 +26,7 @@ ctrlc = { workspace = true }
 delegate = { workspace = true }
 educe = { workspace = true }
 ipnet = { version = "2.8.0", features = ["serde"]}
+libc = { workspace = true }
 lightway-app-utils = { workspace = true }
 lightway-core = { workspace = true, features = ["postquantum"] }
 metrics = { workspace = true }

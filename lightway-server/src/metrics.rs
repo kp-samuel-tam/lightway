@@ -27,6 +27,9 @@ const METRIC_UDP_SESSION_ROTATION_BEGIN: &str = "udp_session_rotation_begin";
 const METRIC_UDP_SESSION_ROTATION_FINALIZED: &str = "udp_session_rotation_finalized";
 const METRIC_UDP_SESSION_ROTATION_ATTEMPTED_VIA_REPLAY: &str =
     "udp_session_rotation_attempted_via_replay";
+const METRIC_UDP_RECV_TRUNCATED: &str = "udp_recv_truncated";
+const METRIC_UDP_RECV_INVALID_ADDR: &str = "udp_recv_invalid_addr";
+const METRIC_UDP_RECV_MISSING_PKTINFO: &str = "udp_recv_missing_pktinfo";
 
 // Connection performance
 const METRIC_TO_LINK_UP_TIME: &str = "to_link_up_time";
@@ -187,6 +190,18 @@ pub(crate) fn udp_parse_wire_failed() {
 
 pub(crate) fn udp_no_header() {
     counter!(METRIC_UDP_NO_HEADER).increment(1);
+}
+
+pub(crate) fn udp_recv_truncated() {
+    counter!(METRIC_UDP_RECV_TRUNCATED).increment(1);
+}
+
+pub(crate) fn udp_recv_invalid_addr() {
+    counter!(METRIC_UDP_RECV_INVALID_ADDR).increment(1);
+}
+
+pub(crate) fn udp_recv_missing_pktinfo() {
+    counter!(METRIC_UDP_RECV_MISSING_PKTINFO).increment(1);
 }
 
 /// Fatal TLS error for [`lightway_core::Connection`].
