@@ -269,8 +269,8 @@ mod tests {
         assert_eq!(inner.allocate_ip(), None);
     }
 
-    #[test_case(2, 2; "Alloc and free all")]
-    #[test_case(3, 2; "Alloc and free less")]
+    #[test_case(2, 2; "Free all allocated")]
+    #[test_case(3, 2; "Free fewer than allocated")]
     fn ip_manager_inner_free_ip(alloc_times: usize, free_times: usize) {
         let ip_manager = get_ip_manager_with_dummy_connection();
         let mut inner = ip_manager.inner.write().unwrap();
