@@ -40,11 +40,24 @@ fn debug_fmt_plugin_list(
     write!(f, "{} plugins", list.len())
 }
 
-struct AuthMetrics<SA>(SA);
+pub struct AuthState<'a> {
+    pub local_addr: &'a SocketAddr,
+}
 
-impl<SA: ServerAuth> ServerAuth for AuthMetrics<SA> {
-    fn authorize(&self, method: &AuthMethod) -> ServerAuthResult {
-        let authorized = self.0.authorize(method);
+struct AuthAdapter<SA: for<'a> ServerAuth<AuthState<'a>>>(SA);
+
+impl<SA: for<'a> ServerAuth<AuthState<'a>>> ServerAuth<connection::ConnectionState>
+    for AuthAdapter<SA>
+{
+    fn authorize(
+        &self,
+        method: &AuthMethod,
+        app_state: &mut connection::ConnectionState,
+    ) -> ServerAuthResult {
+        let mut auth_state = AuthState {
+            local_addr: &mut app_state.local_addr,
+        };
+        let authorized = self.0.authorize(method, &mut auth_state);
         if matches!(authorized, ServerAuthResult::Denied) {
             metrics::connection_rejected_access_denied();
         }
@@ -54,7 +67,7 @@ impl<SA: ServerAuth> ServerAuth for AuthMetrics<SA> {
 
 #[derive(educe::Educe)]
 #[educe(Debug)]
-pub struct ServerConfig<SA: ServerAuth> {
+pub struct ServerConfig<SA: for<'a> ServerAuth<AuthState<'a>>> {
     /// Connection mode
     pub connection_type: ConnectionType,
 
@@ -111,7 +124,7 @@ pub struct ServerConfig<SA: ServerAuth> {
     pub bind_address: SocketAddr,
 }
 
-pub async fn server<SA: ServerAuth + Sync + Send + 'static>(
+pub async fn server<SA: for<'a> ServerAuth<AuthState<'a>> + Sync + Send + 'static>(
     config: ServerConfig<SA>,
 ) -> Result<()> {
     let server_key = Secret::PemFile(&config.server_key);
@@ -152,7 +165,7 @@ pub async fn server<SA: ServerAuth + Sync + Send + 'static>(
     let ip_manager = Arc::new(ip_manager);
 
     let connection_type = config.connection_type;
-    let auth = Arc::new(AuthMetrics(config.auth));
+    let auth = Arc::new(AuthAdapter(config.auth));
 
     let iouring = if config.enable_tun_iouring {
         Some(config.iouring_entry_count)

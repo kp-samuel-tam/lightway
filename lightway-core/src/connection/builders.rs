@@ -248,7 +248,7 @@ pub struct ServerConnectionBuilder<'a, AppState> {
     connection_type: ConnectionType,
     protocol_version: Version,
     ctx: &'a ServerContext<AppState>,
-    auth: ServerAuthArg,
+    auth: ServerAuthArg<AppState>,
     ip_pool: ServerIpPoolArg<AppState>,
     session_config: wolfssl::SessionConfig<super::WolfSSLIOAdapter>,
     session_id: SessionId,

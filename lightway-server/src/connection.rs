@@ -17,13 +17,13 @@ use lightway_core::{
     Version,
 };
 
-pub(crate) struct ConnectionState {
+pub struct ConnectionState {
     // Handler for tick callbacks.
     ticker: ConnectionTicker,
     // The backend IP (from IP pool) associated with this connection
     pub(crate) internal_ip: Option<Ipv4Addr>,
-    // The local IP:PORT which the client has connected to
-    pub(crate) _local_addr: SocketAddr,
+    // The local IP which the client has connected to
+    pub(crate) local_addr: SocketAddr,
     // The connection
     pub(crate) conn: std::cell::OnceCell<Weak<Connection>>,
 }
@@ -62,7 +62,7 @@ impl Connection {
         let state = ConnectionState {
             ticker,
             internal_ip: None,
-            _local_addr: local_addr,
+            local_addr,
             conn: std::cell::OnceCell::new(),
         };
 

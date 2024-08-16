@@ -234,7 +234,7 @@ enum ConnectionMode<AppState> {
     },
     Server {
         /// Authentication oracle.
-        auth: ServerAuthArg,
+        auth: ServerAuthArg<AppState>,
         /// Set after successful authentication.
         auth_handle: Option<Box<dyn ServerAuthHandle + Sync + Send>>,
         ip_pool: ServerIpPoolArg<AppState>,
@@ -1232,7 +1232,7 @@ impl<AppState: Send> Connection<AppState> {
             return Err(ConnectionError::NoAvailableClientIp);
         };
 
-        match auth.authorize(&auth_request.auth_method) {
+        match auth.authorize(&auth_request.auth_method, &mut self.app_state) {
             ServerAuthResult::Granted {
                 tunnel_protocol_version,
                 handle,

@@ -23,8 +23,8 @@ const SERVER_KEY: &[u8] = &include!("data/server_key_der_2048");
 
 struct TestAuth;
 
-impl ServerAuth for TestAuth {
-    fn authorize_token(&self, _token: &str) -> ServerAuthResult {
+impl ServerAuth<ConnectionTicker> for TestAuth {
+    fn authorize_token(&self, _token: &str, _app_state: &mut ConnectionTicker) -> ServerAuthResult {
         ServerAuthResult::Granted {
             handle: None,
             tunnel_protocol_version: None,
