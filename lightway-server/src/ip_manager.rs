@@ -325,6 +325,7 @@ mod tests {
     #[test_case("10.125.0.1"; "Free local ip")]
     #[test_case("10.125.0.2"; "Free dns ip")]
     #[test_case("10.125.0.9"; "Free unallocated ip")]
+    #[test_case("192.168.1.1"; "Free unrelated ip")]
     fn ip_manager_inner_free_reserved_or_unallocated_ip(ip: &str) {
         let ip_manager = get_ip_manager_with_dummy_connection();
         let mut inner = ip_manager.inner.write().unwrap();
