@@ -24,10 +24,10 @@ struct IpManagerInner<T> {
     ip_to_conn_map: HashMap<Ipv4Addr, T>,
     /// Reserved IPs, must never be allocated to a client.
     reserved_ips: HashSet<Ipv4Addr>,
-    /// Hashset of IPs allocated to client (also contains local_ip and dns_ip)
-    used_ips: HashSet<Ipv4Addr>,
-    /// Hashset to store IPs which are freed after the client has been disconnected
-    freed_ips: HashSet<Ipv4Addr>,
+    /// Hashset of IPs allocated to clients (also contains local_ip and dns_ip)
+    allocated_ips: HashSet<Ipv4Addr>,
+    /// Hashset to store IPs which are currently unused
+    available_ips: HashSet<Ipv4Addr>,
     /// A cursor to find the next IP to allocate.
     unused_ips: Ipv4AddrRange,
     /// Static inside ip config which should be sent to clients in case of IP translation
@@ -73,17 +73,17 @@ impl<T> IpManager<T> {
 
         // Initialize used IPs with reserved IPs so that they will
         // never be assigned to clients.
-        let used_ips = reserved_ips.clone();
+        let allocated_ips = reserved_ips.clone();
 
         let unused_ips = ip_pool.hosts();
 
-        let freed_ips = HashSet::new();
+        let available_ips = HashSet::new();
         IpManager {
             inner: RwLock::new(IpManagerInner {
                 ip_to_conn_map: HashMap::new(),
                 reserved_ips,
-                used_ips,
-                freed_ips,
+                allocated_ips,
+                available_ips,
                 static_ip_config,
                 unused_ips,
             }),
@@ -139,9 +139,9 @@ impl<T> IpManagerInner<T> {
 
     fn allocate_ip(&mut self) -> Option<Ipv4Addr> {
         // Check in freed_ips first
-        if let Some(ip) = self.freed_ips.iter().next().cloned() {
-            self.freed_ips.remove(&ip);
-            self.used_ips.insert(ip);
+        if let Some(ip) = self.available_ips.iter().next().cloned() {
+            self.available_ips.remove(&ip);
+            self.allocated_ips.insert(ip);
             return Some(ip);
         }
 
@@ -152,12 +152,12 @@ impl<T> IpManagerInner<T> {
             };
 
             // Already present in used_ips. Maybe a reserved IP.
-            if self.used_ips.contains(&ip) {
+            if self.allocated_ips.contains(&ip) {
                 continue;
             }
 
             // This IP is a good one to use.
-            self.used_ips.insert(ip);
+            self.allocated_ips.insert(ip);
 
             return Some(ip);
         }
@@ -169,9 +169,9 @@ impl<T> IpManagerInner<T> {
             return;
         }
 
-        let freed_ip = self.used_ips.take(&ip);
+        let freed_ip = self.allocated_ips.take(&ip);
         if let Some(ip) = freed_ip {
-            self.freed_ips.insert(ip);
+            self.available_ips.insert(ip);
         }
     }
 }
@@ -212,10 +212,10 @@ mod tests {
             IpManager::new(ip_pool, [local_ip, dns_ip], get_static_ip_config());
         let inner = ip_manager.inner.read().unwrap();
 
-        assert!(inner.used_ips.contains(&local_ip));
-        assert!(inner.used_ips.contains(&dns_ip));
-        assert_eq!(inner.used_ips.len(), expected_len);
-        assert_eq!(inner.freed_ips.len(), 0);
+        assert!(inner.allocated_ips.contains(&local_ip));
+        assert!(inner.allocated_ips.contains(&dns_ip));
+        assert_eq!(inner.allocated_ips.len(), expected_len);
+        assert_eq!(inner.available_ips.len(), 0);
         assert_eq!(
             inner.unused_ips,
             Ipv4AddrRange::new(
@@ -247,7 +247,7 @@ mod tests {
         // Allocate IP
         let new_ip = inner.allocate_ip();
         assert_eq!(new_ip, Some(exp_new_ip.parse().unwrap()));
-        assert_eq!(inner.used_ips.len(), used_ips_len);
+        assert_eq!(inner.allocated_ips.len(), used_ips_len);
     }
 
     #[test_case("10.125.0.1", "10.125.0.1", 253; "Same Local and DNS IP")]
@@ -283,8 +283,8 @@ mod tests {
             alloced_ips.push(new_ip);
         }
 
-        assert_eq!(inner.used_ips.len(), alloc_times + reserved_ip_count);
-        assert_eq!(inner.freed_ips.len(), 0);
+        assert_eq!(inner.allocated_ips.len(), alloc_times + reserved_ip_count);
+        assert_eq!(inner.available_ips.len(), 0);
 
         // Free IP
         for _ in 1..=free_times {
@@ -293,10 +293,10 @@ mod tests {
         }
 
         assert_eq!(
-            inner.used_ips.len(),
+            inner.allocated_ips.len(),
             alloc_times - free_times + reserved_ip_count
         );
-        assert_eq!(inner.freed_ips.len(), free_times);
+        assert_eq!(inner.available_ips.len(), free_times);
     }
 
     #[test]
@@ -307,11 +307,11 @@ mod tests {
 
         // Allocate two ips and then free one
         let new_ip1 = inner.allocate_ip().unwrap();
-        assert_eq!(inner.used_ips.len(), reserved_ip_count + 1);
+        assert_eq!(inner.allocated_ips.len(), reserved_ip_count + 1);
         let new_ip2 = inner.allocate_ip().unwrap();
-        assert_eq!(inner.used_ips.len(), reserved_ip_count + 2);
+        assert_eq!(inner.allocated_ips.len(), reserved_ip_count + 2);
         inner.free_ip(new_ip1);
-        assert_eq!(inner.used_ips.len(), reserved_ip_count + 1);
+        assert_eq!(inner.allocated_ips.len(), reserved_ip_count + 1);
 
         // Now allocate to get already freed IP
         let new_ip_after_free = inner.allocate_ip().unwrap();
@@ -330,9 +330,9 @@ mod tests {
         let ip_manager = get_ip_manager_with_dummy_connection();
         let mut inner = ip_manager.inner.write().unwrap();
 
-        assert_eq!(inner.used_ips.len(), 2);
+        assert_eq!(inner.allocated_ips.len(), 2);
         inner.free_ip(ip.parse().unwrap());
-        assert_eq!(inner.used_ips.len(), 2);
+        assert_eq!(inner.allocated_ips.len(), 2);
     }
 
     #[derive(PartialEq, Debug, Clone)]
