@@ -22,10 +22,10 @@ pub(crate) struct IpManager<T = Arc<Connection>> {
 struct IpManagerInner<T> {
     /// Client IP to lightway::Connection hashmap
     ip_to_conn_map: HashMap<Ipv4Addr, T>,
+    /// IP pool
+    ip_pool: Ipv4Net,
     /// Reserved IPs, must never be allocated to a client.
     reserved_ips: HashSet<Ipv4Addr>,
-    /// Hashset of IPs allocated to clients (also contains local_ip and dns_ip)
-    allocated_ips: HashSet<Ipv4Addr>,
     /// Hashset to store IPs which are currently unused
     available_ips: HashSet<Ipv4Addr>,
     /// Static inside ip config which should be sent to clients in case of IP translation
@@ -69,10 +69,6 @@ impl<T> IpManager<T> {
     ) -> Self {
         let reserved_ips = HashSet::from_iter(reserved_ips);
 
-        // Initialize used IPs with reserved IPs so that they will
-        // never be assigned to clients.
-        let allocated_ips = reserved_ips.clone();
-
         let available_ips = ip_pool
             .hosts()
             .filter(|ip| !reserved_ips.contains(ip))
@@ -81,8 +77,8 @@ impl<T> IpManager<T> {
         IpManager {
             inner: RwLock::new(IpManagerInner {
                 ip_to_conn_map: HashMap::new(),
+                ip_pool,
                 reserved_ips,
-                allocated_ips,
                 available_ips,
                 static_ip_config,
             }),
@@ -139,7 +135,6 @@ impl<T> IpManagerInner<T> {
     fn allocate_ip(&mut self) -> Option<Ipv4Addr> {
         if let Some(ip) = self.available_ips.iter().next().cloned() {
             self.available_ips.remove(&ip);
-            self.allocated_ips.insert(ip);
             return Some(ip);
         }
 
@@ -148,15 +143,16 @@ impl<T> IpManagerInner<T> {
     }
 
     fn free_ip(&mut self, ip: Ipv4Addr) {
+        if !self.ip_pool.contains(&ip) {
+            warn!(ip = ?ip, "Attempt to free IP address from outside pool");
+            return;
+        }
         if self.reserved_ips.contains(&ip) {
             warn!(ip = ?ip, "Attempt to free reserved IP address");
             return;
         }
 
-        let freed_ip = self.allocated_ips.take(&ip);
-        if let Some(ip) = freed_ip {
-            self.available_ips.insert(ip);
-        }
+        self.available_ips.insert(ip);
     }
 }
 
@@ -196,9 +192,6 @@ mod tests {
             IpManager::new(ip_pool, [local_ip, dns_ip], get_static_ip_config());
         let inner = ip_manager.inner.read().unwrap();
 
-        assert!(inner.allocated_ips.contains(&local_ip));
-        assert!(inner.allocated_ips.contains(&dns_ip));
-        assert_eq!(inner.allocated_ips.len(), expected_len);
         assert_eq!(
             inner.available_ips.len(),
             ip_pool.hosts().count() - expected_len
@@ -208,9 +201,9 @@ mod tests {
         assert!(inner.reserved_ips.contains(&dns_ip));
     }
 
-    #[test_case("10.125.0.1", "10.125.0.1", 2; "Same Local and DNS IP")]
-    #[test_case("10.125.0.1", "10.125.0.3", 3; "Different Local and DNS IP")]
-    fn ip_manager_inner_alloc_ip(local_ip: &str, dns_ip: &str, used_ips_len: usize) {
+    #[test_case("10.125.0.1", "10.125.0.1"; "Same Local and DNS IP")]
+    #[test_case("10.125.0.1", "10.125.0.3"; "Different Local and DNS IP")]
+    fn ip_manager_inner_alloc_ip(local_ip: &str, dns_ip: &str) {
         let ip_pool: Ipv4Net = "10.125.0.0/16".parse().unwrap();
         let local_ip = local_ip.parse().unwrap();
         let dns_ip = dns_ip.parse().unwrap();
@@ -223,7 +216,6 @@ mod tests {
         assert!(ip_pool.contains(&new_ip));
         assert_ne!(new_ip, local_ip);
         assert_ne!(new_ip, dns_ip);
-        assert_eq!(inner.allocated_ips.len(), used_ips_len);
     }
 
     #[test_case("10.125.0.1", "10.125.0.1", 253; "Same Local and DNS IP")]
@@ -259,7 +251,6 @@ mod tests {
             alloced_ips.push(new_ip);
         }
 
-        assert_eq!(inner.allocated_ips.len(), alloc_times + reserved_ip_count);
         assert_eq!(
             inner.available_ips.len(),
             pool_size - alloc_times - reserved_ip_count
@@ -271,10 +262,6 @@ mod tests {
             inner.free_ip(remove_ip);
         }
 
-        assert_eq!(
-            inner.allocated_ips.len(),
-            alloc_times - free_times + reserved_ip_count
-        );
         assert_eq!(
             inner.available_ips.len(),
             pool_size - reserved_ip_count - alloc_times + free_times
@@ -288,10 +275,11 @@ mod tests {
     fn ip_manager_inner_free_reserved_or_unallocated_ip(ip: &str) {
         let ip_manager = get_ip_manager_with_dummy_connection();
         let mut inner = ip_manager.inner.write().unwrap();
+        let pool_size = 65536 - 2 - 2; // A /16 less network and broadcast addresses and two reserved addresses
 
-        assert_eq!(inner.allocated_ips.len(), 2);
+        assert_eq!(inner.available_ips.len(), pool_size);
         inner.free_ip(ip.parse().unwrap());
-        assert_eq!(inner.allocated_ips.len(), 2);
+        assert_eq!(inner.available_ips.len(), pool_size);
     }
 
     #[derive(PartialEq, Debug, Clone)]
