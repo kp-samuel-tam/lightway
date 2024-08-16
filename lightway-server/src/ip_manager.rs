@@ -330,7 +330,6 @@ mod tests {
         let mut inner = ip_manager.inner.write().unwrap();
 
         assert_eq!(inner.used_ips.len(), 2);
-        // Now allocate to get already freed IP
         inner.free_ip(ip.parse().unwrap());
         assert_eq!(inner.used_ips.len(), 2);
     }
