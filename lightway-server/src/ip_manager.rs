@@ -35,7 +35,7 @@ struct IpManagerInner<T> {
     /// A cursor to find the next IP to allocate. It will be initialised to local_ip
     last_ip: Ipv4Addr,
     /// Static inside ip config which should be sent to clients in case of IP translation
-    static_ip_config: Option<InsideIpConfig>,
+    static_ip_config: InsideIpConfig,
 }
 
 impl ServerIpPool<ConnectionState> for IpManager {
@@ -73,7 +73,7 @@ impl<T> IpManager<T> {
         local_ip: Ipv4Addr,
         dns_ip: Ipv4Addr,
         reserved_ips: impl IntoIterator<Item = Ipv4Addr>,
-        static_ip_config: Option<InsideIpConfig>,
+        static_ip_config: InsideIpConfig,
     ) -> Self {
         let mut used_ips = HashSet::new();
 
@@ -146,14 +146,8 @@ impl<T: Clone> IpManager<T> {
 }
 
 impl<T> IpManagerInner<T> {
-    fn config_for_ip(&self, ip: Ipv4Addr) -> InsideIpConfig {
-        // If static inside ip config is configured, send it, else return the alloc'ed IP
-        self.static_ip_config.unwrap_or(InsideIpConfig {
-            client_ip: ip,
-            // Server's local IP will be client's peer IP
-            server_ip: self.local_ip,
-            dns_ip: self.dns_ip,
-        })
+    fn config_for_ip(&self, _ip: Ipv4Addr) -> InsideIpConfig {
+        self.static_ip_config
     }
 
     fn allocate_ip(&mut self) -> Option<Ipv4Addr> {
@@ -210,11 +204,18 @@ mod tests {
     #[derive(PartialEq, Debug, Clone)]
     struct DummyConnection;
 
+    fn get_static_ip_config() -> InsideIpConfig {
+        InsideIpConfig {
+            client_ip: "10.125.0.5".parse().unwrap(),
+            server_ip: "10.125.0.6".parse().unwrap(),
+            dns_ip: "10.125.0.1".parse().unwrap(),
+        }
+    }
     fn get_ip_manager_with_dummy_connection() -> IpManager<DummyConnection> {
         let ip_pool: Ipv4Net = "10.125.0.0/16".parse().unwrap();
         let local_ip: Ipv4Addr = "10.125.0.1".parse().unwrap();
         let dns_ip: Ipv4Addr = "10.125.0.2".parse().unwrap();
-        IpManager::new(ip_pool, local_ip, dns_ip, [], None)
+        IpManager::new(ip_pool, local_ip, dns_ip, [], get_static_ip_config())
     }
 
     #[test_case("10.125.0.1", "10.125.0.1", 1; "Same Local and DNS IP")]
@@ -224,7 +225,7 @@ mod tests {
         let local_ip = local_ip.parse().unwrap();
         let dns_ip = dns_ip.parse().unwrap();
         let ip_manager: IpManager<DummyConnection> =
-            IpManager::new(ip_pool, local_ip, dns_ip, [], None);
+            IpManager::new(ip_pool, local_ip, dns_ip, [], get_static_ip_config());
         let inner = ip_manager.inner.read().unwrap();
 
         assert!(inner.used_ips.contains(&local_ip));
@@ -251,7 +252,7 @@ mod tests {
         let local_ip = local_ip.parse().unwrap();
         let dns_ip = dns_ip.parse().unwrap();
         let ip_manager: IpManager<DummyConnection> =
-            IpManager::new(ip_pool, local_ip, dns_ip, [], None);
+            IpManager::new(ip_pool, local_ip, dns_ip, [], get_static_ip_config());
         let mut inner = ip_manager.inner.write().unwrap();
 
         // Allocate IP
@@ -269,7 +270,7 @@ mod tests {
         let local_ip: Ipv4Addr = local_ip.parse().unwrap();
         let dns_ip: Ipv4Addr = dns_ip.parse().unwrap();
         let ip_manager: IpManager<DummyConnection> =
-            IpManager::new(ip_pool, local_ip, dns_ip, [], None);
+            IpManager::new(ip_pool, local_ip, dns_ip, [], get_static_ip_config());
         let mut inner = ip_manager.inner.write().unwrap();
 
         for _ in 1..=available_ips {
@@ -358,7 +359,7 @@ mod tests {
         let ip_pool: Ipv4Net = "10.125.0.0/16".parse().unwrap();
         let local_ip: Ipv4Addr = "10.125.0.1".parse().unwrap();
         let dns_ip: Ipv4Addr = "10.125.0.2".parse().unwrap();
-        IpManager::new(ip_pool, local_ip, dns_ip, [], None)
+        IpManager::new(ip_pool, local_ip, dns_ip, [], get_static_ip_config())
     }
 
     #[test]
@@ -367,24 +368,18 @@ mod tests {
         let conn1 = TestConnection::new(1);
         let conn2 = TestConnection::new(2);
 
-        let (allocation, ip_config) = ip_manager.alloc(conn1).unwrap();
-        let local_ip1 = ip_config.client_ip;
+        let (local_ip1, ip_config) = ip_manager.alloc(conn1).unwrap();
         assert_eq!(
-            allocation, local_ip1,
-            "IPs should match if no static config"
+            ip_config,
+            get_static_ip_config(),
+            "IP config should match static config"
         );
-        assert_eq!(local_ip1, "10.125.0.3".parse::<Ipv4Addr>().unwrap());
-        assert_eq!(
-            ip_config.server_ip,
-            "10.125.0.1".parse::<Ipv4Addr>().unwrap()
-        );
-        assert_eq!(ip_config.dns_ip, "10.125.0.2".parse::<Ipv4Addr>().unwrap());
 
-        let (allocation, ip_config) = ip_manager.alloc(conn2).unwrap();
-        let local_ip2 = ip_config.client_ip;
+        let (local_ip2, ip_config) = ip_manager.alloc(conn2).unwrap();
         assert_eq!(
-            allocation, local_ip2,
-            "IPs should match if no static config"
+            ip_config,
+            get_static_ip_config(),
+            "IP config should match static config"
         );
 
         let inner = ip_manager.inner.read().unwrap();
@@ -456,7 +451,7 @@ mod tests {
             local_ip,
             dns_ip,
             [reserved_ip1, reserved_ip2],
-            None,
+            get_static_ip_config(),
         );
         // Allocate every possible IP and check we never get a reserved one
         let mut count = 0;

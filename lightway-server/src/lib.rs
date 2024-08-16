@@ -160,7 +160,7 @@ pub async fn server<SA: for<'a> ServerAuth<AuthState<'a>> + Sync + Send + 'stati
         tun_ip,
         config.lightway_dns_ip,
         [config.lightway_client_ip, config.lightway_server_ip],
-        Some(inside_ip_config),
+        inside_ip_config,
     );
     let ip_manager = Arc::new(ip_manager);
 

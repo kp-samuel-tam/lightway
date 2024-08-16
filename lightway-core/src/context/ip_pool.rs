@@ -3,7 +3,7 @@ use std::net::{AddrParseError, Ipv4Addr};
 use std::sync::Arc;
 
 /// Network config for inside interface, sent to client after authentication
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct InsideIpConfig {
     /// IP address assigned by server to client
     pub client_ip: Ipv4Addr,
