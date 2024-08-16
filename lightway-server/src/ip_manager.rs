@@ -66,16 +66,10 @@ impl ServerIpPool<ConnectionState> for IpManager {
 impl<T> IpManager<T> {
     pub(crate) fn new(
         ip_pool: Ipv4Net,
-        local_ip: Ipv4Addr,
-        dns_ip: Ipv4Addr,
         reserved_ips: impl IntoIterator<Item = Ipv4Addr>,
         static_ip_config: InsideIpConfig,
     ) -> Self {
-        // Add local_ip and dns_ip to the `reserved_ips`.`reserved_ips` is
-        // a `HashSet` so we don't worry about possible duplicates.
-        let mut reserved_ips = HashSet::from_iter(reserved_ips);
-        reserved_ips.insert(local_ip);
-        reserved_ips.insert(dns_ip);
+        let reserved_ips = HashSet::from_iter(reserved_ips);
 
         // Initialize used IPs with reserved IPs so that they will
         // never be assigned to clients.
@@ -205,7 +199,7 @@ mod tests {
         let ip_pool: Ipv4Net = "10.125.0.0/16".parse().unwrap();
         let local_ip: Ipv4Addr = "10.125.0.1".parse().unwrap();
         let dns_ip: Ipv4Addr = "10.125.0.2".parse().unwrap();
-        IpManager::new(ip_pool, local_ip, dns_ip, [], get_static_ip_config())
+        IpManager::new(ip_pool, [local_ip, dns_ip], get_static_ip_config())
     }
 
     #[test_case("10.125.0.1", "10.125.0.1", 1; "Same Local and DNS IP")]
@@ -215,7 +209,7 @@ mod tests {
         let local_ip = local_ip.parse().unwrap();
         let dns_ip = dns_ip.parse().unwrap();
         let ip_manager: IpManager<DummyConnection> =
-            IpManager::new(ip_pool, local_ip, dns_ip, [], get_static_ip_config());
+            IpManager::new(ip_pool, [local_ip, dns_ip], get_static_ip_config());
         let inner = ip_manager.inner.read().unwrap();
 
         assert!(inner.used_ips.contains(&local_ip));
@@ -247,7 +241,7 @@ mod tests {
         let local_ip = local_ip.parse().unwrap();
         let dns_ip = dns_ip.parse().unwrap();
         let ip_manager: IpManager<DummyConnection> =
-            IpManager::new(ip_pool, local_ip, dns_ip, [], get_static_ip_config());
+            IpManager::new(ip_pool, [local_ip, dns_ip], get_static_ip_config());
         let mut inner = ip_manager.inner.write().unwrap();
 
         // Allocate IP
@@ -265,7 +259,7 @@ mod tests {
         let local_ip: Ipv4Addr = local_ip.parse().unwrap();
         let dns_ip: Ipv4Addr = dns_ip.parse().unwrap();
         let ip_manager: IpManager<DummyConnection> =
-            IpManager::new(ip_pool, local_ip, dns_ip, [], get_static_ip_config());
+            IpManager::new(ip_pool, [local_ip, dns_ip], get_static_ip_config());
         let mut inner = ip_manager.inner.write().unwrap();
 
         for _ in 1..=available_ips {
@@ -354,7 +348,7 @@ mod tests {
         let ip_pool: Ipv4Net = "10.125.0.0/16".parse().unwrap();
         let local_ip: Ipv4Addr = "10.125.0.1".parse().unwrap();
         let dns_ip: Ipv4Addr = "10.125.0.2".parse().unwrap();
-        IpManager::new(ip_pool, local_ip, dns_ip, [], get_static_ip_config())
+        IpManager::new(ip_pool, [local_ip, dns_ip], get_static_ip_config())
     }
 
     #[test]
@@ -443,9 +437,7 @@ mod tests {
 
         let ip_manager = IpManager::new(
             ip_pool,
-            local_ip,
-            dns_ip,
-            [reserved_ip1, reserved_ip2],
+            [local_ip, dns_ip, reserved_ip1, reserved_ip2],
             get_static_ip_config(),
         );
         // Allocate every possible IP and check we never get a reserved one

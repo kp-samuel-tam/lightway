@@ -155,13 +155,11 @@ pub async fn server<SA: for<'a> ServerAuth<AuthState<'a>> + Sync + Send + 'stati
         dns_ip: config.lightway_dns_ip,
     };
 
-    let ip_manager = IpManager::new(
-        config.ip_pool,
-        tun_ip,
-        config.lightway_dns_ip,
-        [config.lightway_client_ip, config.lightway_server_ip],
-        inside_ip_config,
-    );
+    let reserved_ips = [config.lightway_client_ip, config.lightway_server_ip]
+        .into_iter()
+        .chain(std::iter::once(tun_ip))
+        .chain(std::iter::once(config.lightway_dns_ip));
+    let ip_manager = IpManager::new(config.ip_pool, reserved_ips, inside_ip_config);
     let ip_manager = Arc::new(ip_manager);
 
     let connection_type = config.connection_type;
