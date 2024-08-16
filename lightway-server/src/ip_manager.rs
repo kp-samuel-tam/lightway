@@ -24,10 +24,8 @@ struct IpManagerInner<T> {
     ip_to_conn_map: HashMap<Ipv4Addr, T>,
     /// IP pool
     ip_pool: Ipv4Net,
-    /// Server IP. Must be within the ip_pool above
-    local_ip: Ipv4Addr,
-    /// DNS IP. Must be within the ip_pool above
-    dns_ip: Ipv4Addr,
+    /// Reserved IPs, must never be allocated to a client.
+    reserved_ips: HashSet<Ipv4Addr>,
     /// Hashset of IPs allocated to client (also contains local_ip and dns_ip)
     used_ips: HashSet<Ipv4Addr>,
     /// Hashset to store IPs which are freed after the client has been disconnected
@@ -75,26 +73,22 @@ impl<T> IpManager<T> {
         reserved_ips: impl IntoIterator<Item = Ipv4Addr>,
         static_ip_config: InsideIpConfig,
     ) -> Self {
-        let mut used_ips = HashSet::new();
-
-        // Add the reserved_ips, local_ip and dns_ip in the used_ips
-        // so that they will not be assigned to clients. `used_ip` is
+        // Add local_ip and dns_ip to the `reserved_ips`.`reserved_ips` is
         // a `HashSet` so we don't worry about possible duplicates.
-        for ip in reserved_ips
-            .into_iter()
-            .chain(std::iter::once(local_ip))
-            .chain(std::iter::once(dns_ip))
-        {
-            used_ips.insert(ip);
-        }
+        let mut reserved_ips = HashSet::from_iter(reserved_ips);
+        reserved_ips.insert(local_ip);
+        reserved_ips.insert(dns_ip);
+
+        // Initialize used IPs with reserved IPs so that they will
+        // never be assigned to clients.
+        let used_ips = reserved_ips.clone();
 
         let freed_ips = HashSet::new();
         IpManager {
             inner: RwLock::new(IpManagerInner {
                 ip_to_conn_map: HashMap::new(),
                 ip_pool,
-                local_ip,
-                dns_ip,
+                reserved_ips,
                 used_ips,
                 freed_ips,
                 static_ip_config,
@@ -180,8 +174,8 @@ impl<T> IpManagerInner<T> {
     }
 
     fn free_ip(&mut self, ip: Ipv4Addr) {
-        if ip == self.local_ip || ip == self.dns_ip {
-            warn!(ip = ?ip, "Attempt to free server/dns IP address");
+        if self.reserved_ips.contains(&ip) {
+            warn!(ip = ?ip, "Attempt to free reserved IP address");
             return;
         }
 
@@ -235,8 +229,8 @@ mod tests {
         assert_eq!(inner.last_ip, local_ip);
         assert_eq!(inner.ip_to_conn_map.len(), 0);
         assert_eq!(inner.ip_pool, ip_pool);
-        assert_eq!(inner.local_ip, local_ip);
-        assert_eq!(inner.dns_ip, dns_ip);
+        assert!(inner.reserved_ips.contains(&local_ip));
+        assert!(inner.reserved_ips.contains(&dns_ip));
     }
 
     #[test_case("10.125.0.1", "10.125.0.1", "10.125.0.2", 2; "Same Local and DNS IP")]
