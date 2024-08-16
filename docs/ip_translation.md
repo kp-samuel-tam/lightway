@@ -11,7 +11,8 @@ IP has to be in the same network and cannot overlap.
 ## Implementation detail
 
 Lightway server has following CLI config (Ref: [lightway-server/src/args.rs](../lightway-server/src/args.rs)):
-- `ip_pool` - internal IP network used by server to communicate with different clients. The tunnel IP can be configured with the `tun_ip` configuration option
+- `ip_pool` - internal IP network used by server to communicate with different clients.
+    -  If the the tunnel IP is within the pool then it can be configured with the `tun_ip` configuration option.
 - `lightway_server_ip`, `lightway_client_ip`, `lightway_dns_ip`- These are the values which will be sent to the client in the network config message.
 
 
@@ -24,7 +25,6 @@ Lightway client has following CLI configs (Ref: [lightway-client/src/args.rs](..
 Due to this IP translation, even though client and server tunnel will be in different IP network, it still behaves as it is on the same network.
 
 ###   Steps during connection: 
-1. Server on startup uses the first IP in the ip_pool internal network to its tunnel interface (10.125.0.1)
 1. Client on startup sets the configured tun_local_ip as tunnel interface IP and uses tun_peer_ip as default route (100.64.0.6)
 1. Client then connects to the server, and authenticate itself
 1. Once the authentication succeeded, server allocates one internal IP address to the client from its ip_pool (10.125.68.123)

@@ -45,8 +45,8 @@ pub struct Config {
     #[clap(long, default_value = "10.125.0.0/16")]
     pub ip_pool: Ipv4Net,
 
-    /// The IP assigned to the Tun device. This must be within
-    /// `ip_pool`. Default is to use the first address in `ip_pool`.
+    /// The IP assigned to the Tun device. If this is within `ip_pool`
+    /// then it will be reserved.
     #[clap(long)]
     pub tun_ip: Option<Ipv4Addr>,
 
