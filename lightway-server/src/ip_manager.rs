@@ -1,4 +1,4 @@
-use ipnet::{IpAdd, Ipv4Net};
+use ipnet::{Ipv4AddrRange, Ipv4Net};
 use lightway_core::{InsideIpConfig, ServerIpPool};
 use std::collections::{HashMap, HashSet};
 use std::net::Ipv4Addr;
@@ -22,16 +22,14 @@ pub(crate) struct IpManager<T = Arc<Connection>> {
 struct IpManagerInner<T> {
     /// Client IP to lightway::Connection hashmap
     ip_to_conn_map: HashMap<Ipv4Addr, T>,
-    /// IP pool
-    ip_pool: Ipv4Net,
     /// Reserved IPs, must never be allocated to a client.
     reserved_ips: HashSet<Ipv4Addr>,
     /// Hashset of IPs allocated to client (also contains local_ip and dns_ip)
     used_ips: HashSet<Ipv4Addr>,
     /// Hashset to store IPs which are freed after the client has been disconnected
     freed_ips: HashSet<Ipv4Addr>,
-    /// A cursor to find the next IP to allocate. It will be initialised to local_ip
-    last_ip: Ipv4Addr,
+    /// A cursor to find the next IP to allocate.
+    unused_ips: Ipv4AddrRange,
     /// Static inside ip config which should be sent to clients in case of IP translation
     static_ip_config: InsideIpConfig,
 }
@@ -83,16 +81,17 @@ impl<T> IpManager<T> {
         // never be assigned to clients.
         let used_ips = reserved_ips.clone();
 
+        let unused_ips = ip_pool.hosts();
+
         let freed_ips = HashSet::new();
         IpManager {
             inner: RwLock::new(IpManagerInner {
                 ip_to_conn_map: HashMap::new(),
-                ip_pool,
                 reserved_ips,
                 used_ips,
                 freed_ips,
                 static_ip_config,
-                last_ip: local_ip,
+                unused_ips,
             }),
         }
     }
@@ -153,23 +152,20 @@ impl<T> IpManagerInner<T> {
         }
 
         loop {
-            // If not found, add 1 to last allocated ip
-            self.last_ip = self.last_ip.saturating_add(1);
-
-            // New IP is not within the network, we've run off the end. Return None
-            if !self.ip_pool.contains(&self.last_ip) || self.last_ip == self.ip_pool.broadcast() {
+            let Some(ip) = self.unused_ips.next() else {
+                // we've run out of hosts.
                 return None;
-            }
+            };
 
             // Already present in used_ips. Maybe a reserved IP.
-            if self.used_ips.contains(&self.last_ip) {
+            if self.used_ips.contains(&ip) {
                 continue;
             }
 
             // This IP is a good one to use.
-            self.used_ips.insert(self.last_ip);
+            self.used_ips.insert(ip);
 
-            return Some(self.last_ip);
+            return Some(ip);
         }
     }
 
@@ -189,7 +185,7 @@ impl<T> IpManagerInner<T> {
 // Tests START -> panic, unwrap, expect allowed
 #[cfg(test)]
 mod tests {
-    use ipnet::Ipv4Net;
+    use ipnet::{IpAdd, Ipv4Net};
     use std::sync::Arc;
     use test_case::test_case;
 
@@ -226,9 +222,14 @@ mod tests {
         assert!(inner.used_ips.contains(&dns_ip));
         assert_eq!(inner.used_ips.len(), expected_len);
         assert_eq!(inner.freed_ips.len(), 0);
-        assert_eq!(inner.last_ip, local_ip);
+        assert_eq!(
+            inner.unused_ips,
+            Ipv4AddrRange::new(
+                "10.125.0.1".parse().unwrap(),
+                "10.125.255.254".parse().unwrap(),
+            )
+        );
         assert_eq!(inner.ip_to_conn_map.len(), 0);
-        assert_eq!(inner.ip_pool, ip_pool);
         assert!(inner.reserved_ips.contains(&local_ip));
         assert!(inner.reserved_ips.contains(&dns_ip));
     }
