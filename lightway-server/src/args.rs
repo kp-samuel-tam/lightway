@@ -7,7 +7,7 @@ use clap::Parser;
 use ipnet::Ipv4Net;
 use twelf::config;
 
-use lightway_app_utils::args::{ConnectionType, Duration, LogFormat, LogLevel};
+use lightway_app_utils::args::{ConnectionType, Duration, IpMap, LogFormat, LogLevel};
 
 #[config]
 #[derive(Parser, Debug)]
@@ -44,6 +44,11 @@ pub struct Config {
     /// IP pool to assign clients
     #[clap(long, default_value = "10.125.0.0/16")]
     pub ip_pool: Ipv4Net,
+
+    /// Additional IP address map. Maps from incoming IP address to
+    /// a subnet of "ip_pool" to use for that address.
+    #[clap(long)]
+    pub ip_map: Option<IpMap>,
 
     /// The IP assigned to the Tun device. If this is within `ip_pool`
     /// then it will be reserved.

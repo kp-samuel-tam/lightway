@@ -12,7 +12,8 @@ IP has to be in the same network and cannot overlap.
 
 Lightway server has following CLI config (Ref: [lightway-server/src/args.rs](../lightway-server/src/args.rs)):
 - `ip_pool` - internal IP network used by server to communicate with different clients.
-    -  If the the tunnel IP is within the pool then it can be configured with the `tun_ip` configuration option.
+    - If the the tunnel IP is within the pool then it can be configured with the `tun_ip` configuration option.
+    - The `ip_map` option can be use to reserve specific subranges to clients connecting to a specific incoming IP
 - `lightway_server_ip`, `lightway_client_ip`, `lightway_dns_ip`- These are the values which will be sent to the client in the network config message.
 
 

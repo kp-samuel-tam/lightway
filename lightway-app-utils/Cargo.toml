@@ -25,11 +25,13 @@ clap.workspace = true
 dashmap = "6.0.1"
 humantime = "2.1.0"
 io-uring = {  version = "0.6.3", optional = true }
+ipnet.workspace = true
 libc.workspace = true
 lightway-core.workspace = true
 metrics.workspace = true
 serde.workspace = true
 serde_with = "3.4.0"
+serde_yaml = "0.9.34"
 thiserror.workspace = true
 tokio = { workspace = true, optional = true }
 tokio-eventfd = { version = "0.2.1", optional = true }

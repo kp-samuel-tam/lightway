@@ -6,6 +6,11 @@ server_key: "certs/server.key"
 tun_name: lightway
 ip_pool: 10.125.0.0/16
 tun_ip: 10.125.0.1
+# ip_map: /path/to/ip_map.yaml
+# -or-
+# ip_map:
+#   172.16.0.1: 10.125.128.0/28
+#   192.168.1.1: 10.125.128.16/28
 lightway_server_ip: 169.254.10.1
 lightway_client_ip: 169.254.10.2
 lightway_dns_ip: 169.254.10.5

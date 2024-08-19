@@ -111,6 +111,7 @@ async fn main() -> Result<()> {
         server_key: config.server_key,
         tun_config,
         ip_pool: config.ip_pool,
+        ip_map: config.ip_map.unwrap_or_default().try_into()?,
         tun_ip: config.tun_ip,
         lightway_server_ip: config.lightway_server_ip,
         lightway_client_ip: config.lightway_client_ip,
