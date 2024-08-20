@@ -18,23 +18,25 @@ tokio = [ "dep:tokio", "dep:tokio-stream" ]
 workspace = true
 
 [dependencies]
-anyhow = { workspace = true }
+anyhow.workspace = true
 async-channel = { workspace = true, optional = true }
-bytes = { workspace = true }
-clap = { workspace = true }
+bytes.workspace = true
+clap.workspace = true
 dashmap = "6.0.1"
 humantime = "2.1.0"
 io-uring = {  version = "0.6.3", optional = true }
-libc = { workspace = true }
-lightway-core = { workspace = true }
-metrics = { workspace = true }
-serde = { workspace = true }
+ipnet.workspace = true
+libc.workspace = true
+lightway-core.workspace = true
+metrics.workspace = true
+serde.workspace = true
 serde_with = "3.4.0"
-thiserror = { workspace = true }
+serde_yaml = "0.9.34"
+thiserror.workspace = true
 tokio = { workspace = true, optional = true }
 tokio-eventfd = { version = "0.2.1", optional = true }
 tokio-stream = { workspace = true, optional = true }
-tokio-util = { workspace = true }
+tokio-util.workspace = true
 tracing-subscriber = { workspace = true, features = ["json"] }
 tun2 = { version = "2.0.3", features = ["async"] }
 
@@ -43,6 +45,6 @@ name = "udprelay"
 path = "examples/udprelay.rs"
 
 [dev-dependencies]
-async-trait = { workspace = true }
-pnet = { workspace = true }
+async-trait.workspace = true
+pnet.workspace = true
 tokio-tun = "0.11.2"

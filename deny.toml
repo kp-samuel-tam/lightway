@@ -45,6 +45,7 @@ skip = [
     { name = "hashbrown", version = "0.14.1" },
     { name = "heck", version = "0.4.1" },
     { name = "indexmap", version = "1.9.3" },
+    { name = "serde_yaml", version = "0.8.26" },
     { name = "syn", version = "1.0.109" },
     { name = "windows-sys", version = "0.52.0" },
 ]

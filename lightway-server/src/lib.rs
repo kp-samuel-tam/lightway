@@ -20,10 +20,13 @@ use lightway_core::{
     IOCallbackResult, InsideIpConfig, Secret, ServerContextBuilder,
 };
 use pnet::packet::ipv4::Ipv4Packet;
-use std::net::{Ipv4Addr, SocketAddr};
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::time::Duration;
+use std::{
+    collections::HashMap,
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+    path::PathBuf,
+    sync::Arc,
+    time::Duration,
+};
 use tokio::task::JoinHandle;
 use tracing::{info, warn};
 
@@ -87,8 +90,12 @@ pub struct ServerConfig<SA: for<'a> ServerAuth<AuthState<'a>>> {
     /// IP pool to assign clients
     pub ip_pool: Ipv4Net,
 
-    /// The IP assigned to the Tun device. This must be within
-    /// `ip_pool`. Default is to use the first address in `ip_pool`.
+    /// A map of connection IP to a subnet of `ip_pool` to use
+    /// exclusively for that particular incoming IP.
+    pub ip_map: HashMap<IpAddr, Ipv4Net>,
+
+    /// The IP assigned to the Tun device. If this is within `ip_pool`
+    /// then it will be reserved.
     pub tun_ip: Option<Ipv4Addr>,
 
     /// Server IP to send in network_config message
@@ -132,22 +139,9 @@ pub async fn server<SA: for<'a> ServerAuth<AuthState<'a>> + Sync + Send + 'stati
 
     info!("Server starting with config:\n{:#?}", &config);
 
-    let tun_ip = match config.tun_ip {
-        // Use the user specified IP
-        Some(tun_ip) => {
-            if !config.ip_pool.contains(&tun_ip) {
-                return Err(anyhow!("Tun ip must be within ip pool"));
-            }
-            tun_ip
-        }
-        // Otherwise use first host IP in the network as tunnel IP
-        None => config
-            .ip_pool
-            .hosts()
-            .next()
-            .ok_or_else(|| anyhow!("Unable to allocate local ip from ip_pool"))?,
-    };
-    info!("Server started with inside ip: {}", tun_ip);
+    if let Some(tun_ip) = config.tun_ip {
+        info!("Server started with inside ip: {}", tun_ip);
+    }
 
     let inside_ip_config = InsideIpConfig {
         client_ip: config.lightway_client_ip,
@@ -155,12 +149,15 @@ pub async fn server<SA: for<'a> ServerAuth<AuthState<'a>> + Sync + Send + 'stati
         dns_ip: config.lightway_dns_ip,
     };
 
+    let reserved_ips = [config.lightway_client_ip, config.lightway_server_ip]
+        .into_iter()
+        .chain(config.tun_ip)
+        .chain(std::iter::once(config.lightway_dns_ip));
     let ip_manager = IpManager::new(
         config.ip_pool,
-        tun_ip,
-        config.lightway_dns_ip,
-        [config.lightway_client_ip, config.lightway_server_ip],
-        Some(inside_ip_config),
+        config.ip_map,
+        reserved_ips,
+        inside_ip_config,
     );
     let ip_manager = Arc::new(ip_manager);
 

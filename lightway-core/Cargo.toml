@@ -20,25 +20,25 @@ postquantum = ["wolfssl/postquantum"]
 workspace = true
 
 [dependencies]
-bytes = { workspace = true }
-delegate = { workspace = true }
+bytes.workspace = true
+delegate.workspace = true
 if_chain = "1.0.2"
 lru = "0.12.1"
-metrics = { workspace = true }
-more-asserts = { workspace = true }
+metrics.workspace = true
+more-asserts.workspace = true
 num_enum = "0.7.0"
 once_cell = "1.19.0"
-pnet = { workspace = true }
-rand = { workspace = true }
+pnet.workspace = true
+rand.workspace = true
 rand_core = "0.6.4"
-thiserror = { workspace = true }
-tracing = { workspace = true }
+thiserror.workspace = true
+tracing.workspace = true
 wolfssl = { git = "https://github.com/expressvpn/wolfssl-rs", default-features = false }
 
 [dev-dependencies]
-async-trait = { workspace = true }
+async-trait.workspace = true
 itertools = "0.13.0"
-lightway-app-utils = { workspace = true }
-test-case = { workspace = true }
-tokio = { workspace = true }
-tokio-stream = { workspace = true }
+lightway-app-utils.workspace = true
+test-case.workspace = true
+tokio.workspace = true
+tokio-stream.workspace = true
