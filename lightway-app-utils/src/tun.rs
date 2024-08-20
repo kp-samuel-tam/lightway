@@ -2,7 +2,10 @@ use anyhow::Result;
 use bytes::BytesMut;
 use lightway_core::IOCallbackResult;
 
-use std::os::fd::{AsRawFd, RawFd};
+use std::{
+    ops::Deref,
+    os::fd::{AsRawFd, RawFd},
+};
 use tun2::{AbstractDevice, AsyncDevice as TokioTun};
 
 pub use tun2::Configuration as TunConfig;
@@ -83,8 +86,8 @@ impl TunDirect {
     /// Create a new `Tun` struct
     pub fn new(config: TunConfig) -> Result<Self> {
         let tun = tun2::create_as_async(&config)?;
-        let fd = tun.as_ref().as_raw_fd();
-        let mtu = tun.as_ref().mtu()?;
+        let fd = tun.as_raw_fd();
+        let mtu = tun.mtu()?;
 
         Ok(TunDirect { tun, mtu, fd })
     }
@@ -109,7 +112,7 @@ impl TunDirect {
 
     /// Try write from Tun
     pub fn try_send(&self, buf: BytesMut) -> IOCallbackResult<usize> {
-        let try_send_res = self.tun.as_ref().send(&buf[..]);
+        let try_send_res = self.tun.deref().send(&buf[..]);
         match try_send_res {
             Ok(nr) => IOCallbackResult::Ok(nr),
             Err(err) if matches!(err.kind(), std::io::ErrorKind::WouldBlock) => {
