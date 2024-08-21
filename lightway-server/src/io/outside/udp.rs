@@ -48,7 +48,7 @@ impl std::fmt::Display for BindMode {
 struct UdpSocket {
     sock: Arc<tokio::net::UdpSocket>,
     peer_addr: RwLock<(SocketAddr, SockAddr)>,
-    _reply_pktinfo: Option<libc::in_pktinfo>,
+    reply_pktinfo: Option<libc::in_pktinfo>,
 }
 
 impl OutsideIOSendCallback for UdpSocket {
@@ -59,6 +59,18 @@ impl OutsideIOSendCallback for UdpSocket {
             let bufs = [std::io::IoSlice::new(buf)];
 
             let msghdr = MsgHdr::new().with_addr(&peer_addr.1).with_buffers(&bufs);
+
+            const CMSG_SIZE: usize = cmsg::Message::space::<libc::in_pktinfo>();
+            let mut cmsg = cmsg::BufferMut::<CMSG_SIZE>::zeroed();
+
+            let msghdr = if let Some(pktinfo) = self.reply_pktinfo {
+                let mut builder = cmsg.builder();
+                builder.fill_next(libc::SOL_IP, libc::IP_PKTINFO, pktinfo)?;
+
+                msghdr.with_control(cmsg.as_ref())
+            } else {
+                msghdr
+            };
 
             sock.sendmsg(&msghdr, 0)
         });
@@ -165,7 +177,7 @@ impl UdpServer {
                         Arc::new(UdpSocket {
                             sock: self.sock.clone(),
                             peer_addr: RwLock::new((peer_addr, peer_addr.into())),
-                            _reply_pktinfo: reply_pktinfo,
+                            reply_pktinfo,
                         })
                     },
                 );
