@@ -1036,6 +1036,7 @@ dependencies = [
  "pnet",
  "serde",
  "socket2",
+ "test-case",
  "tokio",
  "tokio-stream",
  "tokio-util",

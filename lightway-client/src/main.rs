@@ -93,6 +93,7 @@ async fn main() -> Result<()> {
         enable_pqc: config.enable_pqc,
         keepalive_interval: config.keepalive_interval.into(),
         keepalive_timeout: config.keepalive_timeout.into(),
+        continuous_keepalive: true,
         sndbuf: config.sndbuf,
         rcvbuf: config.rcvbuf,
         enable_pmtud: config.enable_pmtud,
@@ -105,10 +106,11 @@ async fn main() -> Result<()> {
         inside_plugins: Default::default(),
         outside_plugins: Default::default(),
         stop_signal: ctrlc_rx,
+        network_change_signal: None,
         event_handler: Some(EventHandler),
         #[cfg(feature = "debug")]
         keylog: config.keylog,
     };
 
-    client(config).await
+    client(config).await.map(|_| ())
 }

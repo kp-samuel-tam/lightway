@@ -5,6 +5,7 @@ pub mod keepalive;
 use anyhow::{anyhow, Context, Result};
 use bytes::BytesMut;
 use bytesize::ByteSize;
+use futures::future::OptionFuture;
 use keepalive::Keepalive;
 use lightway_app_utils::{
     args::Cipher, connection_ticker_cb, ConnectionTicker, ConnectionTickerState, DplpmtudTimer,
@@ -29,12 +30,12 @@ use pnet::packet::ipv4::Ipv4Packet;
 use std::path::PathBuf;
 use std::{
     net::Ipv4Addr,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, Weak},
     time::Duration,
 };
 use tokio::{
     net::{TcpStream, UdpSocket},
-    sync::oneshot::Receiver,
+    sync::{mpsc, oneshot},
     task::{JoinHandle, JoinSet},
 };
 use tokio_stream::StreamExt;
@@ -58,6 +59,12 @@ impl std::fmt::Debug for ClientConnectionType {
             Self::Datagram(_) => f.debug_tuple("Datagram").finish(),
         }
     }
+}
+
+#[derive(Debug)]
+pub enum ClientResult {
+    UserDisconnect,
+    NetworkChange,
 }
 
 #[derive(educe::Educe)]
@@ -105,6 +112,10 @@ pub struct ClientConfig<'cert, A: 'static + Send + EventCallback> {
     /// Keepalive timeout
     pub keepalive_timeout: Duration,
 
+    /// Enables keepalives to be sent constantly instead
+    /// of only during network change events
+    pub continuous_keepalive: bool,
+
     /// Socket send buffer size
     pub sndbuf: Option<ByteSize>,
     /// Socket receive buffer size
@@ -139,7 +150,13 @@ pub struct ClientConfig<'cert, A: 'static + Send + EventCallback> {
 
     /// Specifies if the program responds to INT/TERM signals
     #[educe(Debug(ignore))]
-    pub stop_signal: Receiver<()>,
+    pub stop_signal: oneshot::Receiver<()>,
+
+    /// Signal for notifying a network change event
+    /// network change being defined as a change in
+    /// wifi networks or a change of network interfaces
+    #[educe(Debug(ignore))]
+    pub network_change_signal: Option<mpsc::Receiver<()>>,
 
     /// Allow injection of a custom handler for event callback
     #[educe(Debug(ignore))]
@@ -293,10 +310,48 @@ pub async fn inside_io_task<T: Send + Sync>(
     }
 }
 
+async fn handle_network_change(
+    keepalive: Keepalive,
+    mut network_change_signal: mpsc::Receiver<()>,
+    weak: Weak<Mutex<lightway_core::Connection<ConnectionState>>>,
+) -> ClientResult {
+    while (network_change_signal.recv().await).is_some() {
+        let Some(conn) = weak.upgrade() else {
+            return ClientResult::UserDisconnect;
+        };
+        let conn_type = conn.lock().unwrap().connection_type();
+        match conn_type {
+            ConnectionType::Datagram => {
+                info!("sending keepalives due to network change ..");
+                keepalive.network_changed().await;
+            }
+            ConnectionType::Stream => {
+                info!("client shutting down due to network change ..");
+                let _ = conn.lock().unwrap().disconnect();
+                return ClientResult::NetworkChange;
+            }
+        }
+    }
+    ClientResult::UserDisconnect
+}
+
+fn validate_client_config<A: 'static + Send + EventCallback>(
+    config: &ClientConfig<'_, A>,
+) -> Result<()> {
+    if config.network_change_signal.is_some() && config.keepalive_interval.is_zero() {
+        return Err(anyhow!(
+            "Keepalive interval cannot be zero when network change signal is set"
+        ));
+    }
+    Ok(())
+}
+
 pub async fn client<A: 'static + Send + EventCallback>(
     mut config: ClientConfig<'_, A>,
-) -> Result<()> {
+) -> Result<ClientResult> {
     println!("Client starting with config:\n{:#?}", &config);
+
+    validate_client_config(&config)?;
 
     let mut join_set = JoinSet::new();
 
@@ -392,6 +447,7 @@ pub async fn client<A: 'static + Send + EventCallback>(
         keepalive::Config {
             interval: config.keepalive_interval,
             timeout: config.keepalive_timeout,
+            continuous: config.continuous_keepalive,
         },
         Arc::downgrade(&conn),
     );
@@ -411,11 +467,22 @@ pub async fn client<A: 'static + Send + EventCallback>(
         config.outside_mtu,
         connection_type,
         outside_io,
-        keepalive,
+        keepalive.clone(),
     ));
 
     let inside_io_loop: JoinHandle<anyhow::Result<()>> =
         tokio::spawn(inside_io_task(conn.clone(), inside_io, config.tun_dns_ip));
+
+    let network_change_task: OptionFuture<JoinHandle<ClientResult>> =
+        match config.network_change_signal {
+            Some(network_change_signal) => Some(tokio::spawn(handle_network_change(
+                keepalive,
+                network_change_signal,
+                Arc::downgrade(&conn),
+            )))
+            .into(),
+            None => None.into(),
+        };
 
     tokio::select! {
         Some(_) = keepalive_task => Err(anyhow!("Keepalive timeout")),
@@ -424,7 +491,18 @@ pub async fn client<A: 'static + Send + EventCallback>(
         _ = config.stop_signal => {
             info!("client shutting down ..");
             let _ = conn.lock().unwrap().disconnect();
-            Ok(())
-        }
+            Ok(ClientResult::UserDisconnect)
+        },
+        Some(result) = network_change_task => {
+            match result {
+                Ok(client_result) => {
+                    info!("network change task result: {client_result:?}");
+                    Ok(client_result)
+                }
+                Err(e) => {
+                    Err(anyhow!("network change task error: {e:?}"))
+                }
+            }
+        },
     }
 }
