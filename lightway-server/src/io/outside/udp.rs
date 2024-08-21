@@ -52,7 +52,12 @@ struct UdpSocket {
 
 impl OutsideIOSendCallback for UdpSocket {
     fn send(&self, buf: &[u8]) -> IOCallbackResult<usize> {
-        match self.sock.try_send_to(buf, self.peer_addr.read().unwrap().0) {
+        let res = self.sock.try_io(Interest::WRITABLE, || {
+            let sock = SockRef::from(self.sock.as_ref());
+            sock.send_to(buf, &self.peer_addr.read().unwrap().1)
+        });
+
+        match res {
             Ok(nr) => IOCallbackResult::Ok(nr),
             Err(err) if matches!(err.kind(), std::io::ErrorKind::WouldBlock) => {
                 IOCallbackResult::WouldBlock
