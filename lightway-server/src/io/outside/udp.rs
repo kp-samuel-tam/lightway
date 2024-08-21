@@ -13,7 +13,7 @@ use lightway_core::{
     ConnectionType, Header, IOCallbackResult, OutsideIOSendCallback, OutsidePacket, SessionId,
     Version, MAX_OUTSIDE_MTU,
 };
-use socket2::{MaybeUninitSlice, MsgHdrMut, SockAddr, SockRef};
+use socket2::{MaybeUninitSlice, MsgHdr, MsgHdrMut, SockAddr, SockRef};
 use tokio::io::Interest;
 use tracing::{info, instrument, warn};
 
@@ -54,7 +54,12 @@ impl OutsideIOSendCallback for UdpSocket {
     fn send(&self, buf: &[u8]) -> IOCallbackResult<usize> {
         let res = self.sock.try_io(Interest::WRITABLE, || {
             let sock = SockRef::from(self.sock.as_ref());
-            sock.send_to(buf, &self.peer_addr.read().unwrap().1)
+            let peer_addr = self.peer_addr.read().unwrap();
+            let bufs = [std::io::IoSlice::new(buf)];
+
+            let msghdr = MsgHdr::new().with_addr(&peer_addr.1).with_buffers(&bufs);
+
+            sock.sendmsg(&msghdr, 0)
         });
 
         match res {
