@@ -47,12 +47,12 @@ impl std::fmt::Display for BindMode {
 
 struct UdpSocket {
     sock: Arc<tokio::net::UdpSocket>,
-    peer_addr: RwLock<SocketAddr>,
+    peer_addr: RwLock<(SocketAddr, SockAddr)>,
 }
 
 impl OutsideIOSendCallback for UdpSocket {
     fn send(&self, buf: &[u8]) -> IOCallbackResult<usize> {
-        match self.sock.try_send_to(buf, *self.peer_addr.read().unwrap()) {
+        match self.sock.try_send_to(buf, self.peer_addr.read().unwrap().0) {
             Ok(nr) => IOCallbackResult::Ok(nr),
             Err(err) if matches!(err.kind(), std::io::ErrorKind::WouldBlock) => {
                 IOCallbackResult::WouldBlock
@@ -62,13 +62,13 @@ impl OutsideIOSendCallback for UdpSocket {
     }
 
     fn peer_addr(&self) -> SocketAddr {
-        *self.peer_addr.read().unwrap()
+        self.peer_addr.read().unwrap().0
     }
 
     fn set_peer_addr(&self, addr: SocketAddr) -> SocketAddr {
         let mut peer_addr = self.peer_addr.write().unwrap();
-        let old_addr = *peer_addr;
-        *peer_addr = addr;
+        let old_addr = peer_addr.0;
+        *peer_addr = (addr, addr.into());
         old_addr
     }
 }
@@ -152,7 +152,7 @@ impl UdpServer {
                     || {
                         Arc::new(UdpSocket {
                             sock: self.sock.clone(),
-                            peer_addr: RwLock::new(peer_addr),
+                            peer_addr: RwLock::new((peer_addr, peer_addr.into())),
                         })
                     },
                 );
