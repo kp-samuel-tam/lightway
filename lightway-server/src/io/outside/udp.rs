@@ -13,7 +13,7 @@ use lightway_core::{
     ConnectionType, Header, IOCallbackResult, OutsideIOSendCallback, OutsidePacket, SessionId,
     Version, MAX_OUTSIDE_MTU,
 };
-use socket2::{MaybeUninitSlice, MsgHdrMut, SockAddr, SockRef};
+use socket2::{MaybeUninitSlice, MsgHdr, MsgHdrMut, SockAddr, SockRef};
 use tokio::io::Interest;
 use tracing::{info, instrument, warn};
 
@@ -47,12 +47,35 @@ impl std::fmt::Display for BindMode {
 
 struct UdpSocket {
     sock: Arc<tokio::net::UdpSocket>,
-    peer_addr: RwLock<SocketAddr>,
+    peer_addr: RwLock<(SocketAddr, SockAddr)>,
+    reply_pktinfo: Option<libc::in_pktinfo>,
 }
 
 impl OutsideIOSendCallback for UdpSocket {
     fn send(&self, buf: &[u8]) -> IOCallbackResult<usize> {
-        match self.sock.try_send_to(buf, *self.peer_addr.read().unwrap()) {
+        let res = self.sock.try_io(Interest::WRITABLE, || {
+            let sock = SockRef::from(self.sock.as_ref());
+            let peer_addr = self.peer_addr.read().unwrap();
+            let bufs = [std::io::IoSlice::new(buf)];
+
+            let msghdr = MsgHdr::new().with_addr(&peer_addr.1).with_buffers(&bufs);
+
+            const CMSG_SIZE: usize = cmsg::Message::space::<libc::in_pktinfo>();
+            let mut cmsg = cmsg::BufferMut::<CMSG_SIZE>::zeroed();
+
+            let msghdr = if let Some(pktinfo) = self.reply_pktinfo {
+                let mut builder = cmsg.builder();
+                builder.fill_next(libc::SOL_IP, libc::IP_PKTINFO, pktinfo)?;
+
+                msghdr.with_control(cmsg.as_ref())
+            } else {
+                msghdr
+            };
+
+            sock.sendmsg(&msghdr, 0)
+        });
+
+        match res {
             Ok(nr) => IOCallbackResult::Ok(nr),
             Err(err) if matches!(err.kind(), std::io::ErrorKind::WouldBlock) => {
                 IOCallbackResult::WouldBlock
@@ -62,13 +85,13 @@ impl OutsideIOSendCallback for UdpSocket {
     }
 
     fn peer_addr(&self) -> SocketAddr {
-        *self.peer_addr.read().unwrap()
+        self.peer_addr.read().unwrap().0
     }
 
     fn set_peer_addr(&self, addr: SocketAddr) -> SocketAddr {
         let mut peer_addr = self.peer_addr.write().unwrap();
-        let old_addr = *peer_addr;
-        *peer_addr = addr;
+        let old_addr = peer_addr.0;
+        *peer_addr = (addr, addr.into());
         old_addr
     }
 }
@@ -112,7 +135,13 @@ impl UdpServer {
     }
 
     #[instrument(level = "trace", skip_all)]
-    async fn data_received(&mut self, addr: SocketAddr, local_addr: SocketAddr, buf: BytesMut) {
+    async fn data_received(
+        &mut self,
+        peer_addr: SocketAddr,
+        local_addr: SocketAddr,
+        reply_pktinfo: Option<libc::in_pktinfo>,
+        buf: BytesMut,
+    ) {
         let pkt = OutsidePacket::Wire(buf, ConnectionType::Datagram);
         let pkt = match self.conn_manager.parse_raw_outside_packet(pkt) {
             Ok(hdr) => hdr,
@@ -135,19 +164,20 @@ impl UdpServer {
             return;
         }
 
-        let may_be_conn = self.conn_manager.find_datagram_connection_with(addr);
+        let may_be_conn = self.conn_manager.find_datagram_connection_with(peer_addr);
         let (conn, update_peer_address) = match may_be_conn {
             Some(conn) => (conn, false),
             None => {
                 let conn_result = self.conn_manager.find_or_create_datagram_connection_with(
-                    addr,
+                    peer_addr,
                     hdr.version,
                     hdr.session,
                     local_addr,
                     || {
                         Arc::new(UdpSocket {
                             sock: self.sock.clone(),
-                            peer_addr: RwLock::new(addr),
+                            peer_addr: RwLock::new((peer_addr, peer_addr.into())),
+                            reply_pktinfo,
                         })
                     },
                 );
@@ -155,7 +185,7 @@ impl UdpServer {
                 match conn_result {
                     Ok(conn) => conn,
                     Err(_e) => {
-                        self.send_reject(addr).await;
+                        self.send_reject(peer_addr).await;
                         return;
                     }
                 }
@@ -183,7 +213,7 @@ impl UdpServer {
                 if update_peer_address {
                     metrics::udp_conn_recovered_via_session(session);
                     conn.begin_session_id_rotation();
-                    self.conn_manager.set_peer_addr(&conn, addr);
+                    self.conn_manager.set_peer_addr(&conn, peer_addr);
                 }
             }
             Err(err) => {
@@ -195,7 +225,7 @@ impl UdpServer {
         }
     }
 
-    async fn send_reject(&self, addr: SocketAddr) {
+    async fn send_reject(&self, peer_addr: SocketAddr) {
         metrics::udp_rejected_session();
         let msg = Header {
             version: Version::MINIMUM,
@@ -207,7 +237,7 @@ impl UdpServer {
         msg.append_to_wire(&mut buf);
 
         // Ignore failure to send.
-        let _ = self.sock.send_to(&buf, addr).await;
+        let _ = self.sock.send_to(&buf, peer_addr).await;
     }
 }
 
@@ -218,14 +248,14 @@ impl Server for UdpServer {
         loop {
             let mut buf = BytesMut::with_capacity(MAX_OUTSIDE_MTU);
 
-            let (addr, local_addr) = self
+            let (peer_addr, local_addr, reply_pktinfo) = self
                 .sock
                 .async_io(Interest::READABLE, || {
                     let sock = SockRef::from(self.sock.as_ref());
                     let mut raw_buf = [MaybeUninitSlice::new(buf.spare_capacity_mut())];
 
                     #[allow(unsafe_code)]
-                    let mut sock_addr = {
+                    let mut peer_sock_addr = {
                         // SAFETY: sockaddr_storage is defined
                         // (<https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/sys_socket.h.html>)
                         // as being a suitable size and alignment for
@@ -255,7 +285,7 @@ impl Server for UdpServer {
                     let mut control = cmsg::Buffer::<SIZE>::new();
 
                     let mut msg = MsgHdrMut::new()
-                        .with_addr(&mut sock_addr)
+                        .with_addr(&mut peer_sock_addr)
                         .with_buffers(&mut raw_buf)
                         .with_control(control.as_mut());
 
@@ -273,7 +303,7 @@ impl Server for UdpServer {
                         buf.set_len(len)
                     };
 
-                    let Some(addr) = sock_addr.as_socket() else {
+                    let Some(peer_addr) = peer_sock_addr.as_socket() else {
                         // Since we only bind to IP sockets this shouldn't happen.
                         metrics::udp_recv_invalid_addr();
                         return Err(std::io::Error::new(
@@ -283,9 +313,9 @@ impl Server for UdpServer {
                     };
 
                     #[allow(unsafe_code)]
-                    let local_addr = match self.bind_mode {
+                    let (local_addr, reply_pktinfo) = match self.bind_mode {
                         BindMode::UnspecifiedAddress { local_port } => {
-                            let Some(local_addr) =
+                            let Some((local_addr, reply_pktinfo)) =
                                 // SAFETY: The call to `recvmsg` above updated
                                 // the control buffer length field.
                                 unsafe { control.iter(control_len) }.find_map(|cmsg| {
@@ -298,7 +328,14 @@ impl Server for UdpServer {
                                             let ipv4 = u32::from_be(pi.ipi_spec_dst.s_addr);
                                             let ipv4 = Ipv4Addr::from_bits(ipv4);
                                             let ip = IpAddr::V4(ipv4);
-                                            Some(SocketAddr::new(ip, local_port))
+
+                                            let reply_pktinfo = libc::in_pktinfo{
+                                                ipi_ifindex: 0,
+                                                ipi_spec_dst: pi.ipi_spec_dst,
+                                                ipi_addr: libc::in_addr { s_addr: 0 },
+                                            };
+
+                                            Some((SocketAddr::new(ip, local_port), reply_pktinfo))
                                         },
                                         _ => None,
                                     }
@@ -312,16 +349,17 @@ impl Server for UdpServer {
                                         "recvmsg did not return IP_PKTINFO",
                                     ));
                                 };
-                            local_addr
+                            (local_addr, Some(reply_pktinfo))
                         }
-                        BindMode::SpecificAddress { local_addr } => local_addr,
+                        BindMode::SpecificAddress { local_addr } => (local_addr, None),
                     };
 
-                    Ok((addr, local_addr))
+                    Ok((peer_addr, local_addr, reply_pktinfo))
                 })
                 .await?;
 
-            self.data_received(addr, local_addr, buf).await;
+            self.data_received(peer_addr, local_addr, reply_pktinfo, buf)
+                .await;
         }
     }
 }
