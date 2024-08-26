@@ -22,12 +22,19 @@ install-build-dependencies:
         qemu-user-static \
         shellcheck
 
+    # Note this must be done before `lib-rust+INIT` overrides `$CARGO_HOME`.
+    RUN rustup toolchain install nightly
+
     DO lib-rust+INIT --keep_fingerprints=true
     DO lib-rust+CARGO --args="install --locked cargo-deny cargo-llvm-cov"
     RUN rustup component add clippy
     RUN rustup component add rustfmt
     RUN rustup component add llvm-tools-preview
     RUN rustup target add aarch64-unknown-linux-gnu
+
+    RUN rustup +nightly component add miri
+    RUN rustup +nightly component add rust-src
+    DO lib-rust+CARGO --args="+nightly miri setup"
 
 source:
     FROM +install-build-dependencies
@@ -65,6 +72,15 @@ test:
     END
 
     DO lib-rust+CARGO --args="test --target=$target"
+
+# test-miri runs tests for modules which make use of `unsafe` under Miri.
+test-miri:
+    FROM +source
+    # The libc crate uses integer-to-pointer casts which are not compatible with "strict provenance"
+    # (https://doc.rust-lang.org/nightly/std/ptr/index.html#strict-provenance).
+    ENV MIRIFLAGS=-Zmiri-permissive-provenance
+    DO lib-rust+CARGO --args="+nightly miri test -p lightway-app-utils -- iouring sockopt"
+    DO lib-rust+CARGO --args="+nightly miri test -p lightway-server -- io::outside::udp"
 
 # test-arm64 executes all unit and integration tests via Cargo for arm64. Support running from an amd64 or arm64 host
 test-arm64:
