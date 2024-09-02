@@ -202,7 +202,7 @@ impl<AppState: Send + 'static> ClientConnectionBuilder<AppState> {
             .auth_method
             .ok_or(ConnectionBuilderError::AuthRequired)?;
 
-        let session = wolfssl::Session::new_from_context(&self.ctx.wolfssl, self.session_config)?;
+        let session = self.ctx.wolfssl.new_session(self.session_config)?;
 
         let inside_mtu = self.ctx.inside_io.mtu();
         if self.connection_type.is_datagram()
@@ -326,7 +326,7 @@ impl<'a, AppState: Send + 'static> ServerConnectionBuilder<'a, AppState> {
             ));
         }
 
-        let session = wolfssl::Session::new_from_context(&self.ctx.wolfssl, self.session_config)?;
+        let session = self.ctx.wolfssl.new_session(self.session_config)?;
 
         Ok(Connection::new(NewConnectionArgs {
             app_state,
