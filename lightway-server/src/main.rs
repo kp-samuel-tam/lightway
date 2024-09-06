@@ -38,6 +38,9 @@ impl<'a> ServerAuth<AuthState<'a>> for Auth {
 }
 
 async fn metrics_debug() {
+    if !tracing::enabled!(tracing::Level::TRACE) {
+        return;
+    }
     trace!("Logging metrics as trace messages");
 
     let stats_recorder = DebuggingRecorder::new();
@@ -59,7 +62,32 @@ async fn metrics_debug() {
         for (key, _maybe_units, _maybe_description, value) in snapshot.into_vec() {
             let (_, key) = key.into_parts();
             let (name, labels) = key.into_parts();
-            trace!("metric: {} {labels:?} = {value:?}", name.as_str());
+            match value {
+                metrics_util::debugging::DebugValue::Counter(value) => {
+                    trace!("metric: {} {labels:?} = Counter({value:?})", name.as_str())
+                }
+                metrics_util::debugging::DebugValue::Gauge(value) => {
+                    trace!("metric: {} {labels:?} = Guage({value:?})", name.as_str())
+                }
+                metrics_util::debugging::DebugValue::Histogram(values) => {
+                    // TODO: https://docs.rs/average/latest/average/macro.concatenate.html for min/max and avg?
+
+                    use average::{concatenate, Estimate, Max, Mean, Min};
+
+                    concatenate!(Stats, [Min, min], [Mean, mean], [Max, max]);
+                    let len = values.len();
+                    let s: Stats = values.into_iter().map(|f| f.into_inner()).collect();
+
+                    trace!(
+                        "metric: {} {labels:?} = Histogram({} samples min/avg/max {:.2}/{:.2}/{:.2})",
+                        name.as_str(),
+                        len,
+                        s.min(),
+                        s.mean(),
+                        s.max(),
+                    )
+                }
+            };
         }
     }
 }
