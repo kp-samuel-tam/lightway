@@ -120,9 +120,9 @@ async fn main() -> Result<()> {
 
     let fmt = tracing_subscriber::fmt().with_max_level(config.log_level);
 
-    tokio::spawn(metrics_debug());
-
     config.log_format.init(fmt);
+
+    tokio::spawn(metrics_debug());
 
     let auth = Auth {
         user: config.user.to_string(),
