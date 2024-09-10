@@ -15,7 +15,7 @@ use lightway_core::{
 };
 use socket2::{MaybeUninitSlice, MsgHdr, MsgHdrMut, SockAddr, SockRef};
 use tokio::io::Interest;
-use tracing::{info, instrument, warn};
+use tracing::{info, warn};
 
 use crate::{connection_manager::ConnectionManager, metrics};
 
@@ -134,7 +134,6 @@ impl UdpServer {
         })
     }
 
-    #[instrument(level = "trace", skip_all)]
     async fn data_received(
         &mut self,
         peer_addr: SocketAddr,
@@ -220,7 +219,6 @@ impl UdpServer {
                 warn!("Failed to process outside data: {err}");
                 let _ = conn.handle_outside_data_error(&err);
                 // Fatal or not, we are done with this packet.
-                return;
             }
         }
     }
