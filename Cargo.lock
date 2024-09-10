@@ -1126,7 +1126,6 @@ name = "lightway-server"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "async-channel",
  "async-trait",
  "bytes",
  "clap",
