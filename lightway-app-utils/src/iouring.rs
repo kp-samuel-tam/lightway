@@ -159,13 +159,15 @@ impl<T: AsRawFd> IOUring<T> {
         tokio::spawn(async move { recv_inner.recv_task().await });
 
         let inner_clone = inner.clone();
-        let io_uring_thread_handle = thread::spawn(move || {
-            tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .expect("Failed building Tokio Runtime")
-                .block_on(main_task(fd, ring_size, inner_clone))
-        });
+        let io_uring_thread_handle = thread::Builder::new()
+            .name("io_uring-main".to_string())
+            .spawn(move || {
+                tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .expect("Failed building Tokio Runtime")
+                    .block_on(main_task(fd, ring_size, inner_clone))
+            })?;
 
         Ok(Self {
             owned_fd,
