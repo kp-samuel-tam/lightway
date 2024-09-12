@@ -4,7 +4,7 @@ use bytes::{BufMut, BytesMut};
 use dashmap::DashMap;
 use thiserror::Error;
 
-use crate::metrics::tun_iouring_packet_dropped;
+use crate::metrics;
 use io_uring::{
     cqueue::Entry as CEntry, opcode, squeue::Entry as SEntry, types::Fixed, CompletionQueue,
     IoUring,
@@ -159,13 +159,15 @@ impl<T: AsRawFd> IOUring<T> {
         tokio::spawn(async move { recv_inner.recv_task().await });
 
         let inner_clone = inner.clone();
-        let io_uring_thread_handle = thread::spawn(move || {
-            tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .expect("Failed building Tokio Runtime")
-                .block_on(main_task(fd, ring_size, inner_clone))
-        });
+        let io_uring_thread_handle = thread::Builder::new()
+            .name("io_uring-main".to_string())
+            .spawn(move || {
+                tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .expect("Failed building Tokio Runtime")
+                    .block_on(main_task(fd, ring_size, inner_clone))
+            })?;
 
         Ok(Self {
             owned_fd,
@@ -197,7 +199,7 @@ impl<T: AsRawFd> IOUring<T> {
             Err(e) if e.is_full() => {
                 // it is effectively the same scenario as a buffer in a network
                 // switch/router filling up so dropping the traffic is appropriate
-                tun_iouring_packet_dropped();
+                metrics::tun_iouring_packet_dropped();
                 Ok(())
             }
             Err(e) => Err(IOUringError::SendError(e)),
@@ -221,6 +223,7 @@ async fn process_cqe_task(
             assert_eq!(a, 8);
             cq.sync();
         }
+        metrics::tun_iouring_completion_batch_size(cq.len());
         for cqe in cq.by_ref() {
             let key = cqe.user_data();
             let res: i32 = cqe.result();

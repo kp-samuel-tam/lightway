@@ -1,16 +1,19 @@
-use metrics::counter;
+use metrics::{counter, Counter};
+use std::sync::LazyLock;
 use tracing::warn;
 use wolfssl::ProtocolVersion;
 
-const METRIC_CONNECTION_ALLOC_FRAG_MAP: &str = "conn_alloc_frag_map";
+static METRIC_CONNECTION_ALLOC_FRAG_MAP: LazyLock<Counter> =
+    LazyLock::new(|| counter!("conn_alloc_frag_map"));
 const METRIC_WOLFSSL_APPDATA: &str = "wolfssl_appdata";
-const METRIC_INSIDE_IO_SEND_FAILED: &str = "inside_io_send_failed";
+static METRIC_INSIDE_IO_SEND_FAILED: LazyLock<Counter> =
+    LazyLock::new(|| counter!("inside_io_send_failed"));
 
-const TLS_PROTOCOL_VERSION_LABEL: &str = "tls_protocol_version";
+static TLS_PROTOCOL_VERSION_LABEL: &str = "tls_protocol_version";
 
 /// [`crate::Connection`] has allocated its [`crate::Connection::fragment_map`]
 pub(crate) fn connection_alloc_frag_map() {
-    counter!(METRIC_CONNECTION_ALLOC_FRAG_MAP).increment(1);
+    METRIC_CONNECTION_ALLOC_FRAG_MAP.increment(1);
 }
 
 /// [`wolfssl`] returned [`wolfssl::Poll::AppData`] which is not expected with
@@ -23,5 +26,5 @@ pub(crate) fn wolfssl_appdata(tls_version: &ProtocolVersion) {
 /// A call to [`crate::io::InsideIOSendCallback::send`] failed
 pub(crate) fn inside_io_send_failed(err: std::io::Error) {
     warn!(%err, "Failed to send to inside IO");
-    counter!(METRIC_INSIDE_IO_SEND_FAILED).increment(1);
+    METRIC_INSIDE_IO_SEND_FAILED.increment(1);
 }
