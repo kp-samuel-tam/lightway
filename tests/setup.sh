@@ -110,7 +110,7 @@ create_setup() {
     setup_bridge_interface veth-s2m lightway-server 172.16.0.1/12 lightway-middle 172.16.0.2/12
     ip netns exec lightway-server ip route add 192.168.0.0/16 via 172.16.0.2
 
-    # Setup lightway-client and create bridge interface to server
+    # Setup lightway-client and create bridge interface to middle
     setup_ns lightway-client lightway 100.64.0.6 100.64.0.5
     setup_bridge_interface veth-c2m lightway-middle 192.168.0.1/24 lightway-client 192.168.0.2/24
     ip netns exec lightway-client ip route add 172.16.0.0/12 via 192.168.0.1

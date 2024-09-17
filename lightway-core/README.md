@@ -15,6 +15,11 @@ $ cargo +nightly fuzz run fuzz_parse_header
 $ cargo +nightly fuzz run fuzz_parse_frame
 ```
 
+> [!WARNING]
+> `cargo fuzz` is currently not compatible with LTO (see https://github.com/rust-fuzz/cargo-fuzz/issues/384).
+> Therefore you will have to comment out the `lto = true` in the
+> workspace's `Cargo.toml`.
+
 See the `cargo fuzz` book for more information.
 
 To create a corpus with some valid frames:
