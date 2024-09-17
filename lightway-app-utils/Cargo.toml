@@ -47,5 +47,5 @@ path = "examples/udprelay.rs"
 async-trait.workspace = true
 async-channel = { version = "2.1.1" }
 pnet.workspace = true
-tokio-tun = "0.11.2"
+tokio-tun = "0.12.0"
 test-case.workspace = true
