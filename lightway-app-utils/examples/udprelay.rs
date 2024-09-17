@@ -57,8 +57,6 @@ fn tun_peer_addr() -> Ipv4Addr {
 async fn build_tun(name: String) -> Result<Tun> {
     let tun = Tun::builder()
         .name(&name[..])
-        .tap(false)
-        .packet_info(false)
         .mtu(TUN_MTU as _)
         .address(tun_local_addr())
         .destination(tun_peer_addr())

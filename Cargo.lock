@@ -110,9 +110,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.87"
+version = "1.0.89"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "10f00e1f6e58a40e807377c75c6a7f97bf9044fab57816f2414e6f5f4499d7b8"
+checksum = "86fdf8605db99b54d3cd748a44c6d04df638eb5dafb219b135d0149bd0db01f6"
 
 [[package]]
 name = "arbitrary"
@@ -334,9 +334,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.1.18"
+version = "1.1.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b62ac837cdb5cb22e10a256099b4fc502b1dfe560cb282963a974d7abd80e476"
+checksum = "2d74707dde2ba56f86ae90effb3b43ddd369504387e718014de010cec7959800"
 dependencies = [
  "jobserver",
  "libc",
@@ -871,9 +871,9 @@ checksum = "9a3a5bfb195931eeb336b2a7b4d761daec841b97f947d34394601737a7bba5e4"
 
 [[package]]
 name = "iana-time-zone"
-version = "0.1.60"
+version = "0.1.61"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e7ffbb5a1b541ea2561f8c41c087286cc091e21e556a4f09a8f6cbf17b69b141"
+checksum = "235e081f3925a06703c2d0117ea8b91f042756fd6e7a6e5d901e8ca1a996b220"
 dependencies = [
  "android_system_properties",
  "core-foundation-sys",
@@ -1704,9 +1704,9 @@ checksum = "08d43f7aa6b08d49f382cde6a7982047c3426db949b1424bc4b7ec9ae12c6ce2"
 
 [[package]]
 name = "rustix"
-version = "0.38.36"
+version = "0.38.37"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f55e80d50763938498dd5ebb18647174e0c76dc38c5505294bb224624f30f36"
+checksum = "8acb788b847c24f28525660c4d7758620a7210875711f79e7f663cc152726811"
 dependencies = [
  "bitflags 2.6.0",
  "errno",
@@ -2055,9 +2055,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-tun"
-version = "0.11.5"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68f5381752d5832fc811f89d54fc334951aa435022f494190ba7151661f206df"
+checksum = "fde69666e881ea060a36a0f39442beb843e2204beeeb2062fdfaa183add47013"
 dependencies = [
  "libc",
  "nix",
@@ -2086,9 +2086,9 @@ checksum = "0dd7358ecb8fc2f8d014bf86f6f638ce72ba252a2c3a2572f2a795f1d23efb41"
 
 [[package]]
 name = "toml_edit"
-version = "0.22.20"
+version = "0.22.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "583c44c02ad26b0c3f3066fe629275e50627026c51ac2e595cca4c230ce1ce1d"
+checksum = "3b072cee73c449a636ffd6f32bd8de3a9f7119139aff882f44943ce2986dc5cf"
 dependencies = [
  "indexmap 2.5.0",
  "toml_datetime",
@@ -2167,9 +2167,9 @@ dependencies = [
 
 [[package]]
 name = "tun2"
-version = "3.1.2"
+version = "3.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2104af96dec2277bc9727a05846b0566b5f94c00005e701c3e861cebc45e095c"
+checksum = "af810bc5d0c82f056aabd0d7448ba3ccb8bb586f2d5cb95692111ee67ccbccda"
 dependencies = [
  "bytes",
  "cfg-if",
@@ -2177,7 +2177,6 @@ dependencies = [
  "futures-core",
  "ipnet",
  "libc",
- "libloading",
  "log",
  "nix",
  "thiserror",
@@ -2205,9 +2204,9 @@ dependencies = [
 
 [[package]]
 name = "unicode-ident"
-version = "1.0.12"
+version = "1.0.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3354b9ac3fae1ff6755cb6db53683adb661634f67557942dea4facebec0fee4b"
+checksum = "e91b56cd4cadaeb79bbf1a5645f6b4f8dc5bde8834ad5894a8db35fda9efa1fe"
 
 [[package]]
 name = "unsafe-libyaml"
@@ -2446,9 +2445,9 @@ dependencies = [
 
 [[package]]
 name = "wintun-bindings"
-version = "0.7.6"
+version = "0.7.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e8845d371a7113c85eba577d61c69abea5abd33d458c24185eb6a6c9d1b0784"
+checksum = "a6f572ad34e725f31baeea033439ef52837fdc544099958775fd6299dadb27c7"
 dependencies = [
  "blocking",
  "c2rust-bitfields",
@@ -2462,7 +2461,7 @@ dependencies = [
 [[package]]
 name = "wolfssl"
 version = "2.0.0"
-source = "git+https://github.com/expressvpn/wolfssl-rs#b635ddb26086d3a3c16840326eca7ed7e00b485c"
+source = "git+https://github.com/expressvpn/wolfssl-rs#8e2be3d45c8c700933d96865e78b4e1547ead7a5"
 dependencies = [
  "bytes",
  "log",
@@ -2473,7 +2472,7 @@ dependencies = [
 [[package]]
 name = "wolfssl-sys"
 version = "1.2.0"
-source = "git+https://github.com/expressvpn/wolfssl-rs#b635ddb26086d3a3c16840326eca7ed7e00b485c"
+source = "git+https://github.com/expressvpn/wolfssl-rs#8e2be3d45c8c700933d96865e78b4e1547ead7a5"
 dependencies = [
  "autotools",
  "bindgen 0.70.1",
