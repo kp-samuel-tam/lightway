@@ -164,12 +164,12 @@ The lightway-middle namespace facilitates a multi-hop network path: client <-> m
 
 Start server using this command,
 ```bash
-cargo build --bin lightway-server && sudo -E ip netns exec lightway-server ./target/debug/lightway-server --config-file './tests/server_config.yaml'
+cargo build --bin lightway-server && sudo -E ip netns exec lightway-server ./target/debug/lightway-server --config-file './tests/server/server_config.yaml'
 ```
 
 Start client using this command,
 ```bash
-cargo build --bin lightway-client && sudo -E ip netns exec lightway-client ./target/debug/lightway-client --config-file './tests/client_config.yaml' --server server:27690
+cargo build --bin lightway-client && sudo -E ip netns exec lightway-client ./target/debug/lightway-client --config-file './tests/client/client_config.yaml' --server server:27690
 ```
 
 Then enter into `lightway-client` namespace and trying pinging google.com
