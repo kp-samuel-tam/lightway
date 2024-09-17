@@ -22,7 +22,7 @@ pub(crate) struct BorrowedBytesMut<'a> {
 
 /// Create `BorrowedBytesMut` from `&mut BytesMut`
 impl<'a> From<&'a mut BytesMut> for BorrowedBytesMut<'a> {
-    fn from(src: &'a mut BytesMut) -> BorrowedBytesMut {
+    fn from(src: &'a mut BytesMut) -> BorrowedBytesMut<'a> {
         Self {
             cursor: 0,
             bytes: src,
