@@ -50,7 +50,7 @@ delete_ns() {
     ip netns del "${ns}"
 }
 
-setup_ip_forwarding() {
+setup_ip_snat() {
     ns=$1
     subnet=$2
     dev=$3
@@ -60,6 +60,13 @@ setup_ip_forwarding() {
     ip netns exec "${ns}" iptables -P OUTPUT ACCEPT
     ip netns exec "${ns}" iptables -P FORWARD ACCEPT
     ip netns exec "${ns}" iptables -t nat -A POSTROUTING -s "${subnet}" -o "${dev}" -j SNAT --to "${basenet}"
+}
+
+setup_ip_forward() {
+    ns=$1
+    value=$2
+
+    ip netns exec "${ns}" sysctl -q net.ipv4.ip_forward="$value"
 }
 
 setup_bridge_interface() {
@@ -104,10 +111,12 @@ setup_client() {
 create_setup() {
     # Setup lightway-server
     setup_ns lightway-server lightway 10.125.0.1 '' 10.125.0.0/16
+    setup_ip_forward lightway-server 1
 
     # Setup lightway-middle and create bridge interface to server
     setup_ns lightway-middle
     setup_bridge_interface veth-s2m lightway-server 172.16.0.1/12 lightway-middle 172.16.0.2/12
+    setup_ip_forward lightway-middle 1
     ip netns exec lightway-server ip route add 192.168.0.0/16 via 172.16.0.2
 
     # Setup lightway-client and create bridge interface to middle
@@ -115,24 +124,27 @@ create_setup() {
     setup_bridge_interface veth-c2m lightway-middle 192.168.0.1/24 lightway-client 192.168.0.2/24
     ip netns exec lightway-client ip route add 172.16.0.0/12 via 192.168.0.1
     setup_client lightway-client 172.16.0.1
+    setup_ip_forward lightway-client 0
 
     # Setup additional lightway-client# and create bridge interface to server
     for n in $(seq 1 "${EXTRA_CLIENTS}") ; do
         setup_ns "lightway-client${n}" lightway 100.64.0.6 100.64.0.5
         setup_bridge_interface "veth${n}" lightway-server "192.168.${n}.1/24" "lightway-client${n}" "192.168.${n}.2/24"
         setup_client "lightway-client${n}" "192.168.${n}.1"
+	setup_ip_forward "lightway-client${n}" 0
     done
 
     # Setup lightway-remote namespace and set 8.8.8.8 to loopback in remote device
     setup_ns lightway-remote
     ip netns exec lightway-remote ip addr add 8.8.8.8/24 dev lo
+    setup_ip_forward lightway-remote 0
 
     # Create bridge eth interface between server and remote
     setup_bridge_interface wan lightway-server 169.254.99.1/24 lightway-remote 169.254.99.2/24
 
     # Setup forwarding rules in lightway-server
     ip netns exec lightway-server ip route add 8.8.8.8/32 via 169.254.99.1
-    setup_ip_forwarding lightway-server 10.125.0.0/16 wan 169.254.99.1
+    setup_ip_snat lightway-server 10.125.0.0/16 wan 169.254.99.1
 }
 
 delete_setup() {
