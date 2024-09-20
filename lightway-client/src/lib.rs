@@ -293,7 +293,7 @@ pub async fn inside_io_task<T: Send + Sync>(
             };
         }
 
-        match conn.inside_data_received(buf) {
+        match conn.inside_data_received(&mut buf) {
             Ok(()) => {}
             Err(ConnectionError::PluginDropWithReply(reply)) => {
                 // Send the reply packet to inside path

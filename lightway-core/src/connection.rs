@@ -7,6 +7,7 @@ mod key_update;
 
 use bytes::{Bytes, BytesMut};
 use rand::Rng;
+use std::borrow::Cow;
 use std::net::AddrParseError;
 use std::num::{NonZeroU16, Wrapping};
 use std::{
@@ -708,7 +709,7 @@ impl<AppState: Send> Connection<AppState> {
     /// Consume data received from inside path and send it as
     /// outside data packet.
     /// The returned Poll value reflects the inside I/O requirements.
-    pub fn inside_data_received(&mut self, mut pkt: BytesMut) -> ConnectionResult<()> {
+    pub fn inside_data_received(&mut self, pkt: &mut BytesMut) -> ConnectionResult<()> {
         use ConnectionError::InvalidInsidePacket;
         use InvalidPacketError::{InvalidIpv4Packet, InvalidPacketSize};
 
@@ -734,7 +735,7 @@ impl<AppState: Send> Connection<AppState> {
             }
         }
 
-        match self.inside_plugins.do_ingress(&mut pkt) {
+        match self.inside_plugins.do_ingress(pkt) {
             PluginResult::Accept => {}
             PluginResult::Drop => {
                 return Ok(());
@@ -752,14 +753,14 @@ impl<AppState: Send> Connection<AppState> {
             if let Some((data_mps, frag_mps)) = pmtu.maximum_packet_sizes();
             if pkt.len() > data_mps;
             then {
-                self.send_fragmented_outside_data(pkt.freeze(), frag_mps)
+                self.send_fragmented_outside_data(pkt.clone().freeze(), frag_mps)
             } else {
                 self.send_outside_data(pkt)
             }
         }
     }
 
-    fn send_outside_data(&mut self, data: BytesMut) -> ConnectionResult<()> {
+    fn send_outside_data(&mut self, data: &mut BytesMut) -> ConnectionResult<()> {
         // If PMTUD is not active or the search has not completed then
         // we can only send up to the configured MTU.
         if self.connection_type.is_datagram()
@@ -770,7 +771,9 @@ impl<AppState: Send> Connection<AppState> {
             ));
         }
 
-        let inside_pkt = wire::Data { data };
+        let inside_pkt = wire::Data {
+            data: Cow::Borrowed(data),
+        };
         let msg = wire::Frame::Data(inside_pkt);
         self.send_frame_or_drop(msg)
     }
@@ -1326,7 +1329,10 @@ impl<AppState: Send> Connection<AppState> {
     }
 
     fn handle_outside_data_packet(&mut self, data: wire::Data) -> ConnectionResult<()> {
-        self.handle_outside_data_bytes(data.data)
+        // into_owned should be a NOP here since
+        // `wire::Data::try_from_wire` produced a `Cow::Owned`
+        // variant.
+        self.handle_outside_data_bytes(data.data.into_owned())
     }
 
     fn handle_outside_data_fragment(&mut self, frag: wire::DataFrag) -> ConnectionResult<()> {

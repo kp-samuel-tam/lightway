@@ -107,7 +107,7 @@ impl Connection {
             pub fn authentication_expired(&self) -> ConnectionResult<bool>;
 
             pub fn outside_data_received(&self, buf: OutsidePacket) -> ConnectionResult<usize>;
-            pub fn inside_data_received(&self, pkt: BytesMut) -> ConnectionResult<()>;
+            pub fn inside_data_received(&self, pkt: &mut BytesMut) -> ConnectionResult<()>;
         }
     }
 

@@ -276,7 +276,7 @@ pub(crate) enum FrameKind {
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 /// ```
 #[derive(Debug, PartialEq)]
-pub(crate) enum Frame {
+pub(crate) enum Frame<'data> {
     /// A No Op frame - it is dropped when received
     NoOp,
     /// A ping request to the other side
@@ -286,7 +286,7 @@ pub(crate) enum Frame {
     /// Authentication Request (client -> server only)
     AuthRequest(auth_request::AuthRequest),
     /// Packets of data to / from the tunnel
-    Data(data::Data),
+    Data(data::Data<'data>),
     /// Authentication Success, contains IPV4 configuration (server -> client only)
     AuthSuccessWithConfigV4(auth_success_with_config_ipv4::AuthSuccessWithConfigV4),
     /// Authentication Failure (server -> client only)
@@ -299,7 +299,7 @@ pub(crate) enum Frame {
     DataFrag(data_frag::DataFrag),
 }
 
-impl Frame {
+impl<'data> Frame<'data> {
     pub(crate) fn kind(&self) -> FrameKind {
         match self {
             Self::NoOp => FrameKind::NoOp,
@@ -520,13 +520,14 @@ mod test_frame_kind {
 mod test_frame {
     use super::*;
     use bytes::Bytes;
+    use std::borrow::Cow;
     use test_case::test_case;
 
     #[test_case(Frame::NoOp => FrameKind::NoOp)]
     #[test_case(Frame::Ping(Ping{ id: 0, payload: Default::default() }) => FrameKind::Ping)]
     #[test_case(Frame::Pong(Pong{ id: 0 }) => FrameKind::Pong)]
     #[test_case(Frame::AuthRequest(AuthRequest{ auth_method: auth_request::AuthMethod::UserPass{ user: Default::default(), password: Default::default() }}) => FrameKind::AuthRequest)]
-    #[test_case(Frame::Data(Data{ data: BytesMut::new() }) => FrameKind::Data)]
+    #[test_case(Frame::Data(Data{ data: Cow::Owned(BytesMut::new()) }) => FrameKind::Data)]
     #[test_case(Frame::AuthSuccessWithConfigV4(AuthSuccessWithConfigV4{ local_ip: Default::default(), peer_ip: Default::default(), dns_ip: Default::default(), mtu: Default::default(), session: SessionId::EMPTY }) => FrameKind::AuthSuccessWithConfigV4)]
     #[test_case(Frame::AuthFailure(AuthFailure) => FrameKind::AuthFailure)]
     #[test_case(Frame::Goodbye => FrameKind::Goodbye)]
@@ -542,7 +543,7 @@ mod test_frame {
     #[test_case(Frame::AuthRequest(AuthRequest{ auth_method: auth_request::AuthMethod::UserPass{ user: "me".to_string(), password: "secret".to_string() }}) => b"\x04\x01\x02\x06me\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00secret\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00".to_vec(); "auth request userpass")]
     #[test_case(Frame::AuthRequest(AuthRequest{ auth_method: auth_request::AuthMethod::Token{ token: "token".to_string() }}) => b"\x04\x02\x00\x05token".to_vec(); "auth request token")]
     #[test_case(Frame::AuthRequest(AuthRequest{ auth_method: auth_request::AuthMethod::CustomCallback{ data: Bytes::from_static(&[1, 2, 3, 4]) }}) => vec![0x4, 23, 0x00, 0x04, 1, 2, 3, 4]; "auth request custom callback")]
-    #[test_case(Frame::Data(Data{ data: BytesMut::from(&[0xfe, 0xbe, 0xaa][..])}) => vec![0x5, 0, 3, 0xfe, 0xbe, 0xaa]; "data")]
+    #[test_case(Frame::Data(Data{ data: Cow::Owned(BytesMut::from(&[0xfe, 0xbe, 0xaa][..]))}) => vec![0x5, 0, 3, 0xfe, 0xbe, 0xaa]; "data")]
     #[test_case(Frame::AuthSuccessWithConfigV4(AuthSuccessWithConfigV4{ local_ip: "1.1.1.1".to_string(), peer_ip: "2.2.2.2".to_string(), dns_ip: "3.3.3.3".to_string(), mtu: "1500".to_string(), session: SessionId([0x00, 0x00, 0x00, 0x00, 0x00, 0x00,0x2f, 0x66]) }) => b"\x061.1.1.1\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x002.2.2.2\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x003.3.3.3\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x001500\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x2f\x66".to_vec(); "auth success with config v4")]
     #[test_case(Frame::AuthFailure(AuthFailure) =>  b"\x07\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00".to_vec(); "auth failure")]
     #[test_case(Frame::Goodbye => vec![0x0c]; "goodbye")]
@@ -560,7 +561,7 @@ mod test_frame {
     #[test_case(b"\x04\x01\x02\x06me\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00secret\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" => Frame::AuthRequest(AuthRequest{ auth_method: auth_request::AuthMethod::UserPass{ user: "me".to_string(), password: "secret".to_string() }}); "auth request user pass")]
     #[test_case(b"\x04\x02\x00\x05token" => Frame::AuthRequest(AuthRequest{ auth_method: auth_request::AuthMethod::Token{ token: "token".to_string() }}); "auth request token")]
     #[test_case(&[0x4, 23, 0x00, 0x04, 1, 2, 3, 4] => Frame::AuthRequest(AuthRequest{ auth_method: auth_request::AuthMethod::CustomCallback{ data: Bytes::from_static(&[1, 2, 3, 4]) }}); "auth request custom callback")]
-    #[test_case(&[0x5, 0, 3, 0xfe, 0xbe, 0xaa] => Frame::Data(Data{ data: BytesMut::from(&[0xfe, 0xbe, 0xaa][..])}); "data")]
+    #[test_case(&[0x5, 0, 3, 0xfe, 0xbe, 0xaa] => Frame::Data(Data{ data: Cow::Owned(BytesMut::from(&[0xfe, 0xbe, 0xaa][..]))}); "data")]
     #[test_case(b"\x061.1.1.1\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x002.2.2.2\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x003.3.3.3\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x001500\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x2f\x66" => Frame::AuthSuccessWithConfigV4(AuthSuccessWithConfigV4{ local_ip: "1.1.1.1".to_string(), peer_ip: "2.2.2.2".to_string(), dns_ip: "3.3.3.3".to_string(), mtu: "1500".to_string(), session: SessionId([0x00, 0x00, 0x00, 0x00, 0x00, 0x00,0x2f, 0x66]) }); "auth success with config v4")]
     #[test_case(b"\x07\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" => Frame::AuthFailure(AuthFailure); "auth failure")]
     #[test_case(&[0x0c] => Frame::Goodbye; "goodbye")]

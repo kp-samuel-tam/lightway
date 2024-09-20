@@ -219,7 +219,7 @@ async fn server<S: TestSock>(sock: Arc<S>, pqc: PQCrypto) {
 
                 assert!(matches!(conn.state(), State::Online));
                 // Reflect back to the client
-                let reply: BytesMut = BytesMut::from(&buf[..]);
+                let mut reply: BytesMut = BytesMut::from(&buf[..]);
 
                 assert_ge!(
                     conn.activity().last_data_traffic_from_peer,
@@ -228,7 +228,7 @@ async fn server<S: TestSock>(sock: Arc<S>, pqc: PQCrypto) {
                 );
                 last_inside_rx = std::time::Instant::now();
 
-                conn.inside_data_received(reply).expect("Reflect data");
+                conn.inside_data_received(&mut reply).expect("Reflect data");
 
                 // https://github.com/wolfSSL/wolfssl/pull/6771 means
                 // this currently returns None.
@@ -414,9 +414,9 @@ async fn client<S: TestSock>(
                     // work as the first byte too, but be more
                     // explicit to avoid a confusing surprise for some
                     // future developer).
-                    let buf: BytesMut = BytesMut::from(&b"\x40Hello World!"[..]);
+                    let mut buf: BytesMut = BytesMut::from(&b"\x40Hello World!"[..]);
                     eprintln!("Sending message: {buf:?}");
-                    client.inside_data_received(buf).expect("Send my message");
+                    client.inside_data_received(&mut buf).expect("Send my message");
                     message_sent = true;
                 };
             }
