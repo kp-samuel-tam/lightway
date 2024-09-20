@@ -263,7 +263,7 @@ async fn server<S: TestSock>(sock: Arc<S>, pqc: PQCrypto) {
                 assert_le!(conn.activity().last_outside_data_received, now,
                            "ConnectionActivity.last_outside_data_received should be in the past");
 
-                let pkt = OutsidePacket::Wire(buf, connection_type);
+                let pkt = OutsidePacket::Wire(&mut buf, connection_type);
                 let r = conn.outside_data_received(pkt);
 
                 assert_ge!(conn.activity().last_outside_data_received, now,
@@ -394,7 +394,7 @@ async fn client<S: TestSock>(
 
                 let mut client = client.lock().unwrap();
 
-                let pkt = OutsidePacket::Wire(buf, sock.connection_type());
+                let pkt = OutsidePacket::Wire(&mut buf, sock.connection_type());
                 if let Err(err) = client.outside_data_received(pkt) {
                     // TODO: fatal vs non-fatal;
                     panic!("{err}")

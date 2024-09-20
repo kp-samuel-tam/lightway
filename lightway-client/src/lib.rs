@@ -232,11 +232,14 @@ pub async fn outside_io_task<T: Send + Sync>(
     outside_io: Arc<dyn io::outside::OutsideIO>,
     keepalive: Keepalive,
 ) -> Result<()> {
+    let mut buf = BytesMut::with_capacity(mtu);
     loop {
+        // Recover full capacity
+        buf.clear();
+        buf.reserve(mtu);
+
         // Unrecoverable errors: https://github.com/tokio-rs/tokio/discussions/5552
         outside_io.poll(tokio::io::Interest::READABLE).await?;
-
-        let mut buf = BytesMut::with_capacity(mtu);
 
         match outside_io.recv_buf(&mut buf) {
             IOCallbackResult::Ok(_nr) => {}
@@ -247,7 +250,7 @@ pub async fn outside_io_task<T: Send + Sync>(
             }
         };
 
-        let pkt = OutsidePacket::Wire(buf, connection_type);
+        let pkt = OutsidePacket::Wire(&mut buf, connection_type);
         if let Err(err) = conn.lock().unwrap().outside_data_received(pkt) {
             if err.is_fatal(connection_type) {
                 return Err(err.into());

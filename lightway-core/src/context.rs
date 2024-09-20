@@ -274,10 +274,10 @@ impl<AppState: Send + 'static> ServerContext<AppState> {
     /// and can call `Connection::outside_data_received` directly.
     /// But in case, application need to retrieve `Header` from `UdpFrame`, it can
     /// call this function to run the plugin chain and then parse the header.
-    pub fn parse_raw_outside_packet(
+    pub fn parse_raw_outside_packet<'pkt>(
         &self,
-        pkt: OutsidePacket,
-    ) -> Result<OutsidePacket, ContextError> {
+        pkt: OutsidePacket<'pkt>,
+    ) -> Result<OutsidePacket<'pkt>, ContextError> {
         Ok(pkt.apply_ingress_chain(&self.outside_plugins_instance)?)
     }
 

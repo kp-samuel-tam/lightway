@@ -5,17 +5,17 @@ use crate::{plugin::PluginList, ConnectionType, Header, PluginResult};
 
 #[derive(Debug)]
 /// Packet structure used by application to inject outside packets into lightway-core
-pub enum OutsidePacket {
+pub enum OutsidePacket<'pkt> {
     /// Opaque wire packet, before running plugin chain
-    Wire(BytesMut, ConnectionType),
+    Wire(&'pkt mut BytesMut, ConnectionType),
     /// Raw TCP frame, after running plugin chain
-    TcpFrame(BytesMut),
+    TcpFrame(&'pkt mut BytesMut),
     /// Raw UDP frame, after running plugin chain
-    UdpFrame(BytesMut, Header),
+    UdpFrame(&'pkt mut BytesMut, Header),
 }
 
-impl OutsidePacket {
-    pub(crate) fn into_payload(self) -> Option<BytesMut> {
+impl<'pkt> OutsidePacket<'pkt> {
+    pub(crate) fn into_payload(self) -> Option<&'pkt BytesMut> {
         match self {
             Self::Wire(_, _) => None,
             Self::TcpFrame(buf) => Some(buf),
@@ -36,8 +36,8 @@ impl OutsidePacket {
         plugins: &PluginList,
     ) -> Result<Self, OutsidePacketError> {
         match self {
-            Self::Wire(mut buf, conn_type) => {
-                let mut buf = match plugins.do_ingress(&mut buf) {
+            Self::Wire(buf, conn_type) => {
+                let buf = match plugins.do_ingress(buf) {
                     PluginResult::Accept => buf,
                     PluginResult::Drop => return Err(OutsidePacketError::PluginDrop),
                     PluginResult::DropWithReply(_) => return Err(OutsidePacketError::PluginDrop),
@@ -47,7 +47,7 @@ impl OutsidePacket {
                 match conn_type {
                     ConnectionType::Stream => Ok(Self::TcpFrame(buf)),
                     ConnectionType::Datagram => {
-                        let hdr = Header::try_from_wire(&mut buf)
+                        let hdr = Header::try_from_wire(buf)
                             .map_err(|e| OutsidePacketError::BadWireHeader(e.into()))?;
                         Ok(Self::UdpFrame(buf, hdr))
                     }

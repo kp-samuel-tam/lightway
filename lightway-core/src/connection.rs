@@ -1059,7 +1059,7 @@ impl<AppState: Send> Connection<AppState> {
 
     fn process_new_outside_data(
         &mut self,
-        buf: BytesMut,
+        buf: &BytesMut,
         session_id: Option<wire::SessionId>,
     ) -> ConnectionResult<usize> {
         let outside_received_pending = &mut self.session.io_cb_mut().recv_buf;

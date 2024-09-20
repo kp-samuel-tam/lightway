@@ -38,12 +38,14 @@ impl OutsideIOSendCallback for TcpStream {
 
 #[instrument(level = "trace", skip_all, fields(session = ?conn.session_id()))]
 async fn handle_connection(sock: Arc<tokio::net::TcpStream>, conn: Arc<Connection>) {
+    let mut buf = BytesMut::with_capacity(MAX_OUTSIDE_MTU);
     let err: anyhow::Error = loop {
+        // Recover full capacity
+        buf.clear();
+        buf.reserve(MAX_OUTSIDE_MTU);
         if let Err(e) = sock.readable().await {
             break anyhow!(e).context("Sock readable error");
         }
-
-        let mut buf = BytesMut::with_capacity(MAX_OUTSIDE_MTU);
 
         match sock.try_read_buf(&mut buf) {
             Ok(0) => {
@@ -59,7 +61,7 @@ async fn handle_connection(sock: Arc<tokio::net::TcpStream>, conn: Arc<Connectio
             Err(err) => break anyhow!(err).context("TCP read error"),
         };
 
-        let pkt = OutsidePacket::Wire(buf, ConnectionType::Stream);
+        let pkt = OutsidePacket::Wire(&mut buf, ConnectionType::Stream);
         if let Err(err) = conn.outside_data_received(pkt) {
             warn!("Failed to process outside data: {err}");
             if conn.handle_outside_data_error(&err).is_break() {
