@@ -236,8 +236,7 @@ Note that this is supported only with feature `debug` enabled.
 For example:
 
 ```bash
-cargo run --features debug --bin lightway-client
-./target/debug/lightway-client --config-file=tests/client_conf.yaml --keylog "/tmp/client.log"
+cargo run --features debug --bin lightway-client -- --config-file=tests/client_conf.yaml --keylog "/tmp/client.log"
 
 ```
 
