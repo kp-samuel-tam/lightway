@@ -142,6 +142,7 @@ impl SlotIdx {
 }
 
 struct RxState {
+    sender: Option<mpsc::OwnedPermit<BytesMut>>,
     buf: BytesMut,
 }
 
@@ -276,9 +277,13 @@ async fn main_task(
     let mut rx_state: Vec<_> = rx_slots
         .iter()
         .map(|_| RxState {
+            sender: None,
             buf: BytesMut::with_capacity(mtu),
         })
         .collect();
+    for state in rx_state.iter_mut() {
+        state.sender = Some(rx_queue.clone().reserve_owned().await?)
+    }
 
     let mut tx_slots: Vec<_> = (0..nr_tx_rx_slots).map(SlotIdx::Tx).collect();
     let mut tx_bufs = vec![None; tx_slots.len()];
@@ -378,7 +383,10 @@ async fn main_task(
                     if res > 0 {
                         // SAFETY: By construction instances of SlotIdx are always in bounds.
                         #[allow(unsafe_code)]
-                        let RxState { buf } = unsafe { rx_state.get_unchecked_mut(slot.idx()) };
+                        let RxState {
+                            sender: maybe_sender,
+                            buf,
+                        } = unsafe { rx_state.get_unchecked_mut(slot.idx()) };
 
                         let mut buf = std::mem::replace(buf, BytesMut::with_capacity(mtu));
 
@@ -389,14 +397,11 @@ async fn main_task(
                             buf.advance_mut(res as _);
                         }
 
-                        match rx_queue.try_send(buf) {
-                            Ok(()) => (),
-                            Err(mpsc::error::TrySendError::Full(_)) => {
-                                // it is effectively the same scenario as a buffer in a network
-                                // switch/router filling up so dropping the traffic is appropriate
-                                metrics::tun_iouring_packet_dropped();
-                            }
-                            Err(_) => return Err(IOUringError::RecvError.into()),
+                        if let Some(sender) = maybe_sender.take() {
+                            let sender = sender.send(buf);
+                            maybe_sender.replace(sender.reserve_owned().await?);
+                        } else {
+                            panic!("inflight rx state with no sender!");
                         };
                     } else if res == -libc::EAGAIN {
                         metrics::tun_iouring_rx_eagain();
