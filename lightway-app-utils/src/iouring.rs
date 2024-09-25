@@ -141,6 +141,10 @@ impl SlotIdx {
     }
 }
 
+struct RxState {
+    buf: BytesMut,
+}
+
 fn push_one_tx_event_to(
     buf: Bytes,
     sq: &mut SubmissionQueue,
@@ -204,7 +208,7 @@ fn push_rx_events_to(
     sbmt: &Submitter,
     sq: &mut SubmissionQueue,
     slots: &mut Vec<SlotIdx>,
-    bufs: &mut [BytesMut],
+    state: &mut [RxState],
 ) -> Result<()> {
     loop {
         if sq.is_full() {
@@ -220,13 +224,13 @@ fn push_rx_events_to(
             Some(slot) => {
                 // SAFETY: By construction instances of SlotIdx are always in bounds.
                 #[allow(unsafe_code)]
-                let buf = unsafe { bufs.get_unchecked_mut(slot.idx()) };
+                let state = unsafe { state.get_unchecked_mut(slot.idx()) };
 
                 // queue a new rx
                 let sqe = opcode::Read::new(
                     Fixed(REGISTERED_FD_INDEX),
-                    buf.as_mut_ptr(),
-                    buf.capacity() as _,
+                    state.buf.as_mut_ptr(),
+                    state.buf.capacity() as _,
                 )
                 .build()
                 .user_data(slot.user_data());
@@ -269,9 +273,11 @@ async fn main_task(
     let nr_tx_rx_slots = (ring_size / 2) as isize;
 
     let mut rx_slots: Vec<_> = (0..nr_tx_rx_slots).map(SlotIdx::Rx).collect();
-    let mut rx_bufs: Vec<_> = rx_slots
+    let mut rx_state: Vec<_> = rx_slots
         .iter()
-        .map(|_| BytesMut::with_capacity(mtu))
+        .map(|_| RxState {
+            buf: BytesMut::with_capacity(mtu),
+        })
         .collect();
 
     let mut tx_slots: Vec<_> = (0..nr_tx_rx_slots).map(SlotIdx::Tx).collect();
@@ -280,11 +286,11 @@ async fn main_task(
     tracing::info!(ring_size, nr_tx_rx_slots, "uring main task");
 
     while let Some(slot) = rx_slots.pop() {
-        let buf = &mut rx_bufs[slot.idx()];
+        let state = &mut rx_state[slot.idx()];
         let sqe = opcode::Read::new(
             Fixed(REGISTERED_FD_INDEX),
-            buf.as_mut_ptr(),
-            buf.capacity() as _,
+            state.buf.as_mut_ptr(),
+            state.buf.capacity() as _,
         )
         .build()
         .user_data(slot.user_data());
@@ -357,7 +363,7 @@ async fn main_task(
         push_tx_events_to(&sbmt, &mut sq, &mut tx_queue, &mut tx_slots, &mut tx_bufs)?;
 
         // refill rx slots
-        push_rx_events_to(&sbmt, &mut sq, &mut rx_slots, &mut rx_bufs)?;
+        push_rx_events_to(&sbmt, &mut sq, &mut rx_slots, &mut rx_state)?;
 
         sq.sync();
 
@@ -370,14 +376,11 @@ async fn main_task(
             match slot {
                 SlotIdx::Rx(_) => {
                     if res > 0 {
-                        let mut buf = std::mem::replace(
-                            // SAFETY: By construction instances of SlotIdx are always in bounds.
-                            #[allow(unsafe_code)]
-                            unsafe {
-                                rx_bufs.get_unchecked_mut(slot.idx())
-                            },
-                            BytesMut::with_capacity(mtu),
-                        );
+                        // SAFETY: By construction instances of SlotIdx are always in bounds.
+                        #[allow(unsafe_code)]
+                        let RxState { buf } = unsafe { rx_state.get_unchecked_mut(slot.idx()) };
+
+                        let mut buf = std::mem::replace(buf, BytesMut::with_capacity(mtu));
 
                         // SAFETY: We trust that the read operation
                         // returns the correct number of bytes received.
