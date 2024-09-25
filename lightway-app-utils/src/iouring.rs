@@ -1,5 +1,6 @@
 use anyhow::Result;
 use bytes::{BufMut, Bytes, BytesMut};
+use lightway_core::IOCallbackResult;
 use thiserror::Error;
 
 use crate::metrics;
@@ -95,17 +96,16 @@ impl<T: AsRawFd> IOUring<T> {
     }
 
     /// Try Send packet to Tun device
-    pub fn try_send(&self, buf: BytesMut) -> IOUringResult<()> {
+    pub fn try_send(&self, buf: BytesMut) -> IOCallbackResult<usize> {
+        let buf_len = buf.len();
         let try_send_res = self.tx_queue.try_send(buf.freeze());
         match try_send_res {
-            Ok(()) => Ok(()),
-            Err(mpsc::error::TrySendError::Full(_)) => {
-                // it is effectively the same scenario as a buffer in a network
-                // switch/router filling up so dropping the traffic is appropriate
-                metrics::tun_iouring_packet_dropped();
-                Ok(())
+            Ok(()) => IOCallbackResult::Ok(buf_len),
+            Err(mpsc::error::TrySendError::Full(_)) => IOCallbackResult::WouldBlock,
+            Err(_) => {
+                use std::io::{Error, ErrorKind};
+                IOCallbackResult::Err(Error::new(ErrorKind::Other, IOUringError::SendError))
             }
-            Err(_) => Err(IOUringError::SendError),
         }
     }
 }

@@ -164,14 +164,7 @@ impl TunIoUring {
 
     /// Try send to Tun
     pub fn try_send(&self, buf: BytesMut) -> IOCallbackResult<usize> {
-        let buf_len = buf.len();
-        match self.tun_io_uring.try_send(buf) {
-            Ok(_) => IOCallbackResult::Ok(buf_len),
-            Err(e) => {
-                use std::io::{Error, ErrorKind};
-                IOCallbackResult::Err(Error::new(ErrorKind::Other, e))
-            }
-        }
+        self.tun_io_uring.try_send(buf)
     }
 
     /// MTU of tun
