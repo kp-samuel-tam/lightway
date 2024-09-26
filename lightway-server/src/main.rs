@@ -110,6 +110,9 @@ async fn main() -> Result<()> {
         Layer::Clap(matches),
     ])?;
 
+    validate_configuration_file_path(&config.server_key)
+        .with_context(|| format!("Invalid server key file {}", config.server_key.display()))?;
+
     #[cfg(feature = "debug")]
     if config.tls_debug {
         enable_tls_debug();

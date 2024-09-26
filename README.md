@@ -161,7 +161,7 @@ To report security vulnerabilities, please see section on link:
 For running both client and server in the same machine and test end to end, follow these steps:
 
 ```bash
-chmod o-rwx ./tests/client/client_config.yaml ./tests/server/server_config.yaml
+chmod o-rwx ./tests/client/client_config.yaml ./tests/server/server_config.yaml tests/certs/server.key
 ```
 
 Configuration files must not be world accessible but `git` does not

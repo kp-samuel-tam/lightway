@@ -5,7 +5,7 @@ build-container:
     ARG TOKIO_WORKER_THREADS
     FROM ../base+container --debian=$debian
     COPY (../..+build/lightway-server --debian=$debian) .
-    COPY --dir ../certs+server/* tests/certs/
+    COPY --dir --chmod 0660 ../certs+server/* tests/certs/
     COPY --dir docker-entrypoint.sh .
     COPY --dir --chmod 0660 server_config.yaml  .
     HEALTHCHECK --interval=1s --timeout=1s --start-period=0s --retries=3 CMD [ -n "$(ss -HOlutn sport = :${SERVER_PORT:-443})" ]
