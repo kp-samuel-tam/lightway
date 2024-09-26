@@ -75,6 +75,12 @@ Cli arguments has the highest priority.
 Please note that when providing env variables it should be in upper case and using "_" as a word separator,
 while using as cli config, it should be in lower case with "-" as the word separator.
 
+> [!CAUTION]
+> Passing the `--password` option on the CLI will expose your password
+> to other users on the system. It is recommended to provide the
+> password via the configuration file or via `LW_SERVER_PASSWORD`
+> environment variable.
+
 #### Example:
 
 ```bash
@@ -104,6 +110,12 @@ Env variables should have the prefix `LW_CLIENT_`.
 By default the client will use the existing MTU on the tunnel device, this can be overridden with
 the `--inside-mtu` option but note that this requires additional privileges, specifically the
 `CAP_SYS_ADMIN` capability.
+
+> [!CAUTION]
+> Passing the `--password` option on the CLI will expose your password
+> to other users on the system. It is recommended to provide the
+> password via the configuration file or via `LW_CLIENT_PASSWORD`
+> environment variable.
 
 ## E2E Testing
 

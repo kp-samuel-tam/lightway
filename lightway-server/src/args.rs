@@ -22,11 +22,11 @@ pub struct Config {
     pub mode: ConnectionType,
 
     /// Username for auth
-    #[clap(long, default_value_t)]
+    #[clap(long, default_value_t, hide = true)]
     pub user: String,
 
     /// Password for auth
-    #[clap(long, default_value_t)]
+    #[clap(long, default_value_t, hide = true)]
     pub password: String,
 
     /// Server certificate
