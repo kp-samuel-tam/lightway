@@ -158,7 +158,16 @@ To report security vulnerabilities, please see section on link:
 
 ## Dev-Testing
 
-For running both client and server in the same machine and test end to end, follow this steps:
+For running both client and server in the same machine and test end to end, follow these steps:
+
+```bash
+chmod o-rwx ./tests/client/client_config.yaml ./tests/server/server_config.yaml
+```
+
+Configuration files must not be world accessible but `git` does not
+record permissions other than execute, so we must adjust.
+
+Then:
 
 ```bash
 sudo ./tests/setup.sh
