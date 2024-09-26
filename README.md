@@ -161,11 +161,14 @@ To report security vulnerabilities, please see section on link:
 For running both client and server in the same machine and test end to end, follow these steps:
 
 ```bash
-chmod o-rwx ./tests/client/client_config.yaml ./tests/server/server_config.yaml tests/certs/server.key
+export LW_DANGEROUSLY_DISABLE_PERMISSIONS_CHECKS=1
 ```
 
-Configuration files must not be world accessible but `git` does not
-record permissions other than execute, so we must adjust.
+Configuration files must be trustworthy (per [`fs-mistrust`'s
+definition][]) but many path elements are owned by the user while the
+tests are run as root via sudo. For dev test we disable those checks.
+
+[`fs-mistrust`'s definition]: https://docs.rs/fs-mistrust/latest/fs_mistrust/index.html
 
 Then:
 
