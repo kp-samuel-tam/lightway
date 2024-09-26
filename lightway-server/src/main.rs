@@ -1,4 +1,5 @@
 mod args;
+mod auth;
 
 use std::path::PathBuf;
 
@@ -13,29 +14,6 @@ use twelf::Layer;
 use args::Config;
 use lightway_app_utils::{validate_configuration_file_path, TunConfig};
 use lightway_server::*;
-
-struct Auth {
-    user: String,
-    password: String,
-}
-
-impl<'a> ServerAuth<AuthState<'a>> for Auth {
-    fn authorize_user_password(
-        &self,
-        user: &str,
-        password: &str,
-        _app_state: &mut AuthState<'a>,
-    ) -> ServerAuthResult {
-        if user == self.user && password == self.password {
-            ServerAuthResult::Granted {
-                handle: None,
-                tunnel_protocol_version: None,
-            }
-        } else {
-            ServerAuthResult::Denied
-        }
-    }
-}
 
 async fn metrics_debug() {
     if !tracing::enabled!(tracing::Level::TRACE) {
@@ -124,7 +102,7 @@ async fn main() -> Result<()> {
 
     tokio::spawn(metrics_debug());
 
-    let auth = Auth {
+    let auth = auth::Auth {
         user: config.user.to_string(),
         password: config.password.to_string(),
     };
