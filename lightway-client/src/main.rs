@@ -1,12 +1,11 @@
 use std::path::PathBuf;
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use clap::CommandFactory;
 use lightway_core::{Event, EventCallback};
-use twelf::reexports::log::error;
 use twelf::Layer;
 
-use lightway_app_utils::{args::ConnectionType, is_file_path_valid, TunConfig};
+use lightway_app_utils::{args::ConnectionType, validate_configuration_file_path, TunConfig};
 use lightway_client::*;
 
 mod args;
@@ -31,11 +30,8 @@ async fn main() -> Result<()> {
         return Err(anyhow!("Config file not present"));
     };
 
-    if !is_file_path_valid(config_file) {
-        let error_string = format!("Config file {:?} not present", &config_file);
-        error!("{}", &error_string);
-        return Err(anyhow!(error_string));
-    }
+    validate_configuration_file_path(config_file)
+        .with_context(|| format!("Invalid configuration file {}", config_file.display()))?;
 
     let config = Config::with_layers(&[
         Layer::Yaml(config_file.to_owned()),

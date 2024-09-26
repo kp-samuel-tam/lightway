@@ -2,7 +2,7 @@ mod args;
 
 use std::path::PathBuf;
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use clap::CommandFactory;
 
 use metrics_util::debugging::DebuggingRecorder;
@@ -11,7 +11,7 @@ use tracing::{error, trace};
 use twelf::Layer;
 
 use args::Config;
-use lightway_app_utils::{is_file_path_valid, TunConfig};
+use lightway_app_utils::{validate_configuration_file_path, TunConfig};
 use lightway_server::*;
 
 struct Auth {
@@ -101,11 +101,8 @@ async fn main() -> Result<()> {
         return Err(anyhow!("Config file not present"));
     };
 
-    if !is_file_path_valid(config_file) {
-        let error_string = format!("Config file {:?} not present", &config_file);
-        error!("{}", &error_string);
-        return Err(anyhow!(error_string));
-    }
+    validate_configuration_file_path(config_file)
+        .with_context(|| format!("Invalid configuration file {}", config_file.display()))?;
 
     let config = Config::with_layers(&[
         Layer::Yaml(config_file.to_owned()),
