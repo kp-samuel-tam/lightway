@@ -20,5 +20,4 @@ enable_pqc: false
 enable_tun_iouring: false
 iouring_entry_count: 1024
 key_update_interval: 15m
-user: user
-password: password
+user_db: "tests/server/lwpasswd"

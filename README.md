@@ -72,13 +72,41 @@ We can also override configs (except config-file), either by using env variables
 Env variables should have the prefix `LW_SERVER_`.
 Cli arguments has the highest priority.
 
+#### Authentication
+
+Users are authenticated using username and password.
+
+A user database must be provided via the `user_db` option. This is in
+a format compatible with Apache htpasswd files and so can be managed
+using [`htpasswd(1)`][] or the tool of your choice.
+
+The format is one user per line with username and password hash
+separated by a colon, e.g.: `username:hash(password)`.
+
+```console
+$ htpasswd -B -c lwpasswd my_user
+New password:
+Re-type new password:
+Adding password for user my_user
+$ cat lwpasswd
+my_user:$2y$05$V6da9E.ys3QUnhgAfSGm6eM5dhkHa6Oc90kKNpb8bmcCgPsreU7Sa
+```
+
+Note that only the hashes supported by the [`pwhash`][] crate are
+supported and that this notably excludes the custom Apache MD5 hash
+which `htpasswd(1)` uses by default. Use an option such as `-B`, `-2`
+or `-5` to pick a different algorithm.
+
+[`htpasswd(1)`]: https://httpd.apache.org/docs/2.4/programs/htpasswd.html
+[`pwhash`]: https://crates.io/crates/pwhash
+
 Please note that when providing env variables it should be in upper case and using "_" as a word separator,
 while using as cli config, it should be in lower case with "-" as the word separator.
 
 > [!CAUTION]
 > Passing the `--password` option on the CLI will expose your password
 > to other users on the system. It is recommended to provide the
-> password via the configuration file or via `LW_SERVER_PASSWORD`
+> password via the configuration file or via `LW_CLIENT_PASSWORD`
 > environment variable.
 
 #### Example:
