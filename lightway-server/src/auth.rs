@@ -16,8 +16,13 @@ pub struct Auth {
 }
 
 impl Auth {
-    pub fn new(path: &Path) -> Result<Self> {
-        Self::from_reader(File::open(path)?).with_context(|| format!("Parsing {}", path.display()))
+    pub fn new(user_db: Option<&Path>) -> Result<Self> {
+        if let Some(path) = user_db {
+            Self::from_reader(File::open(path)?)
+                .with_context(|| format!("Parsing {}", path.display()))
+        } else {
+            Err(anyhow!("No user db provided"))
+        }
     }
 
     pub fn from_reader(r: impl Read) -> Result<Self> {

@@ -91,8 +91,10 @@ async fn main() -> Result<()> {
     validate_configuration_file_path(&config.server_key)
         .with_context(|| format!("Invalid server key file {}", config.server_key.display()))?;
 
-    validate_configuration_file_path(&config.user_db)
-        .with_context(|| format!("Invalid user db file {}", config.user_db.display()))?;
+    if let Some(user_db) = &config.user_db {
+        validate_configuration_file_path(user_db)
+            .with_context(|| format!("Invalid user db file {}", user_db.display()))?;
+    }
 
     #[cfg(feature = "debug")]
     if config.tls_debug {
@@ -105,7 +107,7 @@ async fn main() -> Result<()> {
 
     tokio::spawn(metrics_debug());
 
-    let auth = auth::Auth::new(&config.user_db)?;
+    let auth = auth::Auth::new(config.user_db.as_ref().map(AsRef::as_ref))?;
 
     let mut tun_config = TunConfig::default();
     tun_config.tun_name(config.tun_name);
