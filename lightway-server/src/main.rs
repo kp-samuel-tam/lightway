@@ -107,7 +107,10 @@ async fn main() -> Result<()> {
 
     tokio::spawn(metrics_debug());
 
-    let auth = auth::Auth::new(config.user_db.as_ref().map(AsRef::as_ref))?;
+    let auth = auth::Auth::new(
+        config.user_db.as_ref().map(AsRef::as_ref),
+        config.token_rsa_pub_key_pem.as_ref().map(AsRef::as_ref),
+    )?;
 
     let mut tun_config = TunConfig::default();
     tun_config.tun_name(config.tun_name);

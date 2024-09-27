@@ -25,6 +25,9 @@ pub struct Config {
     #[clap(long)]
     pub user_db: Option<PathBuf>,
 
+    #[clap(long)]
+    pub token_rsa_pub_key_pem: Option<PathBuf>,
+
     /// Server certificate
     #[clap(long, default_value = "./server.crt")]
     pub server_cert: PathBuf,
