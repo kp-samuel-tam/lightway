@@ -1,7 +1,8 @@
+use anyhow::{anyhow, Result};
 use bytesize::ByteSize;
 use clap::Parser;
 use lightway_app_utils::args::{Cipher, ConnectionType, Duration, LogLevel};
-use lightway_core::MAX_OUTSIDE_MTU;
+use lightway_core::{AuthMethod, MAX_OUTSIDE_MTU};
 use std::{net::Ipv4Addr, path::PathBuf};
 use twelf::config;
 
@@ -17,13 +18,19 @@ pub struct Config {
     #[clap(short, long, value_enum, default_value_t = ConnectionType::Tcp)]
     pub mode: ConnectionType,
 
+    /// Auth token
+    /// If both token and user/pass are provided, token auth will
+    /// be used. user/pass will be ignored in this case
+    #[clap(long)]
+    pub token: Option<String>,
+
     /// Username for auth
-    #[clap(short, long, default_value_t, hide = true)]
-    pub user: String,
+    #[clap(short, long, hide = true)]
+    pub user: Option<String>,
 
     /// Password for auth
-    #[clap(short, long, default_value_t, hide = true)]
-    pub password: String,
+    #[clap(short, long, hide = true)]
+    pub password: Option<String>,
 
     /// CA certificate
     #[clap(long, default_value = "./ca_cert.crt")]
@@ -112,4 +119,16 @@ pub struct Config {
     #[cfg(feature = "debug")]
     #[clap(long)]
     pub tls_debug: bool,
+}
+
+impl Config {
+    pub fn take_auth(&mut self) -> Result<AuthMethod> {
+        match (self.token.take(), self.user.take(), self.password.take()) {
+            (Some(token), _, _) => Ok(AuthMethod::Token { token }),
+            (_, Some(user), Some(password)) => Ok(AuthMethod::UserPass { user, password }),
+            _ => Err(anyhow!(
+                "Either a token or username and password is required"
+            )),
+        }
+    }
 }
