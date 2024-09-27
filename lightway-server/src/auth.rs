@@ -12,7 +12,7 @@ use lightway_server::{ServerAuth, ServerAuthResult};
 
 #[derive(Debug)]
 pub struct Auth {
-    db: HashMap<String, String>,
+    user_db: Option<HashMap<String, String>>,
 }
 
 fn user_db_from_reader(r: impl Read) -> Result<HashMap<String, String>> {
@@ -50,13 +50,18 @@ fn user_db_from_reader(r: impl Read) -> Result<HashMap<String, String>> {
 
 impl Auth {
     pub fn new(user_db: Option<&Path>) -> Result<Self> {
-        if let Some(path) = user_db {
-            let db = user_db_from_reader(File::open(path)?)
-                .with_context(|| format!("Parsing {}", path.display()))?;
-            Ok(Self { db })
-        } else {
-            Err(anyhow!("No user db provided"))
+        let user_db = user_db
+            .map(|path| -> Result<_> {
+                user_db_from_reader(File::open(path)?)
+                    .with_context(|| format!("Parsing {}", path.display()))
+            })
+            .transpose()?;
+
+        if user_db.is_none() {
+            return Err(anyhow!("No user db provided"));
         }
+
+        Ok(Self { user_db })
     }
 }
 
@@ -67,7 +72,11 @@ impl<AS> ServerAuth<AS> for Auth {
         password: &str,
         _app_state: &mut AS,
     ) -> ServerAuthResult {
-        let Some(hash) = self.db.get(user) else {
+        let Some(user_db) = self.user_db.as_ref() else {
+            return ServerAuthResult::Denied;
+        };
+
+        let Some(hash) = user_db.get(user) else {
             tracing::info!(?user, "User not found");
             return ServerAuthResult::Denied;
         };
@@ -112,7 +121,6 @@ mod tests {
     // bad_hash_user: Not valid
     // apachemd5_user: apachemd5_password
     // no
-
     const LWPASSWD: &str = r"bcrypt_user:$2y$05$sLC0IaxaPbphGjLzmTEb8eDL9NL/tiBfA7OTVpa1CfDkUkW9CVTuO
 sha256_user:$5$iossVgDQrSn1S35f$A08tsmhi863Ir5vJEbF1iHjnDOc8lpspzYxKWzY4Uy7
 sha512_user:$5$Syjorkmkhi4MiC22$ssGjWYeevMgdkskpduH1nWbmC4suxQNUl82SYJ2XK42
@@ -126,7 +134,14 @@ apachemd5_user:$apr1$dzIISjZV$itIp3R9OU32h.vQ0tm9rm/";
     fn authorizing(user: &str, pass: &str) -> ServerAuthResult {
         let db = user_db_from_reader(Cursor::new(LWPASSWD)).unwrap();
         assert_eq!(db.len(), 5);
-        let auth = Auth { db };
+        let auth = Auth { user_db: Some(db) };
         auth.authorize_user_password(user, pass, &mut ())
+    }
+
+    #[test]
+    fn no_user_db() {
+        let auth = Auth { user_db: None };
+        let r = auth.authorize_user_password("user", "pass", &mut ());
+        assert!(matches!(r, ServerAuthResult::Denied));
     }
 }
