@@ -15,47 +15,48 @@ pub struct Auth {
     db: HashMap<String, String>,
 }
 
+fn user_db_from_reader(r: impl Read) -> Result<HashMap<String, String>> {
+    let f = BufReader::new(r);
+    let db: HashMap<String, String> = f
+        .lines()
+        .enumerate()
+        .map(|(nr, line)| {
+            let line = match line {
+                Ok(line) => line,
+                Err(err) => return Err(anyhow!(err)),
+            };
+
+            let Some((user, hash)) = line.split_once(":") else {
+                return Err(anyhow!("Failed to parse line {}", nr + 1));
+            };
+
+            if user.is_empty() {
+                return Err(anyhow!("No user found in line {}", nr + 1));
+            }
+            if hash.is_empty() {
+                return Err(anyhow!("No password hash found in line {}", nr + 1));
+            }
+
+            Ok((user.to_string(), hash.to_string()))
+        })
+        .collect::<Result<_>>()?;
+
+    if db.is_empty() {
+        return Err(anyhow!("No users found in user db"));
+    }
+
+    Ok(db)
+}
+
 impl Auth {
     pub fn new(user_db: Option<&Path>) -> Result<Self> {
         if let Some(path) = user_db {
-            Self::from_reader(File::open(path)?)
-                .with_context(|| format!("Parsing {}", path.display()))
+            let db = user_db_from_reader(File::open(path)?)
+                .with_context(|| format!("Parsing {}", path.display()))?;
+            Ok(Self { db })
         } else {
             Err(anyhow!("No user db provided"))
         }
-    }
-
-    pub fn from_reader(r: impl Read) -> Result<Self> {
-        let f = BufReader::new(r);
-        let db: HashMap<String, String> = f
-            .lines()
-            .enumerate()
-            .map(|(nr, line)| {
-                let line = match line {
-                    Ok(line) => line,
-                    Err(err) => return Err(anyhow!(err)),
-                };
-
-                let Some((user, hash)) = line.split_once(":") else {
-                    return Err(anyhow!("Failed to parse line {}", nr + 1));
-                };
-
-                if user.is_empty() {
-                    return Err(anyhow!("No user found in line {}", nr + 1));
-                }
-                if hash.is_empty() {
-                    return Err(anyhow!("No password hash found in line {}", nr + 1));
-                }
-
-                Ok((user.to_string(), hash.to_string()))
-            })
-            .collect::<Result<_>>()?;
-
-        if db.is_empty() {
-            return Err(anyhow!("No users found in user db"));
-        }
-
-        Ok(Self { db })
     }
 }
 
@@ -100,8 +101,8 @@ mod tests {
     #[test_case(b"user:hash\nuser:hash2" => 1)]
     #[test_case(b"\xc3\x28" => panics "stream did not contain valid UTF-8")]
     fn parsing_password_files(db: &[u8]) -> usize {
-        let db = Auth::from_reader(Cursor::new(db)).unwrap();
-        db.db.len()
+        let db = user_db_from_reader(Cursor::new(db)).unwrap();
+        db.len()
     }
 
     // Contains:
@@ -123,8 +124,9 @@ apachemd5_user:$apr1$dzIISjZV$itIp3R9OU32h.vQ0tm9rm/";
     #[test_case("bad_hash_user", "n/a" => matches ServerAuthResult::Denied )]
     #[test_case("apachemd5_user", "apachemd5_passwd" => matches ServerAuthResult::Denied )]
     fn authorizing(user: &str, pass: &str) -> ServerAuthResult {
-        let db = Auth::from_reader(Cursor::new(LWPASSWD)).unwrap();
-        assert_eq!(db.db.len(), 5);
-        db.authorize_user_password(user, pass, &mut ())
+        let db = user_db_from_reader(Cursor::new(LWPASSWD)).unwrap();
+        assert_eq!(db.len(), 5);
+        let auth = Auth { db };
+        auth.authorize_user_password(user, pass, &mut ())
     }
 }
