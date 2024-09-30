@@ -139,7 +139,7 @@ impl UdpServer {
         peer_addr: SocketAddr,
         local_addr: SocketAddr,
         reply_pktinfo: Option<libc::in_pktinfo>,
-        buf: BytesMut,
+        buf: &mut BytesMut,
     ) {
         let pkt = OutsidePacket::Wire(buf, ConnectionType::Datagram);
         let pkt = match self.conn_manager.parse_raw_outside_packet(pkt) {
@@ -243,8 +243,11 @@ impl UdpServer {
 impl Server for UdpServer {
     async fn run(&mut self) -> Result<()> {
         info!("Accepting traffic on {}", self.bind_mode);
+        let mut buf = BytesMut::with_capacity(MAX_OUTSIDE_MTU);
         loop {
-            let mut buf = BytesMut::with_capacity(MAX_OUTSIDE_MTU);
+            // Recover full capacity
+            buf.clear();
+            buf.reserve(MAX_OUTSIDE_MTU);
 
             let (peer_addr, local_addr, reply_pktinfo) = self
                 .sock
@@ -356,7 +359,7 @@ impl Server for UdpServer {
                 })
                 .await?;
 
-            self.data_received(peer_addr, local_addr, reply_pktinfo, buf)
+            self.data_received(peer_addr, local_addr, reply_pktinfo, &mut buf)
                 .await;
         }
     }

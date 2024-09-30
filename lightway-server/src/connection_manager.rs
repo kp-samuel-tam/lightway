@@ -220,7 +220,7 @@ impl ConnectionManager {
     delegate! {
         to self.ctx {
             pub(crate) fn is_supported_version(&self, v: Version) -> bool;
-            pub(crate) fn parse_raw_outside_packet(&self, buf: OutsidePacket) -> Result<OutsidePacket, ContextError>;
+            pub(crate) fn parse_raw_outside_packet<'pkt>(&self, buf: OutsidePacket<'pkt>) -> Result<OutsidePacket<'pkt>, ContextError>;
         }
     }
 

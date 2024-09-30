@@ -221,7 +221,7 @@ pub async fn server<SA: for<'a> ServerAuth<AuthState<'a>> + Sync + Send + 'stati
             ipv4_update_destination(buf.as_mut(), config.lightway_client_ip);
 
             if let Some(conn) = conn {
-                match conn.inside_data_received(buf) {
+                match conn.inside_data_received(&mut buf) {
                     Ok(()) => {}
                     Err(ConnectionError::InvalidState) => {
                         // Skip forwarding packet when offline

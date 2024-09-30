@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use crate::borrowed_bytesmut::BorrowedBytesMut;
 use bytes::{Buf, BufMut, BytesMut};
 use more_asserts::*;
@@ -22,11 +24,11 @@ use super::{FromWireError, FromWireResult};
 /// field is the native endianness of the peer.
 
 #[derive(PartialEq, Debug)]
-pub(crate) struct Data {
-    pub(crate) data: BytesMut,
+pub(crate) struct Data<'data> {
+    pub(crate) data: Cow<'data, BytesMut>,
 }
 
-impl Data {
+impl<'data> Data<'data> {
     /// Wire overhead in bytes
     const WIRE_OVERHEAD: usize = 2;
 
@@ -54,7 +56,9 @@ impl Data {
 
         let data = buf.commit_and_split_to(data_len);
 
-        Ok(Self { data })
+        Ok(Self {
+            data: Cow::Owned(data),
+        })
     }
 
     pub(crate) fn append_to_wire(&self, buf: &mut BytesMut) {
