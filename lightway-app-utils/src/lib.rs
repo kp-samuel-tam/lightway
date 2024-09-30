@@ -33,4 +33,4 @@ pub use tun::{Tun, TunConfig, TunDirect};
 #[cfg(feature = "io-uring")]
 mod metrics;
 mod utils;
-pub use utils::is_file_path_valid;
+pub use utils::validate_configuration_file_path;

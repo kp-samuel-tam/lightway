@@ -1,18 +1,17 @@
-use std::fs;
 use std::path::PathBuf;
 
-/// Verifies whether input `path` points to a valid
-/// file present in filesystem
-/// Returns bool
-pub fn is_file_path_valid(path: &PathBuf) -> bool {
-    let config_metadata = fs::metadata(path);
-    let Ok(metadata) = config_metadata else {
-        return false;
-    };
+use anyhow::Result;
+use fs_mistrust::Mistrust;
 
-    // Check whether it is a file and not a directory
-    if !metadata.is_file() {
-        return false;
-    }
-    true
+/// Verifies whether input `path` points to a valid configuration file
+/// present in filesystem. Validates that the ownership permissions
+/// are acceptable.
+pub fn validate_configuration_file_path(path: &PathBuf) -> Result<()> {
+    Mistrust::builder()
+        .controlled_by_env_var("LW_DANGEROUSLY_DISABLE_PERMISSIONS_CHECKS")
+        .build()?
+        .verifier()
+        .require_file()
+        .check(path)?;
+    Ok(())
 }

@@ -21,6 +21,7 @@ workspace = true
 anyhow.workspace = true
 bytes.workspace = true
 clap.workspace = true
+fs-mistrust = { version = "0.7.13", default-features = false }
 humantime = "2.1.0"
 io-uring = {  version = "0.6.3", optional = true }
 ipnet.workspace = true

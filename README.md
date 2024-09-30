@@ -158,7 +158,19 @@ To report security vulnerabilities, please see section on link:
 
 ## Dev-Testing
 
-For running both client and server in the same machine and test end to end, follow this steps:
+For running both client and server in the same machine and test end to end, follow these steps:
+
+```bash
+export LW_DANGEROUSLY_DISABLE_PERMISSIONS_CHECKS=1
+```
+
+Configuration files must be trustworthy (per [`fs-mistrust`'s
+definition][]) but many path elements are owned by the user while the
+tests are run as root via sudo. For dev test we disable those checks.
+
+[`fs-mistrust`'s definition]: https://docs.rs/fs-mistrust/latest/fs_mistrust/index.html
+
+Then:
 
 ```bash
 sudo ./tests/setup.sh
