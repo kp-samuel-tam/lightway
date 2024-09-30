@@ -1,5 +1,6 @@
 use anyhow::Result;
 use bytes::{BufMut, Bytes, BytesMut};
+use lightway_core::IOCallbackResult;
 use thiserror::Error;
 
 use crate::metrics;
@@ -95,17 +96,16 @@ impl<T: AsRawFd> IOUring<T> {
     }
 
     /// Try Send packet to Tun device
-    pub fn try_send(&self, buf: BytesMut) -> IOUringResult<()> {
+    pub fn try_send(&self, buf: BytesMut) -> IOCallbackResult<usize> {
+        let buf_len = buf.len();
         let try_send_res = self.tx_queue.try_send(buf.freeze());
         match try_send_res {
-            Ok(()) => Ok(()),
-            Err(mpsc::error::TrySendError::Full(_)) => {
-                // it is effectively the same scenario as a buffer in a network
-                // switch/router filling up so dropping the traffic is appropriate
-                metrics::tun_iouring_packet_dropped();
-                Ok(())
+            Ok(()) => IOCallbackResult::Ok(buf_len),
+            Err(mpsc::error::TrySendError::Full(_)) => IOCallbackResult::WouldBlock,
+            Err(_) => {
+                use std::io::{Error, ErrorKind};
+                IOCallbackResult::Err(Error::new(ErrorKind::Other, IOUringError::SendError))
             }
-            Err(_) => Err(IOUringError::SendError),
         }
     }
 }
@@ -139,6 +139,11 @@ impl SlotIdx {
             SlotIdx::Rx(idx) => (!idx) as u64,
         }
     }
+}
+
+struct RxState {
+    sender: Option<mpsc::OwnedPermit<BytesMut>>,
+    buf: BytesMut,
 }
 
 fn push_one_tx_event_to(
@@ -204,7 +209,7 @@ fn push_rx_events_to(
     sbmt: &Submitter,
     sq: &mut SubmissionQueue,
     slots: &mut Vec<SlotIdx>,
-    bufs: &mut [BytesMut],
+    state: &mut [RxState],
 ) -> Result<()> {
     loop {
         if sq.is_full() {
@@ -220,13 +225,13 @@ fn push_rx_events_to(
             Some(slot) => {
                 // SAFETY: By construction instances of SlotIdx are always in bounds.
                 #[allow(unsafe_code)]
-                let buf = unsafe { bufs.get_unchecked_mut(slot.idx()) };
+                let state = unsafe { state.get_unchecked_mut(slot.idx()) };
 
                 // queue a new rx
                 let sqe = opcode::Read::new(
                     Fixed(REGISTERED_FD_INDEX),
-                    buf.as_mut_ptr(),
-                    buf.capacity() as _,
+                    state.buf.as_mut_ptr(),
+                    state.buf.capacity() as _,
                 )
                 .build()
                 .user_data(slot.user_data());
@@ -269,10 +274,16 @@ async fn main_task(
     let nr_tx_rx_slots = (ring_size / 2) as isize;
 
     let mut rx_slots: Vec<_> = (0..nr_tx_rx_slots).map(SlotIdx::Rx).collect();
-    let mut rx_bufs: Vec<_> = rx_slots
+    let mut rx_state: Vec<_> = rx_slots
         .iter()
-        .map(|_| BytesMut::with_capacity(mtu))
+        .map(|_| RxState {
+            sender: None,
+            buf: BytesMut::with_capacity(mtu),
+        })
         .collect();
+    for state in rx_state.iter_mut() {
+        state.sender = Some(rx_queue.clone().reserve_owned().await?)
+    }
 
     let mut tx_slots: Vec<_> = (0..nr_tx_rx_slots).map(SlotIdx::Tx).collect();
     let mut tx_bufs = vec![None; tx_slots.len()];
@@ -280,11 +291,11 @@ async fn main_task(
     tracing::info!(ring_size, nr_tx_rx_slots, "uring main task");
 
     while let Some(slot) = rx_slots.pop() {
-        let buf = &mut rx_bufs[slot.idx()];
+        let state = &mut rx_state[slot.idx()];
         let sqe = opcode::Read::new(
             Fixed(REGISTERED_FD_INDEX),
-            buf.as_mut_ptr(),
-            buf.capacity() as _,
+            state.buf.as_mut_ptr(),
+            state.buf.capacity() as _,
         )
         .build()
         .user_data(slot.user_data());
@@ -357,7 +368,7 @@ async fn main_task(
         push_tx_events_to(&sbmt, &mut sq, &mut tx_queue, &mut tx_slots, &mut tx_bufs)?;
 
         // refill rx slots
-        push_rx_events_to(&sbmt, &mut sq, &mut rx_slots, &mut rx_bufs)?;
+        push_rx_events_to(&sbmt, &mut sq, &mut rx_slots, &mut rx_state)?;
 
         sq.sync();
 
@@ -370,14 +381,14 @@ async fn main_task(
             match slot {
                 SlotIdx::Rx(_) => {
                     if res > 0 {
-                        let mut buf = std::mem::replace(
-                            // SAFETY: By construction instances of SlotIdx are always in bounds.
-                            #[allow(unsafe_code)]
-                            unsafe {
-                                rx_bufs.get_unchecked_mut(slot.idx())
-                            },
-                            BytesMut::with_capacity(mtu),
-                        );
+                        // SAFETY: By construction instances of SlotIdx are always in bounds.
+                        #[allow(unsafe_code)]
+                        let RxState {
+                            sender: maybe_sender,
+                            buf,
+                        } = unsafe { rx_state.get_unchecked_mut(slot.idx()) };
+
+                        let mut buf = std::mem::replace(buf, BytesMut::with_capacity(mtu));
 
                         // SAFETY: We trust that the read operation
                         // returns the correct number of bytes received.
@@ -386,14 +397,11 @@ async fn main_task(
                             buf.advance_mut(res as _);
                         }
 
-                        match rx_queue.try_send(buf) {
-                            Ok(()) => (),
-                            Err(mpsc::error::TrySendError::Full(_)) => {
-                                // it is effectively the same scenario as a buffer in a network
-                                // switch/router filling up so dropping the traffic is appropriate
-                                metrics::tun_iouring_packet_dropped();
-                            }
-                            Err(_) => return Err(IOUringError::RecvError.into()),
+                        if let Some(sender) = maybe_sender.take() {
+                            let sender = sender.send(buf);
+                            maybe_sender.replace(sender.reserve_owned().await?);
+                        } else {
+                            panic!("inflight rx state with no sender!");
                         };
                     } else if res == -libc::EAGAIN {
                         metrics::tun_iouring_rx_eagain();

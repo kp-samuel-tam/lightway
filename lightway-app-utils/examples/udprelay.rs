@@ -6,6 +6,7 @@ use anyhow::Result;
 use async_channel::{bounded, Receiver, Sender};
 use bytes::BytesMut;
 use clap::Parser;
+use lightway_core::IOCallbackResult;
 use pnet::packet::ipv4::MutableIpv4Packet;
 
 use std::net::{Ipv4Addr, SocketAddr};
@@ -205,7 +206,11 @@ impl TunIOUring {
 impl TunAdapter for TunIOUring {
     async fn send_to_tun(&self, buf: BytesMut) -> Result<()> {
         // TODO Check async version of send
-        self.tun_iouring.try_send(buf).map_err(anyhow::Error::msg)
+        match self.tun_iouring.try_send(buf) {
+            IOCallbackResult::Ok(_) => Ok(()),
+            IOCallbackResult::WouldBlock => Ok(()),
+            IOCallbackResult::Err(err) => Err(err.into()),
+        }
     }
 
     async fn recv_from_tun(&self) -> Result<BytesMut> {
