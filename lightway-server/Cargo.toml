@@ -32,6 +32,7 @@ lightway-core = { workspace = true, features = ["postquantum"] }
 metrics.workspace = true
 metrics-util = "0.17.0"
 pnet.workspace = true
+pwhash = "1.0.0"
 rand.workspace = true
 serde.workspace = true
 socket2.workspace = true

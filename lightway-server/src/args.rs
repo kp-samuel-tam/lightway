@@ -21,13 +21,9 @@ pub struct Config {
     #[clap(short, long, value_enum, default_value_t=ConnectionType::Tcp)]
     pub mode: ConnectionType,
 
-    /// Username for auth
-    #[clap(long, default_value_t, hide = true)]
-    pub user: String,
-
-    /// Password for auth
-    #[clap(long, default_value_t, hide = true)]
-    pub password: String,
+    /// user database, in Apache htpasswd format
+    #[clap(long, default_value = "./lwpasswd")]
+    pub user_db: PathBuf,
 
     /// Server certificate
     #[clap(long, default_value = "./server.crt")]

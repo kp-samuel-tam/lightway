@@ -48,6 +48,10 @@ async fn main() -> Result<()> {
         .with_max_level(config.log_level)
         .init();
 
+    if config.user.is_empty() || config.password.is_empty() {
+        return Err(anyhow!("Username and password are required"));
+    }
+
     let auth = AuthMethod::UserPass {
         user: config.user,
         password: config.password,

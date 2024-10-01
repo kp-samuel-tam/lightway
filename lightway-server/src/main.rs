@@ -1,4 +1,5 @@
 mod args;
+mod auth;
 
 use std::path::PathBuf;
 
@@ -13,29 +14,6 @@ use twelf::Layer;
 use args::Config;
 use lightway_app_utils::{validate_configuration_file_path, TunConfig};
 use lightway_server::*;
-
-struct Auth {
-    user: String,
-    password: String,
-}
-
-impl<'a> ServerAuth<AuthState<'a>> for Auth {
-    fn authorize_user_password(
-        &self,
-        user: &str,
-        password: &str,
-        _app_state: &mut AuthState<'a>,
-    ) -> ServerAuthResult {
-        if user == self.user && password == self.password {
-            ServerAuthResult::Granted {
-                handle: None,
-                tunnel_protocol_version: None,
-            }
-        } else {
-            ServerAuthResult::Denied
-        }
-    }
-}
 
 async fn metrics_debug() {
     if !tracing::enabled!(tracing::Level::TRACE) {
@@ -113,6 +91,9 @@ async fn main() -> Result<()> {
     validate_configuration_file_path(&config.server_key)
         .with_context(|| format!("Invalid server key file {}", config.server_key.display()))?;
 
+    validate_configuration_file_path(&config.user_db)
+        .with_context(|| format!("Invalid user db file {}", config.user_db.display()))?;
+
     #[cfg(feature = "debug")]
     if config.tls_debug {
         enable_tls_debug();
@@ -124,10 +105,7 @@ async fn main() -> Result<()> {
 
     tokio::spawn(metrics_debug());
 
-    let auth = Auth {
-        user: config.user.to_string(),
-        password: config.password.to_string(),
-    };
+    let auth = auth::Auth::new(&config.user_db)?;
 
     let mut tun_config = TunConfig::default();
     tun_config.tun_name(config.tun_name);
