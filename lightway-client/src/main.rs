@@ -33,7 +33,7 @@ async fn main() -> Result<()> {
     validate_configuration_file_path(config_file)
         .with_context(|| format!("Invalid configuration file {}", config_file.display()))?;
 
-    let config = Config::with_layers(&[
+    let mut config = Config::with_layers(&[
         Layer::Yaml(config_file.to_owned()),
         Layer::Env(Some(String::from("LW_CLIENT_"))),
         Layer::Clap(matches),
@@ -48,14 +48,7 @@ async fn main() -> Result<()> {
         .with_max_level(config.log_level)
         .init();
 
-    if config.user.is_empty() || config.password.is_empty() {
-        return Err(anyhow!("Username and password are required"));
-    }
-
-    let auth = AuthMethod::UserPass {
-        user: config.user,
-        password: config.password,
-    };
+    let auth = config.take_auth()?;
 
     let mode = match config.mode {
         ConnectionType::Tcp => ClientConnectionType::Stream(None),

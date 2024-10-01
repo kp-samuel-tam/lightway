@@ -113,6 +113,10 @@ run-udp-single-threaded-test:
 run-tcp-single-threaded-test:
     DO +TEST --MODE=tcp --SERVER_PORT=443 --SERVER_TOKIO_WORKER_THREADS=1 --CLIENT_TOKIO_WORKER_THREADS=1 --CLIENT_EXTRA_ARGS="--keepalive-interval=2s --keepalive-timeout=6s --enable-pmtud"
 
+# run-token-auth-test runs a test of the token auth
+run-token-auth-test:
+    DO +TEST --MODE=udp --SERVER_PORT=27690 --CLIENT_EXTRA_ARGS="--token eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjQ4ODMxMTM0MTZ9.gb0U7xTwxl7GDeKftKSZvnkkIDnoz8NmzJ4etukCjtZWzA4kSNbt84iTKOE14paRZdfE67tLGfcLsqA9uh-zuA_-ecZbiC4znz2CVVjhD2CIrW_0LQbHRbzYlOozjc108pct-VivtiPr7SqcIgRTjH59HTCDXtgp0kELhhr3NNfYP0-6DtadXQ_Twn2tcC3A-rTpfjwo7HDqnc43niCALXFhqR0F4DkEC3amKuOiP9afQ6dFmWVAzWXWEpQ_kK-EsCeBZ6K89GaF5quIErrV3U_FSwbX8biFB7S8VhkLqCoyabRKKprwp_mi24e91URgGqNvbCrXs2zrJMat-1zUvw" --SERVER_EXTRA_ARGS="--token-rsa-pub-key-pem /token.pub"
+
 # run-all-tests runs all tests
 run-all-tests:
     BUILD +run-tcp-aes256-test

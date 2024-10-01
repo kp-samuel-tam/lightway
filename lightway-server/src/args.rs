@@ -22,8 +22,11 @@ pub struct Config {
     pub mode: ConnectionType,
 
     /// user database, in Apache htpasswd format
-    #[clap(long, default_value = "./lwpasswd")]
-    pub user_db: PathBuf,
+    #[clap(long)]
+    pub user_db: Option<PathBuf>,
+
+    #[clap(long)]
+    pub token_rsa_pub_key_pem: Option<PathBuf>,
 
     /// Server certificate
     #[clap(long, default_value = "./server.crt")]
