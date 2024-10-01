@@ -14,6 +14,7 @@ impl Tcp {
             Some(s) => s,
             None => tokio::net::TcpStream::connect(remote_addr).await?,
         };
+        sock.set_nodelay(true)?;
         let peer_addr = sock.peer_addr()?;
         Ok(Arc::new(Self(sock, peer_addr)))
     }

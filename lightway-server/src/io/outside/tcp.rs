@@ -97,6 +97,7 @@ impl Server for TcpServer {
         loop {
             let (sock, addr) = self.sock.accept().await?;
 
+            sock.set_nodelay(true)?;
             let local_addr = match SockRef::from(&sock).local_addr() {
                 Ok(local_addr) => local_addr,
                 Err(err) => {
