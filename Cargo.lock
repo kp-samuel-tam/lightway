@@ -1339,6 +1339,7 @@ dependencies = [
  "ctrlc",
  "educe",
  "futures",
+ "libc",
  "lightway-app-utils",
  "lightway-core",
  "more-asserts",
