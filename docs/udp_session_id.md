@@ -24,13 +24,13 @@ sequenceDiagram
 
     Note over Client: Address: 192.168.100.43
     Client->>Server: Src: 192.168.100.43, Session: A
-    Note over Server: Lookup Connection by peer addr 192.168.100.43 ✅<br/><br/>Begin Rotation<br/>Pending Session ← B
+    Note over Server: Lookup Connection by peer addr 192.168.100.43 ✅<br/>---------<br/>Begin Rotation<br/>Pending Session ← B
     activate Server
     Server->>+Client: Dst: 192.168.100.43, Session: B
     deactivate Client
     Note over Client: Accept new Session:<br/>Session ← B
     Client->>Server: Src: 192.168.100.43, Session: B
-    Note over Server: Lookup Connection by peer addr 192.168.100.43 ✅<br/><br/>Since "B = Pending Session B" finalize rotation:<br/>Session ← B<br/>Pending Session ← None
+    Note over Server: Lookup Connection by peer addr 192.168.100.43 ✅<br/>---------<br/>Since "B = Pending Session B" finalize rotation:<br/>Session ← B<br/>Pending Session ← None
     deactivate Server
     Server->>Client: Dst: 192.168.100.43, Session: B
 ```
@@ -50,13 +50,13 @@ sequenceDiagram
     Note over Client: Network Change:<br/>Address ← 10.1.2.3
     Client->>Server: Src: 10.1.2.3, Session: A
     Note over Server: Lookup Connection by peer addr 10.1.2.3 ❌
-    Note over Server: Lookup Connection by Session A ✅<br/>Peer Addr ← 10.1.2.3<br/><br/>Begin Rotation<br/>Pending Session ← B
+    Note over Server: Lookup Connection by Session A ✅<br/>Peer Addr ← 10.1.2.3<br/>---------<br/>Begin Rotation<br/>Pending Session ← B
     activate Server
     Server->>+Client: Dst: 10.1.2.3, Session: B
     deactivate Client
     Note over Client: Accept new Session:<br/>Session ← B
     Client->>Server: Src: 10.1.2.3, Session: B
-    Note over Server: Lookup Connection by peer addr 10.1.2.3 ✅<br/><br/>Since "B = Pending Session B" finalize rotation:<br/>Session ← B<br/>Pending Session ← None
+    Note over Server: Lookup Connection by peer addr 10.1.2.3 ✅<br/>---------<br/>Since "B = Pending Session B" finalize rotation:<br/>Session ← B<br/>Pending Session ← None
     deactivate Server
     Server->>Client: Dst: 10.1.2.3, Session: B
 ```
@@ -73,7 +73,7 @@ sequenceDiagram
 
     Note over Client: Address: 192.168.100.43
     Client->>Server: Src: 192.168.100.43, Session: A
-    Note over Server: Lookup Connection by peer addr 192.168.100.43 ✅<br/><br/>Begin Rotation<br/>Pending Session ← B
+    Note over Server: Lookup Connection by peer addr 192.168.100.43 ✅<br/>---------<br/>Begin Rotation<br/>Pending Session ← B
     activate Server
     Server->>+Client: Dst: 192.168.100.43, Session: B
     deactivate Client
@@ -82,7 +82,7 @@ sequenceDiagram
     Client->>Server: Src: 10.1.2.3, Session: B
     Note over Server: Lookup Connection by peer addr 10.1.2.3 ❌
     Note over Server: Lookup Connection by Session B ❌
-    Note over Server: Lookup Connection by Pending Session B ✅<br/>Peer Addr ← 10.1.2.3<br/><br/>Since "B = Pending Session B" finalize rotation:<br/>Session ← B<br/>Pending Session ← None
+    Note over Server: Lookup Connection by Pending Session B ✅<br/>Peer Addr ← 10.1.2.3<br/>---------<br/>Since "B = Pending Session B" finalize rotation:<br/>Session ← B<br/>Pending Session ← None
     deactivate Server
     Server->>Client: Dst: 10.1.2.3, Session: B
 ```
@@ -103,11 +103,11 @@ sequenceDiagram
     note over Server: Begin Rotation<br/>Pending Session ← B
     Server->>+Client: Dst: 192.168.100.43, Session: B
     Client->>Server: Src: 192.168.100.43, Session: A
-    Note over Server: Lookup Connection by peer addr 192.168.100.43 ✅<br/><br/>Since "A ≠ Pending Session B" do not finalize rotation
+    Note over Server: Lookup Connection by peer addr 192.168.100.43 ✅<br/>---------<br/>Since "A ≠ Pending Session B" do not finalize rotation
     Note over Client: Accept new Session:<br/>Session ← B
     deactivate Client
     Client->>Server: Src: 192.168.100.43, Session: B
-    Note over Server: Lookup Connection by peer addr 192.168.100.43 ✅<br/><br/>Since "B = Pending Session B" finalize rotation:<br/>Session ← B<br/>Pending Session ← None
+    Note over Server: Lookup Connection by peer addr 192.168.100.43 ✅<br/>---------<br/>Since "B = Pending Session B" finalize rotation:<br/>Session ← B<br/>Pending Session ← None
     deactivate Server
     Server->>Client: Dst: 192.168.100.43, Session: B
 ```
@@ -131,13 +131,13 @@ sequenceDiagram
     Note over Client: Network Change:<br/>Address ← 10.1.2.3
     Client->>Server: Src: 10.1.2.3, Session: A
     Note over Server: Lookup Connection by peer addr 10.1.2.3 ❌
-    Note over Server: Lookup Connection by Session A ✅<br/><br/>Since "A ≠ Pending Session B" do not finalize rotation
+    Note over Server: Lookup Connection by Session A ✅<br/>---------<br/>Since "A ≠ Pending Session B" do not finalize rotation
     Note over Client: Accept new Session:<br/>Session ← B
     deactivate Client
     Client->>Server: Src: 10.1.2.3, Session: B
     Note over Server: Lookup Connection by peer addr 10.1.2.3 ❌
     Note over Server: Lookup Connection by Session B ❌
-    Note over Server: Lookup Connection by Pending Session B ✅<br/>Peer Addr ← 10.1.2.3<br/><br/>Since "B = Pending Session B" finalize rotation:<br/>Session ← B<br/>Pending Session ← None
+    Note over Server: Lookup Connection by Pending Session B ✅<br/>Peer Addr ← 10.1.2.3<br/>---------<br/>Since "B = Pending Session B" finalize rotation:<br/>Session ← B<br/>Pending Session ← None
     deactivate Server
     Server->>Client: Dst: 10.1.2.3, Session: B
 ```
