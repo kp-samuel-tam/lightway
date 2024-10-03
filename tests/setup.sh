@@ -3,7 +3,7 @@
 shopt -s nullglob
 
 # Set EXTRA_CLIENTS envvar to a positive integer N to create up to
-# `lightway-client#` namespaces [1,N]. Do not set to > 254.
+# `lightway-client#` namespaces [1,N]. Do not set to larger than 16,383.
 : "${EXTRA_CLIENTS:=0}"
 
 if [ "$EUID" -ne 0 ]
@@ -101,9 +101,9 @@ setup_client() {
 #
 # remote <--169.254.99.0/24--> 10.125.0.0/16 <--ip pool--> server <--172.16.0.0/12--> middle <--192.168.0.0/24--> client
 #
-# Physical Single hop (extra `lightway-client${N}` namespaces):
+# Physical Single hop (extra `lightway-client${N}` namespaces, with x=${N}/64 and y=4*${N}%64):
 #
-# remote <--169.254.99.0/24--> 10.125.0.0/16 <--ip pool--> server <----------------192.168.N.0/24---------------> client${N}
+# remote <--169.254.99.0/24--> 10.125.0.0/16 <--ip pool--> server <----------------192.168.x.y/24---------------> client${N}
 #
 # Lightway Tunnel:
 #
@@ -121,17 +121,21 @@ create_setup() {
 
     # Setup lightway-client and create bridge interface to middle
     setup_ns lightway-client lightway 100.64.0.6 100.64.0.5
-    setup_bridge_interface veth-c2m lightway-middle 192.168.0.1/24 lightway-client 192.168.0.2/24
+    setup_bridge_interface veth-c2m lightway-middle 192.168.0.1/30 lightway-client 192.168.0.2/30
     ip netns exec lightway-client ip route add 172.16.0.0/12 via 192.168.0.1
     setup_client lightway-client 172.16.0.1
     setup_ip_forward lightway-client 0
 
     # Setup additional lightway-client# and create bridge interface to server
     for n in $(seq 1 "${EXTRA_CLIENTS}") ; do
+        x=$(( n / 64 ))
+        y=$(( n % 64 << 2 )) # + 0 == network address, +1 == server, + 2 == client, + 3 = broadcast address
+        server_ip="192.168.${x}.$(( y + 1 ))"
+        client_ip="192.168.${x}.$(( y + 2 ))"
         setup_ns "lightway-client${n}" lightway 100.64.0.6 100.64.0.5
-        setup_bridge_interface "veth${n}" lightway-server "192.168.${n}.1/24" "lightway-client${n}" "192.168.${n}.2/24"
-        setup_client "lightway-client${n}" "192.168.${n}.1"
-	setup_ip_forward "lightway-client${n}" 0
+        setup_bridge_interface "veth${n}" lightway-server "${server_ip}/30" "lightway-client${n}" "${client_ip}/30"
+        setup_client "lightway-client${n}" "${server_ip}"
+        setup_ip_forward "lightway-client${n}" 0
     done
 
     # Setup lightway-remote namespace and set 8.8.8.8 to loopback in remote device
