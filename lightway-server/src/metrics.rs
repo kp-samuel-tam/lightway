@@ -6,6 +6,8 @@ use tracing::trace;
 use crate::connection::Connection;
 
 // Connection lifecycle
+static METRIC_CONNECTION_ACCEPT: LazyLock<Counter> =
+    LazyLock::new(|| counter!("conn_accept_failed"));
 const METRIC_CONNECTION_CREATE_FAILED: &str = "conn_create_failed";
 const METRIC_CONNECTION_CREATED: &str = "conn_created";
 const METRIC_CONNECTION_LINK_UP: &str = "conn_link_up";
@@ -100,6 +102,11 @@ pub(crate) struct ConnectionIntervalStats {
     pub five_minutes: usize,
     pub fifteen_minutes: usize,
     pub sixty_minutes: usize,
+}
+
+/// Calling `accept(2)` on our listening socket failed
+pub(crate) fn connection_accept_failed() {
+    METRIC_CONNECTION_ACCEPT.increment(1)
 }
 
 /// Connection lifecycle: Unable to create a new [`lightway_core::Connection`]
