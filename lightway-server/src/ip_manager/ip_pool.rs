@@ -1,4 +1,5 @@
 use ipnet::Ipv4Net;
+use rand::prelude::*;
 use std::{
     collections::{HashSet, VecDeque},
     net::Ipv4Addr,
@@ -24,10 +25,16 @@ impl IpPool {
                 .chain(std::iter::once(ip_pool.broadcast())),
         );
 
-        let available_ips = ip_pool
+        let mut available_ips: VecDeque<_> = ip_pool
             .hosts()
             .filter(|ip| !reserved_ips.contains(ip))
             .collect();
+
+        // make it harder to guess IPs during the early life of a
+        // server.
+        available_ips
+            .make_contiguous()
+            .shuffle(&mut rand::thread_rng());
 
         Self {
             reserved_ips,
@@ -79,7 +86,7 @@ impl IpPool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand::prelude::*;
+    use more_asserts::*;
     use test_case::test_case;
 
     fn get_ip_pool() -> IpPool {
@@ -337,6 +344,36 @@ mod tests {
             let ip = pool.allocate_ip().unwrap();
             assert_eq!(ip, other_ip);
         }
+    }
+
+    #[test]
+    fn initial_shuffle() {
+        use average::Mean;
+
+        let mut pool = get_ip_pool();
+
+        // An imperfect test of randomness. This is sufficient to
+        // catch an obvious mistake such as allocating in order.
+        //
+        // The average delta between two consecutive allocations from
+        // a non-sequential list should be a non-small number.
+        //
+        // If the list were sorted then the average would be 1.
+        //
+        // Given the 2^16 entry IP pool here the average delta in
+        // practice is 21-22,000 (about 1/3 of the pool size). The
+        // chances of this coming out as less than 512 in practice are
+        // miniscule.
+        let mut previous = pool.allocate_ip().unwrap().to_bits();
+        let m: Mean = std::iter::from_fn(|| {
+            let ip = pool.allocate_ip()?.to_bits();
+
+            let delta = ip.abs_diff(previous);
+            previous = ip;
+            Some(delta as f64)
+        })
+        .collect();
+        assert_gt!(m.mean(), 512.0);
     }
 }
 
