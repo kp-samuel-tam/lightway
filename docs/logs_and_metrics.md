@@ -26,6 +26,7 @@ Lightway server also supports metrics to monitor. The following are the metrics 
 
 | Metric Name | Source | Metric Type | Definition |
 | ------------------------------------------------------------------- | ------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| conn_create_failed | server | Counter | A new connection could not be created |
 | conn_alloc_frag_map | core | Counter | A connection has used a fragmented data packet.<br>Therefore the 2M FragmentMap has been allocated |
 | wolfssl_appdata | core | Counter | An AppData result occurred during a WolfSSL operation.<br><br>Given current configuration we do not expect this to be non-zero |
 | conn_created | server | Counter | The number of new connections created |

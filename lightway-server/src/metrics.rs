@@ -6,6 +6,7 @@ use tracing::trace;
 use crate::connection::Connection;
 
 // Connection lifecycle
+const METRIC_CONNECTION_CREATE_FAILED: &str = "conn_create_failed";
 const METRIC_CONNECTION_CREATED: &str = "conn_created";
 const METRIC_CONNECTION_LINK_UP: &str = "conn_link_up";
 static METRIC_CONNECTION_REJECTED_NO_FREE_IP: LazyLock<Counter> =
@@ -99,6 +100,15 @@ pub(crate) struct ConnectionIntervalStats {
     pub five_minutes: usize,
     pub fifteen_minutes: usize,
     pub sixty_minutes: usize,
+}
+
+/// Connection lifecycle: Unable to create a new [`lightway_core::Connection`]
+pub(crate) fn connection_create_failed(lw_protocol_version: &Version) {
+    counter!(
+        METRIC_CONNECTION_CREATE_FAILED,
+        LIGHTWAY_PROTOCOL_VERSION_LABEL => lw_protocol_version.to_string()
+    )
+    .increment(1);
 }
 
 /// Connection lifecycle: New [`lightway_core::Connection`] created
