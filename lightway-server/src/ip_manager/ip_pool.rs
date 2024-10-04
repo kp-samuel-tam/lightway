@@ -1,5 +1,8 @@
 use ipnet::Ipv4Net;
-use std::{collections::HashSet, net::Ipv4Addr};
+use std::{
+    collections::{HashSet, VecDeque},
+    net::Ipv4Addr,
+};
 use tracing::warn;
 
 /// Manages the alloction of a pool of IPs
@@ -8,8 +11,8 @@ pub struct IpPool {
     ip_pool: Ipv4Net,
     /// Reserved IPs, must never be allocated to a client.
     reserved_ips: HashSet<Ipv4Addr>,
-    /// Hashset to store IPs which are currently unused
-    available_ips: HashSet<Ipv4Addr>,
+    /// Queue to store IPs which are currently unused (a queue for LRU uses)
+    available_ips: VecDeque<Ipv4Addr>,
 }
 
 impl IpPool {
@@ -34,13 +37,7 @@ impl IpPool {
     }
 
     pub fn allocate_ip(&mut self) -> Option<Ipv4Addr> {
-        if let Some(ip) = self.available_ips.iter().next().cloned() {
-            self.available_ips.remove(&ip);
-            return Some(ip);
-        }
-
-        // we've run out of hosts.
-        None
+        self.available_ips.pop_front()
     }
 
     pub fn free_ip(&mut self, ip: Ipv4Addr) {
@@ -53,13 +50,16 @@ impl IpPool {
             return;
         }
 
-        self.available_ips.insert(ip);
+        if self.available_ips.contains(&ip) {
+            warn!(ip = ?ip, "Attempt to free unallocated IP address");
+            return;
+        }
+
+        self.available_ips.push_back(ip);
     }
 
     pub fn split_subnet(&mut self, subnet: Ipv4Net) -> Self {
-        // HashSet::extract_if is unstable.
-        // https://github.com/rust-lang/rust/issues/59618
-        let available_ips: HashSet<_> = self
+        let available_ips: VecDeque<_> = self
             .available_ips
             .iter()
             .copied()
@@ -86,6 +86,7 @@ impl IpPool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rand::prelude::*;
     use test_case::test_case;
 
     fn get_ip_pool() -> IpPool {
@@ -191,10 +192,10 @@ mod tests {
         let mut pool = get_ip_pool();
         let subpool = pool.split_subnet("10.125.0.0/29".parse().unwrap());
 
-        assert_eq!(subpool.ip_pool, "10.125.0.0/29".parse().unwrap());
         assert_eq!(subpool.available_ips.len(), 5);
+        let available_ips: HashSet<_> = subpool.available_ips.into_iter().collect();
         assert_eq!(
-            subpool.available_ips,
+            available_ips,
             [
                 // .0 is the network address, .1 and .2 are reserved.
                 "10.125.0.3".parse().unwrap(),
@@ -221,10 +222,10 @@ mod tests {
         let mut pool = get_ip_pool();
         let subpool = pool.split_subnet("10.125.138.96/29".parse().unwrap());
 
-        assert_eq!(subpool.ip_pool, "10.125.138.96/29".parse().unwrap());
         assert_eq!(subpool.available_ips.len(), 8);
+        let available_ips: HashSet<_> = subpool.available_ips.into_iter().collect();
         assert_eq!(
-            subpool.available_ips,
+            available_ips,
             [
                 "10.125.138.96".parse().unwrap(),
                 "10.125.138.97".parse().unwrap(),
@@ -245,10 +246,10 @@ mod tests {
         let mut pool = get_ip_pool();
         let subpool = pool.split_subnet("10.125.255.248/29".parse().unwrap());
 
-        assert_eq!(subpool.ip_pool, "10.125.255.248/29".parse().unwrap());
         assert_eq!(subpool.available_ips.len(), 7);
+        let available_ips: HashSet<_> = subpool.available_ips.into_iter().collect();
         assert_eq!(
-            subpool.available_ips,
+            available_ips,
             [
                 "10.125.255.248".parse().unwrap(),
                 "10.125.255.249".parse().unwrap(),
@@ -302,6 +303,47 @@ mod tests {
         ips.into_iter().for_each(|ip| subpool.free_ip(ip));
 
         assert_eq!(subpool.available_ips.len(), pool_size);
+    }
+
+    #[test]
+    fn lru_behaviour() {
+        let mut pool = get_ip_pool();
+        let pool_size = pool.available_ips.len();
+
+        // Allocate and then free an IP
+        let ip = pool.allocate_ip().unwrap();
+        pool.free_ip(ip);
+
+        // We should now be able to allocate N-1 other IPs and not get
+        // that initial IP back again.
+        let mut other_ips: Vec<_> = (0..pool_size - 1)
+            .map(|_| {
+                let other_ip = pool.allocate_ip().unwrap();
+                assert_ne!(ip, other_ip);
+                other_ip
+            })
+            .collect();
+
+        assert_eq!(other_ips.len(), pool_size - 1);
+
+        // Only the initial IP is left
+        assert_eq!(pool.available_ips.len(), 1);
+        let same_ip = pool.allocate_ip().unwrap();
+        assert_eq!(ip, same_ip);
+
+        // Nothing left
+        assert!(pool.allocate_ip().is_none());
+
+        // Now free all the other IPs in a random order
+        other_ips.shuffle(&mut rand::thread_rng());
+        for other_ip in other_ips.iter() {
+            pool.free_ip(*other_ip)
+        }
+        // and we should get them back in that order
+        for other_ip in other_ips.into_iter() {
+            let ip = pool.allocate_ip().unwrap();
+            assert_eq!(ip, other_ip);
+        }
     }
 }
 
