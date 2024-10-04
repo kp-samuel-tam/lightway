@@ -7,10 +7,10 @@ use tracing::warn;
 
 /// Manages the alloction of a pool of IPs
 pub struct IpPool {
-    /// IP pool
-    ip_pool: Ipv4Net,
     /// Reserved IPs, must never be allocated to a client.
     reserved_ips: HashSet<Ipv4Addr>,
+    /// Allocated IPs,
+    allocated_ips: HashSet<Ipv4Addr>,
     /// Queue to store IPs which are currently unused (a queue for LRU uses)
     available_ips: VecDeque<Ipv4Addr>,
 }
@@ -30,27 +30,20 @@ impl IpPool {
             .collect();
 
         Self {
-            ip_pool,
             reserved_ips,
+            allocated_ips: Default::default(),
             available_ips,
         }
     }
 
     pub fn allocate_ip(&mut self) -> Option<Ipv4Addr> {
-        self.available_ips.pop_front()
+        let ip = self.available_ips.pop_front()?;
+        self.allocated_ips.insert(ip);
+        Some(ip)
     }
 
     pub fn free_ip(&mut self, ip: Ipv4Addr) {
-        if !self.ip_pool.contains(&ip) {
-            warn!(ip = ?ip, "Attempt to free IP address from outside pool");
-            return;
-        }
-        if self.reserved_ips.contains(&ip) {
-            warn!(ip = ?ip, "Attempt to free reserved IP address");
-            return;
-        }
-
-        if self.available_ips.contains(&ip) {
+        if !self.allocated_ips.remove(&ip) {
             warn!(ip = ?ip, "Attempt to free unallocated IP address");
             return;
         }
@@ -75,8 +68,8 @@ impl IpPool {
             .filter(|ip| subnet.contains(ip))
             .collect();
         Self {
-            ip_pool: subnet,
             reserved_ips,
+            allocated_ips: Default::default(),
             available_ips,
         }
     }
