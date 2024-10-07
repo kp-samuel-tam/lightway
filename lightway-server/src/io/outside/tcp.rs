@@ -10,8 +10,7 @@ use lightway_core::{
 use socket2::SockRef;
 use tracing::{info, instrument, warn};
 
-use crate::connection::Connection;
-use crate::connection_manager::ConnectionManager;
+use crate::{connection::Connection, connection_manager::ConnectionManager, metrics};
 
 use super::Server;
 
@@ -95,7 +94,20 @@ impl Server for TcpServer {
         info!("Accepting traffic on {}", self.sock.local_addr()?);
 
         loop {
-            let (sock, addr) = self.sock.accept().await?;
+            let (sock, addr) = match self.sock.accept().await {
+                Ok(r) => r,
+                Err(err) => {
+                    // Some of the errors which accept(2) can return
+                    // <https://pubs.opengroup.org/onlinepubs/9699919799.2013edition/functions/accept.html>
+                    // while never a good thing needn't necessarily be
+                    // fatal to the entire server and prevent us from
+                    // servicing existing connections or potentially
+                    // new connections in the future.
+                    warn!(?err, "Failed to accept a new connection");
+                    metrics::connection_accept_failed();
+                    continue;
+                }
+            };
 
             sock.set_nodelay(true)?;
             let local_addr = match SockRef::from(&sock).local_addr() {
@@ -120,11 +132,13 @@ impl Server for TcpServer {
             });
             // TCP has no version indication, default to the minimum
             // supported version.
-            let conn = self.conn_manager.create_streaming_connection(
+            let Ok(conn) = self.conn_manager.create_streaming_connection(
                 Version::MINIMUM,
                 local_addr,
                 outside_io,
-            )?;
+            ) else {
+                continue;
+            };
 
             tokio::spawn(handle_connection(sock, conn));
         }

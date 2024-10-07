@@ -195,7 +195,11 @@ fn new_connection(
         local_addr,
         outside_io,
         event_cb,
-    )?;
+    )
+    .inspect_err(|err| {
+        metrics::connection_create_failed(&protocol_version);
+        warn!(?err, "Failed to create new connection");
+    })?;
 
     tokio::spawn(handle_events(event_stream, Arc::downgrade(&conn)));
 
