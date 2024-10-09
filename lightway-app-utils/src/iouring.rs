@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Context, Result};
 use bytes::{BufMut, Bytes, BytesMut};
 use lightway_core::IOCallbackResult;
 use thiserror::Error;
@@ -71,6 +71,9 @@ impl<T: AsRawFd> IOUring<T> {
                         tx_queue_receiver,
                         rx_queue_sender,
                     ))
+                    .inspect_err(|err| {
+                        tracing::error!("i/o uring task stopped: {:?}", err);
+                    })
             })?;
 
         Ok(Self {
@@ -185,7 +188,9 @@ fn push_tx_events_to(
             match sbmt.submit() {
                 Ok(_) => (),
                 Err(ref err) if err.raw_os_error() == Some(libc::EBUSY) => break,
-                Err(err) => return Err(err.into()),
+                Err(err) => {
+                    return Err(anyhow!(err)).context("Push TX events failed for sq submit");
+                }
             }
         }
         sq.sync();
@@ -199,7 +204,9 @@ fn push_tx_events_to(
             Err(mpsc::error::TryRecvError::Empty) => {
                 break;
             }
-            Err(err) => return Err(err.into()),
+            Err(err) => {
+                return Err(anyhow!(err)).context("Push TX events failed for try_recv");
+            }
         }
     }
     Ok(())
@@ -216,7 +223,9 @@ fn push_rx_events_to(
             match sbmt.submit() {
                 Ok(_) => (),
                 Err(ref err) if err.raw_os_error() == Some(libc::EBUSY) => break,
-                Err(err) => return Err(err.into()),
+                Err(err) => {
+                    return Err(anyhow!(err)).context("Push RX events failed for sq submit");
+                }
             }
         }
         sq.sync();
