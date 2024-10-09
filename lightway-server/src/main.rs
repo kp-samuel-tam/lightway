@@ -12,7 +12,7 @@ use tracing::{error, trace};
 use twelf::Layer;
 
 use args::Config;
-use lightway_app_utils::{validate_configuration_file_path, TunConfig};
+use lightway_app_utils::{validate_configuration_file_path, TunConfig, Validate};
 use lightway_server::*;
 
 async fn metrics_debug() {
@@ -79,7 +79,7 @@ async fn main() -> Result<()> {
         return Err(anyhow!("Config file not present"));
     };
 
-    validate_configuration_file_path(config_file)
+    validate_configuration_file_path(config_file, Validate::AllowWorldRead)
         .with_context(|| format!("Invalid configuration file {}", config_file.display()))?;
 
     let config = Config::with_layers(&[
@@ -88,11 +88,13 @@ async fn main() -> Result<()> {
         Layer::Clap(matches),
     ])?;
 
-    validate_configuration_file_path(&config.server_key)
+    validate_configuration_file_path(&config.server_key, Validate::OwnerOnly)
         .with_context(|| format!("Invalid server key file {}", config.server_key.display()))?;
+    validate_configuration_file_path(&config.server_cert, Validate::AllowWorldRead)
+        .with_context(|| format!("Invalid server cert file {}", config.server_cert.display()))?;
 
     if let Some(user_db) = &config.user_db {
-        validate_configuration_file_path(user_db)
+        validate_configuration_file_path(user_db, Validate::OwnerOnly)
             .with_context(|| format!("Invalid user db file {}", user_db.display()))?;
     }
 

@@ -5,7 +5,9 @@ use clap::CommandFactory;
 use lightway_core::{Event, EventCallback};
 use twelf::Layer;
 
-use lightway_app_utils::{args::ConnectionType, validate_configuration_file_path, TunConfig};
+use lightway_app_utils::{
+    args::ConnectionType, validate_configuration_file_path, TunConfig, Validate,
+};
 use lightway_client::*;
 
 mod args;
@@ -30,7 +32,7 @@ async fn main() -> Result<()> {
         return Err(anyhow!("Config file not present"));
     };
 
-    validate_configuration_file_path(config_file)
+    validate_configuration_file_path(config_file, Validate::AllowWorldRead)
         .with_context(|| format!("Invalid configuration file {}", config_file.display()))?;
 
     let mut config = Config::with_layers(&[
