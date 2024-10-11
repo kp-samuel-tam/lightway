@@ -136,6 +136,7 @@ async fn main() -> Result<()> {
         inside_plugins: Default::default(),
         outside_plugins: Default::default(),
         bind_address: config.bind_address,
+        proxy_protocol: config.proxy_protocol,
     };
 
     server(config).await

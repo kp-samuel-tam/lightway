@@ -130,6 +130,9 @@ pub struct ServerConfig<SA: for<'a> ServerAuth<AuthState<'a>>> {
 
     /// Address to listen to
     pub bind_address: SocketAddr,
+
+    /// Enable PROXY protocol support (TCP only)
+    pub proxy_protocol: bool,
 }
 
 pub async fn server<SA: for<'a> ServerAuth<AuthState<'a>> + Sync + Send + 'static>(
@@ -195,9 +198,14 @@ pub async fn server<SA: for<'a> ServerAuth<AuthState<'a>> + Sync + Send + 'stati
         ConnectionType::Datagram => {
             Box::new(io::outside::UdpServer::new(conn_manager.clone(), config.bind_address).await?)
         }
-        ConnectionType::Stream => {
-            Box::new(io::outside::TcpServer::new(conn_manager.clone(), config.bind_address).await?)
-        }
+        ConnectionType::Stream => Box::new(
+            io::outside::TcpServer::new(
+                conn_manager.clone(),
+                config.bind_address,
+                config.proxy_protocol,
+            )
+            .await?,
+        ),
     };
 
     let inside_io_loop: JoinHandle<anyhow::Result<()>> = tokio::spawn(async move {

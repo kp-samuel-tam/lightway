@@ -8,6 +8,7 @@ use lightway_core::{
     MAX_OUTSIDE_MTU,
 };
 use socket2::SockRef;
+use tokio::io::AsyncReadExt as _;
 use tracing::{debug, info, instrument, warn};
 
 use crate::{connection_manager::ConnectionManager, metrics};
@@ -35,13 +36,78 @@ impl OutsideIOSendCallback for TcpStream {
     }
 }
 
+async fn handle_proxy_protocol(sock: &mut tokio::net::TcpStream) -> Result<SocketAddr> {
+    use ppp::v2::{Header, ParseError};
+
+    // https://www.haproxy.org/download/1.8/doc/proxy-protocol.txt §2.2
+    const MINIMUM_LENGTH: usize = 16;
+
+    let mut header: Vec<u8> = [0; MINIMUM_LENGTH].into();
+    if let Err(err) = sock.read_exact(&mut header[..MINIMUM_LENGTH]).await {
+        return Err(anyhow!(err).context("Failed to read initial PROXY header"));
+    };
+    let rest = match Header::try_from(&header[..]) {
+        // Failure tells us exactly how many more bytes are required.
+        Err(ParseError::Partial(_, rest)) => rest,
+
+        Ok(_) => {
+            // The initial 16 bytes is never enough to actually succeed.
+            return Err(anyhow!("Unexpectedly parsed initial PROXY header"));
+        }
+        Err(err) => {
+            return Err(anyhow!(err).context("Failed to parse initial PROXY header"));
+        }
+    };
+
+    header.resize(MINIMUM_LENGTH + rest, 0);
+
+    if let Err(err) = sock.read_exact(&mut header[MINIMUM_LENGTH..]).await {
+        return Err(anyhow!(err).context("Failed to read remainder of PROXY header"));
+    };
+
+    let header = match Header::try_from(&header[..]) {
+        Ok(h) => h,
+        Err(err) => {
+            return Err(anyhow!(err).context("Failed to parse complete PROXY header"));
+        }
+    };
+
+    let addr = match header.addresses {
+        ppp::v2::Addresses::Unspecified => {
+            return Err(anyhow!("Unspecified PROXY connection"));
+        }
+        ppp::v2::Addresses::IPv4(addr) => {
+            SocketAddr::new(addr.source_address.into(), addr.source_port)
+        }
+        ppp::v2::Addresses::IPv6(_) => {
+            return Err(anyhow!("IPv6 PROXY connection"));
+        }
+        ppp::v2::Addresses::Unix(_) => {
+            return Err(anyhow!("Unix PROXY connection"));
+        }
+    };
+    Ok(addr)
+}
+
 #[instrument(level = "trace", skip_all)]
 async fn handle_connection(
-    sock: tokio::net::TcpStream,
-    peer_addr: SocketAddr,
+    mut sock: tokio::net::TcpStream,
+    mut peer_addr: SocketAddr,
     local_addr: SocketAddr,
     conn_manager: Arc<ConnectionManager>,
+    proxy_protocol: bool,
 ) {
+    if proxy_protocol {
+        peer_addr = match handle_proxy_protocol(&mut sock).await {
+            Ok(real_addr) => real_addr,
+            Err(err) => {
+                debug!(?err, "Failed to process PROXY header");
+                metrics::connection_accept_proxy_header_failed();
+                return;
+            }
+        };
+    }
+
     let sock = Arc::new(sock);
 
     let outside_io = Arc::new(TcpStream {
@@ -97,16 +163,22 @@ async fn handle_connection(
 pub(crate) struct TcpServer {
     conn_manager: Arc<ConnectionManager>,
     sock: Arc<tokio::net::TcpListener>,
+    proxy_protocol: bool,
 }
 
 impl TcpServer {
     pub(crate) async fn new(
         conn_manager: Arc<ConnectionManager>,
         bind_address: SocketAddr,
+        proxy_protocol: bool,
     ) -> Result<TcpServer> {
         let sock = Arc::new(tokio::net::TcpListener::bind(bind_address).await?);
 
-        Ok(Self { conn_manager, sock })
+        Ok(Self {
+            conn_manager,
+            sock,
+            proxy_protocol,
+        })
     }
 }
 
@@ -151,6 +223,7 @@ impl Server for TcpServer {
                 peer_addr,
                 local_addr,
                 self.conn_manager.clone(),
+                self.proxy_protocol,
             ));
         }
     }

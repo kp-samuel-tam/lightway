@@ -96,6 +96,10 @@ pub struct Config {
     #[clap(long, default_value = "0.0.0.0:27690")]
     pub bind_address: SocketAddr,
 
+    /// Enable PROXY protocol support (TCP only)
+    #[clap(long)]
+    pub proxy_protocol: bool,
+
     /// Enable WolfSSL debug logging
     #[cfg(feature = "debug")]
     #[clap(long)]
