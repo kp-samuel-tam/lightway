@@ -9,15 +9,16 @@ mod statistics;
 #[cfg(feature = "debug")]
 pub use lightway_core::enable_tls_debug;
 pub use lightway_core::{
-    PluginFactoryError, PluginFactoryList, ServerAuth, ServerAuthHandle, ServerAuthResult, Version,
+    ConnectionType, PluginFactoryError, PluginFactoryList, ServerAuth, ServerAuthHandle,
+    ServerAuthResult, Version,
 };
 
 use anyhow::{anyhow, Context, Result};
 use ipnet::Ipv4Net;
 use lightway_app_utils::{connection_ticker_cb, TunConfig};
 use lightway_core::{
-    ipv4_update_destination, AuthMethod, BuilderPredicates, ConnectionError, ConnectionType,
-    IOCallbackResult, InsideIpConfig, Secret, ServerContextBuilder,
+    ipv4_update_destination, AuthMethod, BuilderPredicates, ConnectionError, IOCallbackResult,
+    InsideIpConfig, Secret, ServerContextBuilder,
 };
 use pnet::packet::ipv4::Ipv4Packet;
 use std::{
