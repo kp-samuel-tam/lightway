@@ -154,23 +154,23 @@ fn push_one_tx_event_to(
     sq: &mut SubmissionQueue,
     bufs: &mut [Option<Bytes>],
     slot: SlotIdx,
-) -> Result<()> {
+) -> std::result::Result<(), SlotIdx> {
     let sqe = opcode::Write::new(Fixed(REGISTERED_FD_INDEX), buf.as_ptr(), buf.len() as _)
         .build()
         .user_data(slot.user_data());
+
+    #[allow(unsafe_code)]
+    // SAFETY: sqe points to a buffer on the heap, owned
+    // by a `Bytes` in `bufs[slot]`, we will not reuse
+    // `bufs[slot]` until `slot` is returned to the slots vector.
+    if unsafe { sq.push(&sqe) }.is_err() {
+        return Err(slot);
+    }
 
     // SAFETY: By construction instances of SlotIdx are always in bounds.
     #[allow(unsafe_code)]
     unsafe {
         *bufs.get_unchecked_mut(slot.idx()) = Some(buf)
-    };
-
-    // SAFETY: sqe points to a buffer on the heap, owned
-    // by a `Bytes` in `bufs[slot]`, we will not reuse
-    // `bufs[slot]` until `slot` is returned to the slots vector.
-    #[allow(unsafe_code)]
-    unsafe {
-        sq.push(&sqe)?
     };
 
     Ok(())
@@ -198,8 +198,10 @@ fn push_tx_events_to(
         match txq.try_recv() {
             Ok(buf) => {
                 let slot = slots.pop().expect("no tx slots left"); // we are inside `!slots.is_empty()`.
-
-                push_one_tx_event_to(buf, sq, bufs, slot)?;
+                if let Err(slot) = push_one_tx_event_to(buf, sq, bufs, slot) {
+                    slots.push(slot);
+                    break;
+                }
             }
             Err(mpsc::error::TryRecvError::Empty) => {
                 break;
@@ -244,13 +246,14 @@ fn push_rx_events_to(
                 )
                 .build()
                 .user_data(slot.user_data());
+                #[allow(unsafe_code)]
                 // SAFETY: sqe points to a buffer on the heap, owned
                 // by a `BytesMut` in `rx_bufs[slot]`, we will not reuse
                 // `rx_bufs[slot]` until `slot` is returned to the slots vector.
-                #[allow(unsafe_code)]
-                unsafe {
-                    sq.push(&sqe)?
-                };
+                if unsafe { sq.push(&sqe) }.is_err() {
+                    slots.push(slot);
+                    break;
+                }
             }
             None => break,
         }
@@ -281,6 +284,7 @@ async fn iouring_task(
 
     // Using half of total io-uring size for rx and half for tx
     let nr_tx_rx_slots = (ring_size / 2) as isize;
+    tracing::info!(ring_size, nr_tx_rx_slots, "uring main task");
 
     let mut rx_slots: Vec<_> = (0..nr_tx_rx_slots).map(SlotIdx::Rx).collect();
     let mut rx_state: Vec<_> = rx_slots
@@ -297,8 +301,6 @@ async fn iouring_task(
     let mut tx_slots: Vec<_> = (0..nr_tx_rx_slots).map(SlotIdx::Tx).collect();
     let mut tx_bufs = vec![None; tx_slots.len()];
 
-    tracing::info!(ring_size, nr_tx_rx_slots, "uring main task");
-
     while let Some(slot) = rx_slots.pop() {
         let state = &mut rx_state[slot.idx()];
         let sqe = opcode::Read::new(
@@ -313,6 +315,7 @@ async fn iouring_task(
         // `rx_bufs[slot]` until `slot` is returned to the slots vector.
         #[allow(unsafe_code)]
         unsafe {
+            // This call should not fail since the SubmissionQueue should be empty now
             sq.push(&sqe)?
         };
     }
@@ -348,8 +351,10 @@ async fn iouring_task(
                     metrics::tun_iouring_wake_tx();
 
                     let slot = tx_slots.pop().expect("no tx slots left"); // we are inside `!slots.is_empty()` guard.
-
-                    push_one_tx_event_to(buf, &mut sq, &mut tx_bufs, slot)?;
+                    if let Err(slot) = push_one_tx_event_to(buf, &mut sq, &mut tx_bufs, slot) {
+                        tx_slots.push(slot);
+                        continue 'io_loop;
+                    }
                     push_tx_events_to(
                         &sbmt,
                         &mut sq,
