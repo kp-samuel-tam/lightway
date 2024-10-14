@@ -64,7 +64,7 @@ impl<T: AsRawFd> IOUring<T> {
                     .enable_io()
                     .build()
                     .expect("Failed building Tokio Runtime")
-                    .block_on(main_task(
+                    .block_on(iouring_task(
                         fd,
                         ring_size,
                         mtu,
@@ -259,7 +259,7 @@ fn push_rx_events_to(
     Ok(())
 }
 
-async fn main_task(
+async fn iouring_task(
     fd: RawFd,
     ring_size: usize,
     mtu: usize,
