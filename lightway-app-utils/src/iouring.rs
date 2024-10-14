@@ -298,32 +298,35 @@ async fn iouring_task(
         state.sender = Some(rx_queue.clone().reserve_owned().await?)
     }
 
+    let rx_sq_entries: Vec<_> = rx_slots
+        .drain(..)
+        .map(|slot| {
+            let state = &mut rx_state[slot.idx()];
+            opcode::Read::new(
+                Fixed(REGISTERED_FD_INDEX),
+                state.buf.as_mut_ptr(),
+                state.buf.capacity() as _,
+            )
+            .build()
+            .user_data(slot.user_data())
+        })
+        .collect();
+
+    // SAFETY: sqe points to a buffer on the heap, owned
+    // by a `BytesMut` in `rx_bufs[slot]`, we will not reuse
+    // `rx_bufs[slot]` until `slot` is returned to the slots vector.
+    #[allow(unsafe_code)]
+    unsafe {
+        let entries = rx_sq_entries;
+        // This call should not fail since the SubmissionQueue should be empty now
+        sq.push_multiple(&entries)?
+    };
+    sq.sync();
+
     let mut tx_slots: Vec<_> = (0..nr_tx_rx_slots).map(SlotIdx::Tx).collect();
     let mut tx_bufs = vec![None; tx_slots.len()];
 
-    while let Some(slot) = rx_slots.pop() {
-        let state = &mut rx_state[slot.idx()];
-        let sqe = opcode::Read::new(
-            Fixed(REGISTERED_FD_INDEX),
-            state.buf.as_mut_ptr(),
-            state.buf.capacity() as _,
-        )
-        .build()
-        .user_data(slot.user_data());
-        // SAFETY: sqe points to a buffer on the heap, owned
-        // by a `BytesMut` in `rx_bufs[slot]`, we will not reuse
-        // `rx_bufs[slot]` until `slot` is returned to the slots vector.
-        #[allow(unsafe_code)]
-        unsafe {
-            // This call should not fail since the SubmissionQueue should be empty now
-            sq.push(&sqe)?
-        };
-    }
-
-    sq.sync();
-
     let mut completion_count = 0;
-
     tracing::info!("Entering i/o uring loop");
 
     let start_time = std::time::Instant::now();
