@@ -328,7 +328,7 @@ async fn iouring_task(
 
     let start_time = std::time::Instant::now();
 
-    'io_loop: loop {
+    loop {
         metrics::tun_iouring_total_thread_time(start_time.elapsed());
         let _ = sbmt.submit()?;
 
@@ -353,19 +353,7 @@ async fn iouring_task(
                     let slot = tx_slots.pop().expect("no tx slots left"); // we are inside `!slots.is_empty()` guard.
                     if let Err(slot) = push_one_tx_event_to(buf, &mut sq, &mut tx_bufs, slot) {
                         tx_slots.push(slot);
-                        continue 'io_loop;
                     }
-                    push_tx_events_to(
-                        &sbmt,
-                        &mut sq,
-                        &mut tx_queue,
-                        &mut tx_slots,
-                        &mut tx_bufs,
-                    )?;
-
-                    sq.sync();
-
-                    continue 'io_loop;
                 }
 
                 Ok(a) = event_fd.read(&mut completed_number) => {
