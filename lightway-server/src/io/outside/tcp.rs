@@ -10,7 +10,7 @@ use lightway_core::{
 use socket2::SockRef;
 use tracing::{debug, info, instrument, warn};
 
-use crate::{connection::Connection, connection_manager::ConnectionManager, metrics};
+use crate::{connection_manager::ConnectionManager, metrics};
 
 use super::Server;
 
@@ -35,8 +35,30 @@ impl OutsideIOSendCallback for TcpStream {
     }
 }
 
-#[instrument(level = "trace", skip_all, fields(session = ?conn.session_id()))]
-async fn handle_connection(sock: Arc<tokio::net::TcpStream>, conn: Arc<Connection>) {
+#[instrument(level = "trace", skip_all)]
+async fn handle_connection(
+    sock: tokio::net::TcpStream,
+    peer_addr: SocketAddr,
+    local_addr: SocketAddr,
+    conn_manager: Arc<ConnectionManager>,
+) {
+    let sock = Arc::new(sock);
+
+    let outside_io = Arc::new(TcpStream {
+        sock: sock.clone(),
+        peer_addr,
+    });
+    // TCP has no version indication, default to the minimum
+    // supported version.
+    let Ok(conn) =
+        conn_manager.create_streaming_connection(Version::MINIMUM, local_addr, outside_io)
+    else {
+        return;
+    };
+
+    // We no longer need to hold this reference.
+    drop(conn_manager);
+
     let mut buf = BytesMut::with_capacity(MAX_OUTSIDE_MTU);
     let err: anyhow::Error = loop {
         // Recover full capacity
@@ -94,7 +116,7 @@ impl Server for TcpServer {
         info!("Accepting traffic on {}", self.sock.local_addr()?);
 
         loop {
-            let (sock, addr) = match self.sock.accept().await {
+            let (sock, peer_addr) = match self.sock.accept().await {
                 Ok(r) => r,
                 Err(err) => {
                     // Some of the errors which accept(2) can return
@@ -124,23 +146,12 @@ impl Server for TcpServer {
                 return Err(anyhow!("Failed to convert local addr to socketaddr"));
             };
 
-            let sock = Arc::new(sock);
-
-            let outside_io = Arc::new(TcpStream {
-                sock: sock.clone(),
-                peer_addr: addr,
-            });
-            // TCP has no version indication, default to the minimum
-            // supported version.
-            let Ok(conn) = self.conn_manager.create_streaming_connection(
-                Version::MINIMUM,
+            tokio::spawn(handle_connection(
+                sock,
+                peer_addr,
                 local_addr,
-                outside_io,
-            ) else {
-                continue;
-            };
-
-            tokio::spawn(handle_connection(sock, conn));
+                self.conn_manager.clone(),
+            ));
         }
     }
 }
