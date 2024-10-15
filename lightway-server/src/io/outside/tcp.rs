@@ -8,7 +8,7 @@ use lightway_core::{
     MAX_OUTSIDE_MTU,
 };
 use socket2::SockRef;
-use tracing::{info, instrument, warn};
+use tracing::{debug, info, instrument, warn};
 
 use crate::{connection::Connection, connection_manager::ConnectionManager, metrics};
 
@@ -114,13 +114,13 @@ impl Server for TcpServer {
                 Ok(local_addr) => local_addr,
                 Err(err) => {
                     // Since we have a bound socket this shouldn't happen.
-                    tracing::debug!(?err, "Failed to get local addr");
+                    debug!(?err, "Failed to get local addr");
                     return Err(err.into());
                 }
             };
             let Some(local_addr) = local_addr.as_socket() else {
                 // Since we only bind to IP sockets this shouldn't happen.
-                tracing::debug!("Failed to convert local addr to socketaddr");
+                debug!("Failed to convert local addr to socketaddr");
                 return Err(anyhow!("Failed to convert local addr to socketaddr"));
             };
 
