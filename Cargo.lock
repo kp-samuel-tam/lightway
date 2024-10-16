@@ -1427,6 +1427,7 @@ dependencies = [
  "metrics-util",
  "more-asserts",
  "pnet",
+ "ppp",
  "pwhash",
  "rand",
  "serde",
@@ -1871,6 +1872,15 @@ name = "powerfmt"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "439ee305def115ba05938db6eb1644ff94165c5ab5e9420d1c1bcedbba909391"
+
+[[package]]
+name = "ppp"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "82d901d7dd743c478e14af9518bdbc33e53e50be56429233f812537f29dbf0d1"
+dependencies = [
+ "thiserror",
+]
 
 [[package]]
 name = "ppv-lite86"

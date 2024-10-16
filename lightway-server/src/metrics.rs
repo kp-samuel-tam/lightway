@@ -8,6 +8,9 @@ use crate::connection::Connection;
 // Connection lifecycle
 static METRIC_CONNECTION_ACCEPT: LazyLock<Counter> =
     LazyLock::new(|| counter!("conn_accept_failed"));
+static METRIC_CONNECTION_ACCEPT_PROXY_HEADER_FAILED: LazyLock<Counter> =
+    LazyLock::new(|| counter!("connection_accept_proxy_header_failed"));
+
 const METRIC_CONNECTION_CREATE_FAILED: &str = "conn_create_failed";
 const METRIC_CONNECTION_CREATED: &str = "conn_created";
 const METRIC_CONNECTION_LINK_UP: &str = "conn_link_up";
@@ -107,6 +110,10 @@ pub(crate) struct ConnectionIntervalStats {
 /// Calling `accept(2)` on our listening socket failed
 pub(crate) fn connection_accept_failed() {
     METRIC_CONNECTION_ACCEPT.increment(1)
+}
+
+pub(crate) fn connection_accept_proxy_header_failed() {
+    METRIC_CONNECTION_ACCEPT_PROXY_HEADER_FAILED.increment(1)
 }
 
 /// Connection lifecycle: Unable to create a new [`lightway_core::Connection`]

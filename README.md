@@ -310,6 +310,29 @@ sudo ip netns exec lightway-middle ip link set mtu 1300 dev veth-s2m
 sudo ip netns exec lightway-server ip link set mtu 1300 dev veth-s2m
 ```
 
+### Testing with PROXY protocol enabled
+
+Lightway server supports the [PROXY protocol][] via the
+`proxy_protocol` configuration option.
+
+In the containerized test environment this can be tested by running a
+proxy protocol frontend.
+
+For example using https://pypi.org/project/proxy-protocol/ to proxy
+from TCPv4 port 443 to a lightway server listening on TCPv6 localhost:
+
+```bash
+python3 -m venv --prompt proxy-protocol proxy-protocol
+./proxy-protocol/bin/pip3 install proxy-protocol
+sudo ip netns exec lightway-server ./proxy-protocol/bin/proxyprotocol-server --service 0.0.0.0:443 '[::1]:443'
+```
+
+Then configure lightway-server with `bind_address: [::1]:443` and
+`proxy_protocol: true`. The client can connect to `server:443` via
+TCPv4 as usual.
+
+[PROXY protocol]: https://www.haproxy.org/download/1.8/doc/proxy-protocol.txt
+
 ## Speeding up development with Earthly Satellites
 
 Please refer to [official documentation for Earthly Satellites](https://docs.earthly.dev/earthly-cloud/satellites).
