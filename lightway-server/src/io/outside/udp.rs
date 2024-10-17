@@ -45,6 +45,42 @@ impl std::fmt::Display for BindMode {
     }
 }
 
+fn send_to_socket(
+    sock: &Arc<tokio::net::UdpSocket>,
+    buf: &[u8],
+    peer_addr: &SockAddr,
+    pktinfo: Option<libc::in_pktinfo>,
+) -> IOCallbackResult<usize> {
+    let res = sock.try_io(Interest::WRITABLE, || {
+        let sock = SockRef::from(sock.as_ref());
+        let bufs = [std::io::IoSlice::new(buf)];
+
+        let msghdr = MsgHdr::new().with_addr(peer_addr).with_buffers(&bufs);
+
+        const CMSG_SIZE: usize = cmsg::Message::space::<libc::in_pktinfo>();
+        let mut cmsg = cmsg::BufferMut::<CMSG_SIZE>::zeroed();
+
+        let msghdr = if let Some(pktinfo) = pktinfo {
+            let mut builder = cmsg.builder();
+            builder.fill_next(libc::SOL_IP, libc::IP_PKTINFO, pktinfo)?;
+
+            msghdr.with_control(cmsg.as_ref())
+        } else {
+            msghdr
+        };
+
+        sock.sendmsg(&msghdr, 0)
+    });
+
+    match res {
+        Ok(nr) => IOCallbackResult::Ok(nr),
+        Err(err) if matches!(err.kind(), std::io::ErrorKind::WouldBlock) => {
+            IOCallbackResult::WouldBlock
+        }
+        Err(err) => IOCallbackResult::Err(err),
+    }
+}
+
 struct UdpSocket {
     sock: Arc<tokio::net::UdpSocket>,
     peer_addr: RwLock<(SocketAddr, SockAddr)>,
@@ -53,35 +89,8 @@ struct UdpSocket {
 
 impl OutsideIOSendCallback for UdpSocket {
     fn send(&self, buf: &[u8]) -> IOCallbackResult<usize> {
-        let res = self.sock.try_io(Interest::WRITABLE, || {
-            let sock = SockRef::from(self.sock.as_ref());
-            let peer_addr = self.peer_addr.read().unwrap();
-            let bufs = [std::io::IoSlice::new(buf)];
-
-            let msghdr = MsgHdr::new().with_addr(&peer_addr.1).with_buffers(&bufs);
-
-            const CMSG_SIZE: usize = cmsg::Message::space::<libc::in_pktinfo>();
-            let mut cmsg = cmsg::BufferMut::<CMSG_SIZE>::zeroed();
-
-            let msghdr = if let Some(pktinfo) = self.reply_pktinfo {
-                let mut builder = cmsg.builder();
-                builder.fill_next(libc::SOL_IP, libc::IP_PKTINFO, pktinfo)?;
-
-                msghdr.with_control(cmsg.as_ref())
-            } else {
-                msghdr
-            };
-
-            sock.sendmsg(&msghdr, 0)
-        });
-
-        match res {
-            Ok(nr) => IOCallbackResult::Ok(nr),
-            Err(err) if matches!(err.kind(), std::io::ErrorKind::WouldBlock) => {
-                IOCallbackResult::WouldBlock
-            }
-            Err(err) => IOCallbackResult::Err(err),
-        }
+        let peer_addr = self.peer_addr.read().unwrap();
+        send_to_socket(&self.sock, buf, &peer_addr.1, self.reply_pktinfo)
     }
 
     fn peer_addr(&self) -> SocketAddr {
@@ -184,7 +193,7 @@ impl UdpServer {
                 match conn_result {
                     Ok(conn) => conn,
                     Err(_e) => {
-                        self.send_reject(peer_addr).await;
+                        self.send_reject(peer_addr.into(), reply_pktinfo).await;
                         return;
                     }
                 }
@@ -223,7 +232,7 @@ impl UdpServer {
         }
     }
 
-    async fn send_reject(&self, peer_addr: SocketAddr) {
+    async fn send_reject(&self, peer_addr: SockAddr, reply_pktinfo: Option<libc::in_pktinfo>) {
         metrics::udp_rejected_session();
         let msg = Header {
             version: Version::MINIMUM,
@@ -235,7 +244,7 @@ impl UdpServer {
         msg.append_to_wire(&mut buf);
 
         // Ignore failure to send.
-        let _ = self.sock.send_to(&buf, peer_addr).await;
+        let _ = send_to_socket(&self.sock, &buf, &peer_addr, reply_pktinfo);
     }
 }
 
