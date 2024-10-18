@@ -64,7 +64,7 @@ impl<T: AsRawFd> IOUring<T> {
                     .enable_io()
                     .build()
                     .expect("Failed building Tokio Runtime")
-                    .block_on(main_task(
+                    .block_on(iouring_task(
                         fd,
                         ring_size,
                         mtu,
@@ -154,23 +154,23 @@ fn push_one_tx_event_to(
     sq: &mut SubmissionQueue,
     bufs: &mut [Option<Bytes>],
     slot: SlotIdx,
-) -> Result<()> {
+) -> std::result::Result<(), SlotIdx> {
     let sqe = opcode::Write::new(Fixed(REGISTERED_FD_INDEX), buf.as_ptr(), buf.len() as _)
         .build()
         .user_data(slot.user_data());
+
+    #[allow(unsafe_code)]
+    // SAFETY: sqe points to a buffer on the heap, owned
+    // by a `Bytes` in `bufs[slot]`, we will not reuse
+    // `bufs[slot]` until `slot` is returned to the slots vector.
+    if unsafe { sq.push(&sqe) }.is_err() {
+        return Err(slot);
+    }
 
     // SAFETY: By construction instances of SlotIdx are always in bounds.
     #[allow(unsafe_code)]
     unsafe {
         *bufs.get_unchecked_mut(slot.idx()) = Some(buf)
-    };
-
-    // SAFETY: sqe points to a buffer on the heap, owned
-    // by a `Bytes` in `bufs[slot]`, we will not reuse
-    // `bufs[slot]` until `slot` is returned to the slots vector.
-    #[allow(unsafe_code)]
-    unsafe {
-        sq.push(&sqe)?
     };
 
     Ok(())
@@ -198,8 +198,10 @@ fn push_tx_events_to(
         match txq.try_recv() {
             Ok(buf) => {
                 let slot = slots.pop().expect("no tx slots left"); // we are inside `!slots.is_empty()`.
-
-                push_one_tx_event_to(buf, sq, bufs, slot)?;
+                if let Err(slot) = push_one_tx_event_to(buf, sq, bufs, slot) {
+                    slots.push(slot);
+                    break;
+                }
             }
             Err(mpsc::error::TryRecvError::Empty) => {
                 break;
@@ -244,13 +246,14 @@ fn push_rx_events_to(
                 )
                 .build()
                 .user_data(slot.user_data());
+                #[allow(unsafe_code)]
                 // SAFETY: sqe points to a buffer on the heap, owned
                 // by a `BytesMut` in `rx_bufs[slot]`, we will not reuse
                 // `rx_bufs[slot]` until `slot` is returned to the slots vector.
-                #[allow(unsafe_code)]
-                unsafe {
-                    sq.push(&sqe)?
-                };
+                if unsafe { sq.push(&sqe) }.is_err() {
+                    slots.push(slot);
+                    break;
+                }
             }
             None => break,
         }
@@ -259,7 +262,7 @@ fn push_rx_events_to(
     Ok(())
 }
 
-async fn main_task(
+async fn iouring_task(
     fd: RawFd,
     ring_size: usize,
     mtu: usize,
@@ -281,6 +284,7 @@ async fn main_task(
 
     // Using half of total io-uring size for rx and half for tx
     let nr_tx_rx_slots = (ring_size / 2) as isize;
+    tracing::info!(ring_size, nr_tx_rx_slots, "uring main task");
 
     let mut rx_slots: Vec<_> = (0..nr_tx_rx_slots).map(SlotIdx::Rx).collect();
     let mut rx_state: Vec<_> = rx_slots
@@ -294,38 +298,40 @@ async fn main_task(
         state.sender = Some(rx_queue.clone().reserve_owned().await?)
     }
 
+    let rx_sq_entries: Vec<_> = rx_slots
+        .drain(..)
+        .map(|slot| {
+            let state = &mut rx_state[slot.idx()];
+            opcode::Read::new(
+                Fixed(REGISTERED_FD_INDEX),
+                state.buf.as_mut_ptr(),
+                state.buf.capacity() as _,
+            )
+            .build()
+            .user_data(slot.user_data())
+        })
+        .collect();
+
+    // SAFETY: sqe points to a buffer on the heap, owned
+    // by a `BytesMut` in `rx_bufs[slot]`, we will not reuse
+    // `rx_bufs[slot]` until `slot` is returned to the slots vector.
+    #[allow(unsafe_code)]
+    unsafe {
+        let entries = rx_sq_entries;
+        // This call should not fail since the SubmissionQueue should be empty now
+        sq.push_multiple(&entries)?
+    };
+    sq.sync();
+
     let mut tx_slots: Vec<_> = (0..nr_tx_rx_slots).map(SlotIdx::Tx).collect();
     let mut tx_bufs = vec![None; tx_slots.len()];
 
-    tracing::info!(ring_size, nr_tx_rx_slots, "uring main task");
-
-    while let Some(slot) = rx_slots.pop() {
-        let state = &mut rx_state[slot.idx()];
-        let sqe = opcode::Read::new(
-            Fixed(REGISTERED_FD_INDEX),
-            state.buf.as_mut_ptr(),
-            state.buf.capacity() as _,
-        )
-        .build()
-        .user_data(slot.user_data());
-        // SAFETY: sqe points to a buffer on the heap, owned
-        // by a `BytesMut` in `rx_bufs[slot]`, we will not reuse
-        // `rx_bufs[slot]` until `slot` is returned to the slots vector.
-        #[allow(unsafe_code)]
-        unsafe {
-            sq.push(&sqe)?
-        };
-    }
-
-    sq.sync();
-
     let mut completion_count = 0;
-
     tracing::info!("Entering i/o uring loop");
 
     let start_time = std::time::Instant::now();
 
-    'io_loop: loop {
+    loop {
         metrics::tun_iouring_total_thread_time(start_time.elapsed());
         let _ = sbmt.submit()?;
 
@@ -348,19 +354,9 @@ async fn main_task(
                     metrics::tun_iouring_wake_tx();
 
                     let slot = tx_slots.pop().expect("no tx slots left"); // we are inside `!slots.is_empty()` guard.
-
-                    push_one_tx_event_to(buf, &mut sq, &mut tx_bufs, slot)?;
-                    push_tx_events_to(
-                        &sbmt,
-                        &mut sq,
-                        &mut tx_queue,
-                        &mut tx_slots,
-                        &mut tx_bufs,
-                    )?;
-
-                    sq.sync();
-
-                    continue 'io_loop;
+                    if let Err(slot) = push_one_tx_event_to(buf, &mut sq, &mut tx_bufs, slot) {
+                        tx_slots.push(slot);
+                    }
                 }
 
                 Ok(a) = event_fd.read(&mut completed_number) => {

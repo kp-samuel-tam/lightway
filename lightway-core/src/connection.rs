@@ -1322,7 +1322,7 @@ impl<AppState: Send> Connection<AppState> {
             IOCallbackResult::Err(err) => {
                 metrics::inside_io_send_failed(err);
             }
-            IOCallbackResult::WouldBlock => warn!("Send to inside IO would block"),
+            IOCallbackResult::WouldBlock => {}
         }
 
         Ok(())

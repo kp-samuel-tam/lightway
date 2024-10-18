@@ -1,6 +1,6 @@
 use metrics::{counter, Counter};
 use std::sync::LazyLock;
-use tracing::warn;
+use tracing::debug;
 use wolfssl::ProtocolVersion;
 
 static METRIC_CONNECTION_ALLOC_FRAG_MAP: LazyLock<Counter> =
@@ -25,6 +25,6 @@ pub(crate) fn wolfssl_appdata(tls_version: &ProtocolVersion) {
 
 /// A call to [`crate::io::InsideIOSendCallback::send`] failed
 pub(crate) fn inside_io_send_failed(err: std::io::Error) {
-    warn!(%err, "Failed to send to inside IO");
+    debug!(%err, "Failed to send to inside IO");
     METRIC_INSIDE_IO_SEND_FAILED.increment(1);
 }
