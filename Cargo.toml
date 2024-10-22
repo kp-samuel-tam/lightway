@@ -37,7 +37,7 @@ ipnet = { version = "2.8.0", features = ["serde"]}
 libc = "0.2.152"
 lightway-app-utils = { path = "./lightway-app-utils" }
 lightway-core = { path = "./lightway-core" }
-metrics = "0.23.0"
+metrics = "0.24.0"
 more-asserts = "0.3.1"
 pnet = "0.35.0"
 rand = "0.8.5"
