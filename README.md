@@ -78,7 +78,7 @@ Users are authenticated either using username and password or JWT
 tokens. Both schemes may be used simultaneously but each connection is
 authorized by one or the other (chosen by the client).
 
-#### User / Password
+##### User / Password
 
 A user database may be provided via the `user_db` option. This is in
 a format compatible with Apache htpasswd files and so can be managed
