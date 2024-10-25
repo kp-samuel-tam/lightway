@@ -180,6 +180,14 @@ impl<AppState: Send + 'static> ClientConnectionBuilder<AppState> {
         }
     }
 
+    /// Sets SNI header of the session
+    pub fn with_sni_header(self, server_hostname: &str) -> Self {
+        Self {
+            session_config: self.session_config.with_sni(server_hostname),
+            ..self
+        }
+    }
+
     /// Sets the maximum number of in-progress fragmented packets to support.
     pub fn with_fragment_map_entries(self, max_fragment_map_entries: NonZeroU16) -> Self {
         Self {
