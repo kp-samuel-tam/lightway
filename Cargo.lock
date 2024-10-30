@@ -1405,6 +1405,7 @@ dependencies = [
  "async-trait",
  "average",
  "bytes",
+ "bytesize",
  "clap",
  "ctrlc",
  "delegate",

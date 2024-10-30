@@ -5,6 +5,7 @@ mod ip_manager;
 mod metrics;
 mod statistics;
 
+use bytesize::ByteSize;
 // re-export so server app does not need to depend on lightway-core
 #[cfg(feature = "debug")]
 pub use lightway_core::enable_tls_debug;
@@ -133,6 +134,9 @@ pub struct ServerConfig<SA: for<'a> ServerAuth<AuthState<'a>>> {
 
     /// Enable PROXY protocol support (TCP only)
     pub proxy_protocol: bool,
+
+    /// UDP Buffer size for the server
+    pub udp_buffer_size: ByteSize,
 }
 
 pub async fn server<SA: for<'a> ServerAuth<AuthState<'a>> + Sync + Send + 'static>(
@@ -195,9 +199,14 @@ pub async fn server<SA: for<'a> ServerAuth<AuthState<'a>> + Sync + Send + 'stati
     tokio::spawn(statistics::run(conn_manager.clone(), ip_manager.clone()));
 
     let mut server: Box<dyn Server> = match connection_type {
-        ConnectionType::Datagram => {
-            Box::new(io::outside::UdpServer::new(conn_manager.clone(), config.bind_address).await?)
-        }
+        ConnectionType::Datagram => Box::new(
+            io::outside::UdpServer::new(
+                conn_manager.clone(),
+                config.bind_address,
+                config.udp_buffer_size,
+            )
+            .await?,
+        ),
         ConnectionType::Stream => Box::new(
             io::outside::TcpServer::new(
                 conn_manager.clone(),
