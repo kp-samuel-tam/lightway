@@ -6,9 +6,9 @@ use std::{
     ops::Deref,
     os::fd::{AsRawFd, RawFd},
 };
-use tun2::{AbstractDevice, AsyncDevice as TokioTun};
+use tun::{AbstractDevice, AsyncDevice as TokioTun};
 
-pub use tun2::Configuration as TunConfig;
+pub use tun::Configuration as TunConfig;
 
 #[cfg(feature = "io-uring")]
 use std::sync::Arc;
@@ -85,7 +85,7 @@ pub struct TunDirect {
 impl TunDirect {
     /// Create a new `Tun` struct
     pub fn new(config: TunConfig) -> Result<Self> {
-        let tun = tun2::create_as_async(&config)?;
+        let tun = tun::create_as_async(&config)?;
         let fd = tun.as_raw_fd();
         let mtu = tun.mtu()?;
 
