@@ -8,6 +8,7 @@ use std::{
 use anyhow::Result;
 use async_trait::async_trait;
 use bytes::BytesMut;
+use bytesize::ByteSize;
 use lightway_app_utils::sockopt::socket_enable_pktinfo;
 use lightway_core::{
     ConnectionType, Header, IOCallbackResult, OutsideIOSendCallback, OutsidePacket, SessionId,
@@ -20,8 +21,6 @@ use tracing::{info, warn};
 use crate::{connection_manager::ConnectionManager, metrics};
 
 use super::Server;
-
-const SOCKET_BUFFER_SIZE: usize = 15 * 1024 * 1024;
 
 enum BindMode {
     UnspecifiedAddress { local_port: u16 },
@@ -115,6 +114,7 @@ impl UdpServer {
     pub(crate) async fn new(
         conn_manager: Arc<ConnectionManager>,
         bind_address: SocketAddr,
+        udp_buffer_size: ByteSize,
     ) -> Result<UdpServer> {
         let sock = Arc::new(tokio::net::UdpSocket::bind(bind_address).await?);
 
@@ -129,8 +129,9 @@ impl UdpServer {
         };
 
         let socket = socket2::SockRef::from(&sock);
-        socket.set_send_buffer_size(SOCKET_BUFFER_SIZE)?;
-        socket.set_recv_buffer_size(SOCKET_BUFFER_SIZE)?;
+        let udp_buffer_size = udp_buffer_size.as_u64().try_into()?;
+        socket.set_send_buffer_size(udp_buffer_size)?;
+        socket.set_recv_buffer_size(udp_buffer_size)?;
 
         if bind_mode.needs_pktinfo() {
             socket_enable_pktinfo(&sock)?;
