@@ -211,6 +211,9 @@ async fn handle_events<A: 'static + Send + EventCallback>(
                 }
             }
             Event::KeepaliveReply => keepalive.reply_received().await,
+            Event::FirstPacketReceived => {
+                info!("First outside packet received");
+            }
 
             // Server only events
             Event::SessionIdRotationAcknowledged { .. }

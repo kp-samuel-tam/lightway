@@ -341,6 +341,9 @@ pub struct Connection<AppState: Send = ()> {
 
     /// Counter to use for `wire::DataFrag`
     fragment_counter: std::num::Wrapping<u16>,
+
+    // Is the first outside packet received
+    is_first_packet_received: bool,
 }
 
 /// Information about the new session being established with a new
@@ -400,6 +403,7 @@ impl<AppState: Send> Connection<AppState> {
                     .map(|t| dplpmtud::Dplpmtud::new(max_dtls_mtu(args.outside_mtu) as u16, t)),
             },
             fragment_counter: Wrapping(0),
+            is_first_packet_received: false,
         };
 
         // This will very likely fail since negotiation always needs
@@ -678,6 +682,11 @@ impl<AppState: Send> Connection<AppState> {
     /// In case of UDP, it is almost always one frame per packet. With duplicated
     /// UDP packets, count can be 0.
     pub fn outside_data_received(&mut self, pkt: OutsidePacket) -> ConnectionResult<usize> {
+        if !self.is_first_packet_received && matches!(self.mode, ConnectionMode::Client { .. }) {
+            self.event(Event::FirstPacketReceived);
+            self.is_first_packet_received = true;
+        }
+
         let pkt = pkt.apply_ingress_chain(&self.outside_plugins)?;
 
         let session_id = match pkt.header() {
