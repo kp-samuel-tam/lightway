@@ -326,7 +326,9 @@ async fn client<S: TestSock>(
     ticker_task.spawn(Arc::downgrade(&client), &mut join_set);
 
     let event_client = client.clone();
-    tokio::spawn(async move {
+
+    let mut is_first_packet_received = false;
+    let event_handler_handle = tokio::spawn(async move {
         let client = event_client;
         while let Some(event) = event_stream.next().await {
             println!("Client state changed to {:?}", event);
@@ -347,6 +349,11 @@ async fn client<S: TestSock>(
                 }
                 Event::TlsKeysUpdateStart => println!("Got TlsKeysUpdateStart"),
                 Event::TlsKeysUpdateCompleted => println!("Got TlsKeysUpdateEnd"),
+                Event::FirstPacketReceived => {
+                    assert!(!is_first_packet_received);
+                    println!("First packet received");
+                    is_first_packet_received = true;
+                }
             }
         }
     });
@@ -354,6 +361,12 @@ async fn client<S: TestSock>(
     let mut message_sent = false;
 
     loop {
+        if event_handler_handle.is_finished() {
+            // Event handler returning early. Fatal error.
+            let result = event_handler_handle.await;
+            panic!("Event handler returning early. Fatal error. {:?}", result);
+        }
+
         tokio::select! {
 
             // Inside data received

@@ -26,4 +26,8 @@ pub enum Event {
     ///
     /// Server connections only
     TlsKeysUpdateCompleted,
+    /// The first packet from the server has been received
+    ///
+    /// Client connections only
+    FirstPacketReceived,
 }
