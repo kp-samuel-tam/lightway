@@ -38,7 +38,7 @@ tokio-stream = { workspace = true, optional = true }
 tokio-util.workspace = true
 tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["json"] }
-tun2 = { version = "3", features = ["async"] }
+tun = { version = "0.7", features = ["async"] }
 
 [[example]]
 name = "udprelay"
