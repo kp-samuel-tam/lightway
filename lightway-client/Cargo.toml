@@ -21,7 +21,7 @@ workspace = true
 anyhow.workspace = true
 async-trait.workspace = true
 bytes.workspace = true
-bytesize = { version = "1.3.0", features = ["serde"] }
+bytesize.workspace = true
 clap.workspace = true
 ctrlc.workspace = true
 educe.workspace = true
