@@ -8,6 +8,8 @@ static METRIC_CONNECTION_ALLOC_FRAG_MAP: LazyLock<Counter> =
 const METRIC_WOLFSSL_APPDATA: &str = "wolfssl_appdata";
 static METRIC_INSIDE_IO_SEND_FAILED: LazyLock<Counter> =
     LazyLock::new(|| counter!("inside_io_send_failed"));
+static METRIC_SESSION_ID_MISMATCH: LazyLock<Counter> =
+    LazyLock::new(|| counter!("session_id_mismatch"));
 
 static TLS_PROTOCOL_VERSION_LABEL: &str = "tls_protocol_version";
 
@@ -27,4 +29,9 @@ pub(crate) fn wolfssl_appdata(tls_version: &ProtocolVersion) {
 pub(crate) fn inside_io_send_failed(err: std::io::Error) {
     debug!(%err, "Failed to send to inside IO");
     METRIC_INSIDE_IO_SEND_FAILED.increment(1);
+}
+
+/// Server has received a mismatched session_id in the header after the packet content has been validated
+pub(crate) fn session_id_mismatch() {
+    METRIC_SESSION_ID_MISMATCH.increment(1);
 }

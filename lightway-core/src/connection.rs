@@ -1017,7 +1017,7 @@ impl<AppState: Send> Connection<AppState> {
                         self.event(Event::SessionIdRotationAcknowledged { old, new });
                     }
                     // Session id in server is only used to look up the session if it was not found by client IP/Port, so a mismatch here won't affect anything.
-                    _ => {}
+                    _ => metrics::session_id_mismatch(),
                 }
             }
         }
