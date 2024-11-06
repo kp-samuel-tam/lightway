@@ -712,7 +712,13 @@ impl<AppState: Send> Connection<AppState> {
             return Err(ConnectionError::RejectedSessionID);
         };
 
-        self.process_new_outside_data(payload, session_id)
+        let result = self.process_new_outside_data(payload);
+        match result {
+            // We only look into the session id after we verify the connection is valid
+            Ok(frames_read) if frames_read > 0 => self.update_session_id(session_id),
+            _ => {}
+        }
+        result
     }
 
     /// Consume data received from inside path and send it as
@@ -975,25 +981,27 @@ impl<AppState: Send> Connection<AppState> {
         self.handle_pmtud_action(action)
     }
 
-    /// Update the session id for the connection
-    fn update_session_id(&mut self, session_id: wire::SessionId) -> ConnectionResult<()> {
+    /// Update the session id (only the one we wanted to rotate to) after the connection is validated.
+    fn update_session_id(&mut self, session_id: Option<wire::SessionId>) {
         use ConnectionMode::*;
 
+        let Some(session_id) = session_id else {
+            return;
+        };
+
         if session_id == wire::SessionId::EMPTY {
-            return Ok(());
+            return;
         }
 
         // No update required
         if session_id == self.session_id {
-            return Ok(());
+            return;
         }
 
         match self.mode {
-            // Clients always take the update
             Client { .. } => {
                 self.session_id = session_id;
                 self.session.io_cb_mut().set_session_id(session_id);
-                Ok(())
             }
             Server {
                 ref mut pending_session_id,
@@ -1007,13 +1015,9 @@ impl<AppState: Send> Connection<AppState> {
                         *pending_session_id = None;
 
                         self.event(Event::SessionIdRotationAcknowledged { old, new });
-
-                        Ok(())
                     }
-                    // Server session does not match current session (due to
-                    // check before the `match` above) nor the pending one
-                    // (due to the guard on the previous case in this match).
-                    Some(_) | None => Err(ConnectionError::UnknownSessionID),
+                    // Session id in server is only used to look up the session if it was not found by client IP/Port, so a mismatch here won't affect anything.
+                    _ => metrics::session_id_mismatch(),
                 }
             }
         }
@@ -1069,17 +1073,9 @@ impl<AppState: Send> Connection<AppState> {
         }
     }
 
-    fn process_new_outside_data(
-        &mut self,
-        buf: &BytesMut,
-        session_id: Option<wire::SessionId>,
-    ) -> ConnectionResult<usize> {
+    fn process_new_outside_data(&mut self, buf: &BytesMut) -> ConnectionResult<usize> {
         let outside_received_pending = &mut self.session.io_cb_mut().recv_buf;
         outside_received_pending.extend_from_slice(&buf[..]);
-
-        if let Some(session_id) = session_id {
-            self.update_session_id(session_id)?;
-        }
 
         self.activity.last_outside_data_received = Instant::now();
         let frame_read_count_result = match self.state {
