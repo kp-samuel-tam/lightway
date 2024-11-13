@@ -2,10 +2,13 @@ use anyhow::Result;
 use bytes::BytesMut;
 use lightway_core::IOCallbackResult;
 
+#[cfg(feature = "io-uring")]
+use std::time::Duration;
 use std::{
     ops::Deref,
     os::fd::{AsRawFd, RawFd},
 };
+
 use tun::{AbstractDevice, AsyncDevice as TokioTun};
 
 pub use tun::Configuration as TunConfig;
@@ -33,8 +36,14 @@ impl Tun {
 
     /// Create new `Tun` instance with iouring read/write
     #[cfg(feature = "io-uring")]
-    pub async fn iouring(config: TunConfig, ring_size: usize) -> Result<Self> {
-        Ok(Self::IoUring(TunIoUring::new(config, ring_size).await?))
+    pub async fn iouring(
+        config: TunConfig,
+        ring_size: usize,
+        sqpoll_idle_time: Duration,
+    ) -> Result<Self> {
+        Ok(Self::IoUring(
+            TunIoUring::new(config, ring_size, sqpoll_idle_time).await?,
+        ))
     }
 
     /// Recv a packet from `Tun`
@@ -143,10 +152,15 @@ pub struct TunIoUring {
 #[cfg(feature = "io-uring")]
 impl TunIoUring {
     /// Create `TunIoUring` struct
-    pub async fn new(config: TunConfig, ring_size: usize) -> Result<Self> {
+    pub async fn new(
+        config: TunConfig,
+        ring_size: usize,
+        sqpoll_idle_time: Duration,
+    ) -> Result<Self> {
         let tun = TunDirect::new(config)?;
         let mtu = tun.mtu();
-        let tun_io_uring = IOUring::new(Arc::new(tun), ring_size, ring_size, mtu).await?;
+        let tun_io_uring =
+            IOUring::new(Arc::new(tun), ring_size, ring_size, mtu, sqpoll_idle_time).await?;
 
         Ok(TunIoUring { tun_io_uring })
     }

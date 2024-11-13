@@ -11,6 +11,7 @@ use pnet::packet::ipv4::MutableIpv4Packet;
 
 use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::net::UdpSocket;
 use tokio_tun::Tun;
 
@@ -196,7 +197,14 @@ struct TunIOUring {
 
 impl TunIOUring {
     async fn new(tun: Tun, ring_size: usize, channel_size: usize) -> Result<Self> {
-        let tun_iouring = IOUring::new(Arc::new(tun), ring_size, channel_size, TUN_MTU).await?;
+        let tun_iouring = IOUring::new(
+            Arc::new(tun),
+            ring_size,
+            channel_size,
+            TUN_MTU,
+            Duration::from_millis(100),
+        )
+        .await?;
 
         Ok(Self { tun_iouring })
     }

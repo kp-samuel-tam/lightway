@@ -132,6 +132,7 @@ async fn main() -> Result<()> {
         enable_pqc: config.enable_pqc,
         enable_tun_iouring: config.enable_tun_iouring,
         iouring_entry_count: config.iouring_entry_count,
+        iouring_sqpoll_idle_time: config.iouring_sqpoll_idle_time.into(),
         key_update_interval: config.key_update_interval.into(),
         inside_plugins: Default::default(),
         outside_plugins: Default::default(),

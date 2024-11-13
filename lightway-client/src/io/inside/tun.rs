@@ -1,4 +1,6 @@
 use std::net::Ipv4Addr;
+#[cfg(feature = "io-uring")]
+use std::time::Duration;
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -24,11 +26,13 @@ impl Tun {
         tun: TunConfig,
         ip: Ipv4Addr,
         dns_ip: Ipv4Addr,
-        #[cfg(feature = "io-uring")] iouring: Option<usize>,
+        #[cfg(feature = "io-uring")] iouring: Option<(usize, Duration)>,
     ) -> Result<Self> {
         #[cfg(feature = "io-uring")]
         let tun = match iouring {
-            Some(ring_size) => AppUtilsTun::iouring(tun, ring_size).await?,
+            Some((ring_size, sqpoll_idle_time)) => {
+                AppUtilsTun::iouring(tun, ring_size, sqpoll_idle_time).await?
+            }
             None => AppUtilsTun::direct(tun).await?,
         };
         #[cfg(not(feature = "io-uring"))]
