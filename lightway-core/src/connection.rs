@@ -1334,6 +1334,10 @@ impl<AppState: Send> Connection<AppState> {
     }
 
     fn handle_outside_data_packet(&mut self, data: wire::Data) -> ConnectionResult<()> {
+        if !matches!(self.state, State::Online) {
+            return Err(ConnectionError::InvalidState);
+        }
+
         // into_owned should be a NOP here since
         // `wire::Data::try_from_wire` produced a `Cow::Owned`
         // variant.
@@ -1341,6 +1345,10 @@ impl<AppState: Send> Connection<AppState> {
     }
 
     fn handle_outside_data_fragment(&mut self, frag: wire::DataFrag) -> ConnectionResult<()> {
+        if !matches!(self.state, State::Online) {
+            return Err(ConnectionError::InvalidState);
+        }
+
         match self.fragment_map.add_fragment(frag) {
             FragmentMapResult::Complete(data) => {
                 self.handle_outside_data_bytes(data)?;
