@@ -6,6 +6,8 @@ yanked = "deny"
 ignore = [
     # yaml_rust is unmaintained, which is a dependency of twelf. Ignoring until its fixed
     "RUSTSEC-2024-0320",
+    # instant is unmaintained, which is a dependency of tokio-eventfd. Ignoring until its fixed
+    "RUSTSEC-2024-0384",
 ]
 
 [licenses]
@@ -56,6 +58,8 @@ skip = [
     { name = "serde_yaml", version = "0.8.26" },
     { name = "strsim", version = "0.10.0" },
     { name = "syn", version = "1.0.109" },
+    { name = "thiserror", version = "1.0.69" },
+    { name = "thiserror-impl", version = "1.0.69" },
     { name = "windows-sys", version = "0.52.0" },
 ]
 
