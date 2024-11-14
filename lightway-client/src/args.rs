@@ -102,6 +102,12 @@ pub struct Config {
     #[clap(long, default_value_t = 1024)]
     pub iouring_entry_count: usize,
 
+    /// IO-uring sqpoll idle time. If non-zero use a kernel thread to
+    /// perform submission queue polling. After the given idle time
+    /// the thread will go to sleep.
+    #[clap(long, default_value = "100ms")]
+    pub iouring_sqpoll_idle_time: Duration,
+
     /// Server domain name
     #[clap(long, default_value = None)]
     pub server_dn: Option<String>,

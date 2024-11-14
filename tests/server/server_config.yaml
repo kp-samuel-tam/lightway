@@ -18,6 +18,7 @@ log_format: full
 log_level: info
 enable_pqc: false
 enable_tun_iouring: false
+# iouring_sqpoll_idle_time: 100ms
 iouring_entry_count: 1024
 key_update_interval: 15m
 user_db: "tests/server/lwpasswd"

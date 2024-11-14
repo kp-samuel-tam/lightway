@@ -96,6 +96,8 @@ async fn main() -> Result<()> {
         enable_tun_iouring: config.enable_tun_iouring,
         #[cfg(feature = "io-uring")]
         iouring_entry_count: config.iouring_entry_count,
+        #[cfg(feature = "io-uring")]
+        iouring_sqpoll_idle_time: config.iouring_sqpoll_idle_time.into(),
         server_dn: config.server_dn,
         server: config.server,
         inside_plugins: Default::default(),

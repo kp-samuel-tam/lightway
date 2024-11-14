@@ -134,6 +134,12 @@ pub struct ClientConfig<'cert, A: 'static + Send + EventCallback> {
     #[cfg(feature = "io-uring")]
     pub iouring_entry_count: usize,
 
+    /// IO-uring sqpoll idle time. If non-zero use a kernel thread to
+    /// perform submission queue polling. After the given idle time
+    /// the thread will go to sleep.
+    #[cfg(feature = "io-uring")]
+    pub iouring_sqpoll_idle_time: Duration,
+
     /// Server domain name to validate
     pub server_dn: Option<String>,
 
@@ -388,7 +394,7 @@ pub async fn client<A: 'static + Send + EventCallback>(
 
     #[cfg(feature = "io-uring")]
     let iouring = if config.enable_tun_iouring {
-        Some(config.iouring_entry_count)
+        Some((config.iouring_entry_count, config.iouring_sqpoll_idle_time))
     } else {
         None
     };

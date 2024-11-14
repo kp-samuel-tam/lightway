@@ -5,13 +5,14 @@ use thiserror::Error;
 
 use crate::metrics;
 use io_uring::{
-    cqueue::Entry as CEntry, opcode, squeue::Entry as SEntry, types::Fixed, IoUring,
+    cqueue::Entry as CEntry, opcode, squeue::Entry as SEntry, types::Fixed, Builder, IoUring,
     SubmissionQueue, Submitter,
 };
 use std::{
     os::fd::{AsRawFd, RawFd},
     sync::Arc,
     thread,
+    time::Duration,
 };
 use tokio::{
     io::AsyncReadExt,
@@ -20,7 +21,6 @@ use tokio::{
 use tokio_eventfd::EventFd;
 
 const REGISTERED_FD_INDEX: u32 = 0;
-const IOURING_SQPOLL_IDLE_TIME: u32 = 100;
 
 /// IO-uring Struct
 pub struct IOUring<T: AsRawFd> {
@@ -52,6 +52,7 @@ impl<T: AsRawFd> IOUring<T> {
         ring_size: usize,
         channel_size: usize,
         mtu: usize,
+        sqpoll_idle_time: Duration,
     ) -> Result<Self> {
         let fd = owned_fd.as_raw_fd();
 
@@ -68,6 +69,7 @@ impl<T: AsRawFd> IOUring<T> {
                         fd,
                         ring_size,
                         mtu,
+                        sqpoll_idle_time,
                         tx_queue_receiver,
                         rx_queue_sender,
                     ))
@@ -266,13 +268,22 @@ async fn iouring_task(
     fd: RawFd,
     ring_size: usize,
     mtu: usize,
+    sqpoll_idle_time: Duration,
     mut tx_queue: mpsc::Receiver<Bytes>,
     rx_queue: mpsc::Sender<BytesMut>,
 ) -> Result<()> {
     let mut event_fd: EventFd = EventFd::new(0, false)?;
-    let mut ring: IoUring<SEntry, CEntry> = IoUring::builder()
+    let mut builder: Builder<SEntry, CEntry> = IoUring::builder();
+
+    if sqpoll_idle_time.as_millis() > 0 {
+        let idle_time: u32 = sqpoll_idle_time
+            .as_millis()
+            .try_into()
+            .with_context(|| "invalid sqpoll idle time")?;
         // This setting makes CPU go 100% when there is continuous traffic
-        .setup_sqpoll(IOURING_SQPOLL_IDLE_TIME) // Needs 5.13
+        builder.setup_sqpoll(idle_time); // Needs 5.13
+    }
+    let mut ring = builder
         .build(ring_size as u32)
         .inspect_err(|e| tracing::error!("iouring setup failed: {e}"))?;
 
@@ -284,7 +295,12 @@ async fn iouring_task(
 
     // Using half of total io-uring size for rx and half for tx
     let nr_tx_rx_slots = (ring_size / 2) as isize;
-    tracing::info!(ring_size, nr_tx_rx_slots, "uring main task");
+    tracing::info!(
+        ring_size,
+        nr_tx_rx_slots,
+        ?sqpoll_idle_time,
+        "uring main task"
+    );
 
     let mut rx_slots: Vec<_> = (0..nr_tx_rx_slots).map(SlotIdx::Rx).collect();
     let mut rx_state: Vec<_> = rx_slots

@@ -118,6 +118,9 @@ pub struct ServerConfig<SA: for<'a> ServerAuth<AuthState<'a>>> {
     /// IO-uring submission queue count
     pub iouring_entry_count: usize,
 
+    /// IO-uring sqpoll idle time.
+    pub iouring_sqpoll_idle_time: Duration,
+
     /// The key update interval for DTLS/TLS 1.3 connections
     pub key_update_interval: Duration,
 
@@ -173,7 +176,7 @@ pub async fn server<SA: for<'a> ServerAuth<AuthState<'a>> + Sync + Send + 'stati
     let auth = Arc::new(AuthAdapter(config.auth));
 
     let iouring = if config.enable_tun_iouring {
-        Some(config.iouring_entry_count)
+        Some((config.iouring_entry_count, config.iouring_sqpoll_idle_time))
     } else {
         None
     };
