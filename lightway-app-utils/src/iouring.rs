@@ -342,32 +342,20 @@ async fn iouring_task(
     let mut tx_slots: Vec<_> = (0..nr_tx_rx_slots).map(SlotIdx::Tx).collect();
     let mut tx_bufs = vec![None; tx_slots.len()];
 
-    let mut completion_count = 0;
     tracing::info!("Entering i/o uring loop");
 
-    let start_time = std::time::Instant::now();
-
     loop {
-        metrics::tun_iouring_total_thread_time(start_time.elapsed());
         let _ = sbmt.submit()?;
 
         cq.sync();
 
         if cq.is_empty() && tx_queue.is_empty() {
-            metrics::tun_iouring_blocked();
-            metrics::tun_iouring_completions_before_blocking(completion_count);
-
-            completion_count = 0;
-
             let mut completed_number: [u8; 8] = [0; 8];
-            let start_time = std::time::Instant::now();
             tokio::select! {
                 // There is no "wait until the queue contains
                 // something" method so we have to actually receive
                 // and treat that as a special case.
                 Some(buf) = tx_queue.recv(), if !tx_slots.is_empty() && !sq.is_full() => {
-                    metrics::tun_iouring_idle_thread_time(start_time.elapsed());
-                    metrics::tun_iouring_wake_tx();
 
                     let slot = tx_slots.pop().expect("no tx slots left"); // we are inside `!slots.is_empty()` guard.
                     if let Err(slot) = push_one_tx_event_to(buf, &mut sq, &mut tx_bufs, slot) {
@@ -376,8 +364,6 @@ async fn iouring_task(
                 }
 
                 Ok(a) = event_fd.read(&mut completed_number) => {
-                    metrics::tun_iouring_idle_thread_time(start_time.elapsed());
-                    metrics::tun_iouring_wake_eventfd();
                     assert_eq!(a, 8);
                 },
 
@@ -393,8 +379,6 @@ async fn iouring_task(
 
         sq.sync();
 
-        completion_count += cq.len();
-        metrics::tun_iouring_completion_batch_size(cq.len());
         for cqe in &mut cq {
             let res = cqe.result();
             let slot = SlotIdx::from_user_data(cqe.user_data());
@@ -424,9 +408,7 @@ async fn iouring_task(
                         } else {
                             panic!("inflight rx state with no sender!");
                         };
-                    } else if res == -libc::EAGAIN {
-                        metrics::tun_iouring_rx_eagain();
-                    } else {
+                    } else if res != -libc::EAGAIN {
                         metrics::tun_iouring_rx_err();
                     };
 
