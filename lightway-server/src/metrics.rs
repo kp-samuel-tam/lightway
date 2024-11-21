@@ -61,8 +61,7 @@ static METRIC_TUN_REJECTED_INVALID_STATE: LazyLock<Counter> =
     LazyLock::new(|| counter!("tun_rejected_packet_invalid_state"));
 static METRIC_TUN_REJECTED_INVALID_INSIDE_PACKET: LazyLock<Counter> =
     LazyLock::new(|| counter!("tun_rejected_packet_invalid_inside_packet"));
-static METRIC_TUN_REJECTED_OTHER: LazyLock<Counter> =
-    LazyLock::new(|| counter!("tun_rejected_packet_invalid_other"));
+static METRIC_TUN_REJECTED_OTHER: &str = "tun_rejected_packet_invalid_other";
 static METRIC_TUN_REJECTED_NO_CONNECTION: LazyLock<Counter> =
     LazyLock::new(|| counter!("tun_rejected_packet_no_connection"));
 static METRIC_TUN_REJECTED_NO_CLIENT_IP: LazyLock<Counter> =
@@ -279,8 +278,8 @@ pub(crate) fn tun_rejected_packet_invalid_inside_packet() {
 }
 
 /// Tunnel rejected packet, other reasons
-pub(crate) fn tun_rejected_packet_invalid_other() {
-    METRIC_TUN_REJECTED_OTHER.increment(1);
+pub(crate) fn tun_rejected_packet_invalid_other(fatal: bool) {
+    counter!(METRIC_TUN_REJECTED_OTHER, FATAL_LABEL => fatal.to_string()).increment(1);
 }
 
 /// Tunnel rejected packet, no corresponding
