@@ -137,7 +137,6 @@ async fn handle_connection(
         match sock.try_read_buf(&mut buf) {
             Ok(0) => {
                 // EOF
-                conn.handle_end_of_stream();
                 break anyhow!("End of stream");
             }
             Ok(_nr) => {}
@@ -156,6 +155,8 @@ async fn handle_connection(
             }
         }
     };
+
+    conn.handle_end_of_stream();
 
     info!("Connection closed: {:?}", err);
 }
