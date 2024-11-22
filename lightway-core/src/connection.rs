@@ -869,8 +869,8 @@ impl<AppState: Send> Connection<AppState> {
         let msg = wire::Frame::Goodbye;
 
         // here, goodbye + shutdown are just a courtesy.
-        self.send_frame_or_drop(msg)?;
-        let _ = self.session.try_shutdown()?;
+        let _ = self.send_frame_or_drop(msg);
+        let _ = self.session.try_shutdown();
 
         self.set_state(State::Disconnected)?;
 

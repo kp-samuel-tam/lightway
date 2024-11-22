@@ -253,9 +253,11 @@ pub async fn server<SA: for<'a> ServerAuth<AuthState<'a>> + Sync + Send + 'stati
                         metrics::tun_rejected_packet_invalid_inside_packet();
                     }
                     Err(err) => {
-                        metrics::tun_rejected_packet_invalid_other();
-                        // TODO: fatal vs non-fatal;
-                        break Err(anyhow!(err).context("Inside data handling error"));
+                        let fatal = err.is_fatal(conn.connection_type());
+                        metrics::tun_rejected_packet_invalid_other(fatal);
+                        if fatal {
+                            conn.handle_end_of_stream();
+                        }
                     }
                 }
             } else {
