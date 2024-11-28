@@ -3,8 +3,13 @@ ARG --global debian
 
 build-container:
     ARG TOKIO_WORKER_THREADS
+    ARG KYBER_CLIENT
     FROM ../base+container --debian=$debian
-    COPY (../..+build/lightway-client --debian=$debian) .
+    IF [ "$KYBER_CLIENT" = "true" ]
+        COPY (../..+build-kyber-client/lightway-client --debian=$debian) .
+    ELSE
+        COPY (../..+build/lightway-client --debian=$debian) .
+    END
     COPY --dir ../certs+client/* tests/certs/
     COPY --dir docker-entrypoint.sh client_config.yaml run-test-inside.sh .
     HEALTHCHECK --interval=1s --timeout=1s --start-period=0s --retries=30 CMD ping -c1 nginx

@@ -61,6 +61,17 @@ build:
 build-arm64:
     BUILD +build --ARCH="arm64"
 
+build-kyber-client:
+    FROM +source
+    ARG ARCH=$(dpkg --print-architecture)
+    LET target = "x86_64-unknown-linux-gnu"
+
+    IF [ "$ARCH" = "arm64" ]
+        SET target = "aarch64-unknown-linux-gnu" 
+    END
+    DO lib-rust+CARGO --args="build --release --features kyber_only --target=$target --bin lightway-client --target-dir ./lightway-client-kyber" --output="lightway-client-kyber/$target/release/lightway-client"
+    SAVE ARTIFACT ./lightway-client-kyber/$target/release/lightway-client AS LOCAL ./target/$target/release/lightway-client-kyber
+
 # test executes all unit and integration tests via Cargo, in the host's native platform
 test:
     FROM +source
@@ -72,6 +83,7 @@ test:
     END
 
     DO lib-rust+CARGO --args="test --target=$target"
+    DO lib-rust+CARGO --args="test --features kyber_only --target=$target"
 
 # test-miri runs tests for modules which make use of `unsafe` under Miri.
 test-miri:

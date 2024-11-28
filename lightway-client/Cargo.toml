@@ -13,6 +13,7 @@ default = ["postquantum", "io-uring"]
 debug = ["lightway-core/debug"]
 io-uring = ["lightway-app-utils/io-uring"]
 postquantum = ["lightway-core/postquantum"]
+kyber_only = ["postquantum", "lightway-core/kyber_only"]
 
 [lints]
 workspace = true
