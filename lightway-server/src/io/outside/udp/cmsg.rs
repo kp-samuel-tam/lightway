@@ -46,7 +46,7 @@ pub enum Message<'a> {
     Unknown(#[allow(dead_code)] &'a libc::cmsghdr),
 }
 
-impl<'a> Message<'a> {
+impl Message<'_> {
     pub(crate) const fn space<T>() -> usize {
         // SAFETY: CMSG_SPACE is always safe
         unsafe { libc::CMSG_SPACE(std::mem::size_of::<T>() as libc::c_uint) as usize }
@@ -154,7 +154,7 @@ pub(crate) struct BufferBuilder<'a, const N: usize> {
     _phantom: std::marker::PhantomData<&'a mut Buffer<N>>,
 }
 
-impl<'a, const N: usize> BufferBuilder<'a, N> {
+impl<const N: usize> BufferBuilder<'_, N> {
     pub(crate) fn fill_next<T>(
         &mut self,
         cmsg_level: libc::c_int,

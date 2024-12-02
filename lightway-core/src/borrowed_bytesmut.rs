@@ -80,7 +80,7 @@ impl<'a> BorrowedBytesMut<'a> {
 /// `bytes::Buf` trait for `BorrowedBytesMut`
 /// These are the only required methods. All get_* helpers are provided
 /// from the trait
-impl<'a> Buf for BorrowedBytesMut<'a> {
+impl Buf for BorrowedBytesMut<'_> {
     fn remaining(&self) -> usize {
         self.len()
     }
@@ -103,7 +103,7 @@ impl<'a> Buf for BorrowedBytesMut<'a> {
     }
 }
 
-impl<'a> Deref for BorrowedBytesMut<'a> {
+impl Deref for BorrowedBytesMut<'_> {
     type Target = [u8];
 
     fn deref(&self) -> &Self::Target {
