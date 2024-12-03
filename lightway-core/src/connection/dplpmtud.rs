@@ -54,7 +54,6 @@ const PMTU_RAISE_TIMER_TIMEOUT: Duration = Duration::from_secs(600);
 ///
 /// Here the "Packetization Layer" is "Lightway" itself (not
 /// including DTLS or lower layers)
-
 fn probe_payload_size_for_plpmtu(plpmtu: u16) -> u16 {
     let overhead = std::mem::size_of::<wire::FrameKind>() + wire::Ping::WIRE_OVERHEAD;
     debug_assert_ge!(plpmtu, overhead as u16);

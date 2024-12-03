@@ -28,7 +28,7 @@ pub(crate) struct Data<'data> {
     pub(crate) data: Cow<'data, BytesMut>,
 }
 
-impl<'data> Data<'data> {
+impl Data<'_> {
     /// Wire overhead in bytes
     const WIRE_OVERHEAD: usize = 2;
 

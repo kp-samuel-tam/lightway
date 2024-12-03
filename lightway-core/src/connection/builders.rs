@@ -365,6 +365,6 @@ impl<'a, AppState: Send + 'static> ServerConnectionBuilder<'a, AppState> {
     }
 }
 
-impl<'a, AppState> BuilderPredicates for ServerConnectionBuilder<'a, AppState> {
+impl<AppState> BuilderPredicates for ServerConnectionBuilder<'_, AppState> {
     type Error = ConnectionBuilderError;
 }

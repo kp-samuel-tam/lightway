@@ -299,7 +299,7 @@ pub(crate) enum Frame<'data> {
     DataFrag(data_frag::DataFrag),
 }
 
-impl<'data> Frame<'data> {
+impl Frame<'_> {
     pub(crate) fn kind(&self) -> FrameKind {
         match self {
             Self::NoOp => FrameKind::NoOp,
@@ -567,7 +567,7 @@ mod test_frame {
     #[test_case(&[0x0c] => Frame::Goodbye; "goodbye")]
     #[test_case(b"\x0e\x00\x0dserver config" => Frame::ServerConfig(ServerConfig{ data: Bytes::from_static(b"server config")}); "server config")]
     #[test_case(b"\x0f\x00\x0b\x12\x34\x2a\xcffragmentary"=> Frame::DataFrag(DataFrag{ id: 0x1234, offset: 0x5678, more_fragments: true, data: Bytes::from_static(b"fragmentary") }) ; "data frag")]
-    fn try_from_wire(buf: &'static [u8]) -> Frame {
+    fn try_from_wire(buf: &'static [u8]) -> Frame<'static> {
         let mut buf = BytesMut::from(buf);
         let r = Frame::try_from_wire(&mut buf).unwrap();
         assert!(buf.is_empty(), "Should consume entire frame");

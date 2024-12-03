@@ -33,7 +33,7 @@ pub(crate) struct VacantEntry<'a, T> {
     session_id_map: &'a mut HashMap<SessionId, Arc<T>>,
 }
 
-impl<'a, T: Value> VacantEntry<'a, T> {
+impl<T: Value> VacantEntry<'_, T> {
     pub(crate) fn insert(self, value: &Arc<T>) -> Result<(), InsertError> {
         if self.socket_addr_entry.key() != &value.socket_addr() {
             return Err(InsertError::InconsistentSocketAddr);
