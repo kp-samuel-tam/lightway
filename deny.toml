@@ -25,12 +25,12 @@ allow = [
 ]
 confidence-threshold = 0.8
 exceptions = [
-    { name = "wolfssl", allow = ["GPL-2.0"], version = "*" },
-    { name = "wolfssl-sys", allow = ["GPL-2.0"], version = "*" },
-    { name = "lightway-client", allow = ["GPL-2.0"], version = "*" },
-    { name = "lightway-core", allow = ["GPL-2.0"], version = "*" },
-    { name = "lightway-server", allow = ["GPL-2.0"], version = "*" },
-    { name = "lightway-app-utils", allow = ["GPL-2.0"], version = "*" },
+    { name = "wolfssl", allow = ["GPL-3.0"], version = "*" },
+    { name = "wolfssl-sys", allow = ["GPL-3.0"], version = "*" },
+    { name = "lightway-client", allow = ["AGPL-3.0"], version = "*" },
+    { name = "lightway-core", allow = ["AGPL-3.0"], version = "*" },
+    { name = "lightway-server", allow = ["AGPL-3.0"], version = "*" },
+    { name = "lightway-app-utils", allow = ["AGPL-3.0"], version = "*" },
 ]
 
 [licenses.private]
