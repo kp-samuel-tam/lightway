@@ -22,7 +22,7 @@ Protocol and design documentation can be found in the
 
 ## Supported platforms
 
-Lightway rust implementation currently supports Linux OS. Both x86_64 and arm64 platforms are
+Lightway Rust implementation currently supports Linux OS. Both x86_64 and arm64 platforms are
 supported and built as part of CI.
 
 Support for other platforms will be added soon.
@@ -103,6 +103,13 @@ or `-5` to pick a different algorithm.
 
 [`htpasswd(1)`]: https://httpd.apache.org/docs/2.4/programs/htpasswd.html
 [`pwhash`]: https://crates.io/crates/pwhash
+
+> [!CAUTION]
+> The widely used but basic `htpasswd(1)` username / password database format 
+> was chosen here to provide an easy-to-setup reference implementation of 
+> Lightway. Users of the open surce community are encouraged to modify this
+> implementation with more advanced username / password authentication mechanisms
+> and their own choice of password hashing algorithms to suit their security > needs. 
 
 Please note that when providing env variables it should be in upper case and using "_" as a word separator,
 while using as cli config, it should be in lower case with "-" as the word separator.
