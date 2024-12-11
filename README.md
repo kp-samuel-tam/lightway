@@ -107,9 +107,9 @@ or `-5` to pick a different algorithm.
 > [!CAUTION]
 > The widely used but basic `htpasswd(1)` username / password database format 
 > was chosen here to provide an easy-to-setup reference implementation of 
-> Lightway. Users of the open surce community are encouraged to modify this
-> implementation with more advanced username / password authentication mechanisms
-> and their own choice of password hashing algorithms to suit their security > needs. 
+> Lightway. Users are encouraged to modify this implementation with more advanced 
+> username / password authentication mechanisms and their own choice of password 
+> hashing algorithms to suit their security needs. 
 
 Please note that when providing env variables it should be in upper case and using "_" as a word separator,
 while using as cli config, it should be in lower case with "-" as the word separator.
