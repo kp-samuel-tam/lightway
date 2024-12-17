@@ -32,7 +32,7 @@ async fn main() -> Result<()> {
         return Err(anyhow!("Config file not present"));
     };
 
-    validate_configuration_file_path(config_file, Validate::AllowWorldRead)
+    validate_configuration_file_path(config_file, Validate::OwnerOnly)
         .with_context(|| format!("Invalid configuration file {}", config_file.display()))?;
 
     let mut config = Config::with_layers(&[

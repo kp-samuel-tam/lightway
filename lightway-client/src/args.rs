@@ -21,7 +21,7 @@ pub struct Config {
     /// Auth token
     /// If both token and user/pass are provided, token auth will
     /// be used. user/pass will be ignored in this case
-    #[clap(long)]
+    #[clap(long, hide = true)]
     pub token: Option<String>,
 
     /// Username for auth
