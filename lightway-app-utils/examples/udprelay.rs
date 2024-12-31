@@ -10,10 +10,11 @@ use lightway_core::IOCallbackResult;
 use pnet::packet::ipv4::MutableIpv4Packet;
 
 use std::net::{Ipv4Addr, SocketAddr};
+use std::os::fd::AsRawFd;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::UdpSocket;
-use tokio_tun::Tun;
+use tun::{AsyncDevice as Tun, Configuration as TunConfig};
 
 const PORT: u16 = 40890;
 const CHANNEL_SIZE: usize = 32 * 1024;
@@ -57,13 +58,14 @@ fn tun_peer_addr() -> Ipv4Addr {
 }
 
 async fn build_tun(name: String) -> Result<Tun> {
-    let tun = Tun::builder()
-        .name(&name[..])
+    let mut tun_config = TunConfig::default();
+    tun_config
+        .tun_name(&name[..])
         .mtu(TUN_MTU as _)
         .address(tun_local_addr())
         .destination(tun_peer_addr())
-        .up()
-        .try_build()?;
+        .up();
+    let tun = tun::create_as_async(&tun_config)?;
     Ok(tun)
 }
 
@@ -190,15 +192,22 @@ impl TunAdapter for TunChannel {
     }
 }
 
+struct WrappedTun(Tun);
+impl AsRawFd for WrappedTun {
+    fn as_raw_fd(&self) -> std::os::unix::prelude::RawFd {
+        self.0.as_raw_fd()
+    }
+}
+
 #[allow(dead_code)]
 struct TunIOUring {
-    tun_iouring: IOUring<Tun>,
+    tun_iouring: IOUring<WrappedTun>,
 }
 
 impl TunIOUring {
     async fn new(tun: Tun, ring_size: usize, channel_size: usize) -> Result<Self> {
         let tun_iouring = IOUring::new(
-            Arc::new(tun),
+            Arc::new(WrappedTun(tun)),
             ring_size,
             channel_size,
             TUN_MTU,
@@ -230,16 +239,15 @@ mod channel {
     use anyhow::Result;
     use async_channel::{Receiver, Sender};
     use bytes::BytesMut;
-    use tokio_tun::Tun;
+    use tun::AsyncDevice as Tun;
 
     use super::TUN_MTU;
-    use std::os::fd::AsRawFd;
     use std::sync::Arc;
     use std::thread;
     use std::thread::JoinHandle;
 
     #[allow(missing_docs, dead_code)]
-    pub struct Channel<T: AsRawFd> {
+    pub struct Channel<T> {
         owned_fd: Arc<T>,
         io_uring_thread_handle: JoinHandle<Result<()>>,
     }
