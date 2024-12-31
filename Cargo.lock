@@ -1217,7 +1217,6 @@ dependencies = [
  "tokio",
  "tokio-eventfd",
  "tokio-stream",
- "tokio-tun",
  "tokio-util",
  "tracing",
  "tracing-subscriber",
@@ -2335,18 +2334,6 @@ checksum = "eca58d7bba4a75707817a2c44174253f9236b2d5fbd055602e9d5c07c139a047"
 dependencies = [
  "futures-core",
  "pin-project-lite",
- "tokio",
-]
-
-[[package]]
-name = "tokio-tun"
-version = "0.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9bf48df2abbfd12d0b8495dcf960b125109493d85f2c787b44a2729a8022bc4b"
-dependencies = [
- "libc",
- "nix",
- "thiserror 1.0.69",
  "tokio",
 ]
 
