@@ -38,7 +38,7 @@ wolfssl = { git = "https://github.com/expressvpn/wolfssl-rs", default-features =
 
 [dev-dependencies]
 async-trait.workspace = true
-itertools = "0.13.0"
+itertools = "0.14.0"
 lightway-app-utils.workspace = true
 test-case.workspace = true
 tokio.workspace = true
