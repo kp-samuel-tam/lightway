@@ -2,7 +2,7 @@ mod connection;
 mod connection_manager;
 mod io;
 mod ip_manager;
-mod metrics;
+pub mod metrics;
 mod statistics;
 
 use bytesize::ByteSize;
@@ -32,7 +32,9 @@ use std::{
 use tokio::task::JoinHandle;
 use tracing::{info, warn};
 
-use crate::io::inside::InsideIO;
+pub use crate::connection::ConnectionState;
+pub use crate::io::inside::{InsideIO, InsideIORecv};
+
 use crate::ip_manager::IpManager;
 
 use connection_manager::ConnectionManager;
@@ -87,18 +89,25 @@ pub struct ServerConfig<SA: for<'a> ServerAuth<AuthState<'a>>> {
     pub server_key: PathBuf,
 
     /// Tun device name to use
+    #[educe(Debug(ignore))]
     pub tun_config: TunConfig,
+
+    /// Alternate Inside IO to use
+    /// When this is supplied, tun_config
+    /// will not be used for creating tun interface
+    #[educe(Debug(ignore))]
+    pub inside_io: Option<Arc<dyn InsideIO>>,
 
     /// IP pool to assign clients
     pub ip_pool: Ipv4Net,
 
-    /// A map of connection IP to a subnet of `ip_pool` to use
-    /// exclusively for that particular incoming IP.
-    pub ip_map: HashMap<IpAddr, Ipv4Net>,
-
     /// The IP assigned to the Tun device. If this is within `ip_pool`
     /// then it will be reserved.
     pub tun_ip: Option<Ipv4Addr>,
+
+    /// A map of connection IP to a subnet of `ip_pool` to use
+    /// exclusively for that particular incoming IP.
+    pub ip_map: HashMap<IpAddr, Ipv4Net>,
 
     /// Server IP to send in network_config message
     pub lightway_server_ip: Ipv4Addr,
@@ -143,7 +152,7 @@ pub struct ServerConfig<SA: for<'a> ServerAuth<AuthState<'a>>> {
 }
 
 pub async fn server<SA: for<'a> ServerAuth<AuthState<'a>> + Sync + Send + 'static>(
-    config: ServerConfig<SA>,
+    mut config: ServerConfig<SA>,
 ) -> Result<()> {
     let server_key = Secret::PemFile(&config.server_key);
     let server_cert = Secret::PemFile(&config.server_cert);
@@ -180,7 +189,10 @@ pub async fn server<SA: for<'a> ServerAuth<AuthState<'a>> + Sync + Send + 'stati
     } else {
         None
     };
-    let inside_io = Arc::new(io::inside::Tun::new(config.tun_config, iouring).await?);
+    let inside_io: Arc<dyn InsideIO> = match config.inside_io.take() {
+        Some(io) => io,
+        None => Arc::new(io::inside::Tun::new(config.tun_config, iouring).await?),
+    };
 
     let ctx = ServerContextBuilder::new(
         connection_type,

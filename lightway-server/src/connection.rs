@@ -21,9 +21,9 @@ pub struct ConnectionState {
     // Handler for tick callbacks.
     ticker: ConnectionTicker,
     // The backend IP (from IP pool) associated with this connection
-    pub(crate) internal_ip: Option<Ipv4Addr>,
+    pub internal_ip: Option<Ipv4Addr>,
     // The local IP which the client has connected to
-    pub(crate) local_addr: SocketAddr,
+    pub local_addr: SocketAddr,
     // The connection
     pub(crate) conn: std::cell::OnceCell<Weak<Connection>>,
 }

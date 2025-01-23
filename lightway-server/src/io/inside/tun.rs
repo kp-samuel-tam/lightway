@@ -1,4 +1,7 @@
-use crate::{io::inside::InsideIO, metrics};
+use crate::{
+    io::inside::{InsideIO, InsideIORecv},
+    metrics,
+};
 
 use crate::connection::ConnectionState;
 use anyhow::Result;
@@ -33,7 +36,7 @@ impl AsRawFd for Tun {
 }
 
 #[async_trait]
-impl InsideIO for Tun {
+impl InsideIORecv for Tun {
     async fn recv_buf(&self) -> IOCallbackResult<bytes::BytesMut> {
         match self.0.recv_buf().await {
             IOCallbackResult::Ok(buf) => {
@@ -66,3 +69,5 @@ impl InsideIOSendCallback<ConnectionState> for Tun {
         self.0.mtu()
     }
 }
+
+impl InsideIO for Tun {}
