@@ -268,38 +268,38 @@ pub(crate) fn connection_unknown_error(fatal: bool) {
 
 /// Tunnel rejected packet, [`lightway_core::Connection`] not in
 /// [`lightway_core::State::Online`] state
-pub(crate) fn tun_rejected_packet_invalid_state() {
+pub fn tun_rejected_packet_invalid_state() {
     METRIC_TUN_REJECTED_INVALID_STATE.increment(1);
 }
 
 /// Tunnel rejected packet, inside packet invalid
-pub(crate) fn tun_rejected_packet_invalid_inside_packet() {
+pub fn tun_rejected_packet_invalid_inside_packet() {
     METRIC_TUN_REJECTED_INVALID_INSIDE_PACKET.increment(1);
 }
 
 /// Tunnel rejected packet, other reasons
-pub(crate) fn tun_rejected_packet_invalid_other(fatal: bool) {
+pub fn tun_rejected_packet_invalid_other(fatal: bool) {
     counter!(METRIC_TUN_REJECTED_OTHER, FATAL_LABEL => fatal.to_string()).increment(1);
 }
 
 /// Tunnel rejected packet, no corresponding
 /// [`lightway_core::Connection`] found.
-pub(crate) fn tun_rejected_packet_no_connection() {
+pub fn tun_rejected_packet_no_connection() {
     METRIC_TUN_REJECTED_NO_CONNECTION.increment(1);
 }
 
 /// Tunnel rejected packet, since there was no clientip in app state
-pub(crate) fn tun_rejected_packet_no_client_ip() {
+pub fn tun_rejected_packet_no_client_ip() {
     METRIC_TUN_REJECTED_NO_CLIENT_IP.increment(1);
 }
 
 /// Bytes sent from client to the TUN device.
-pub(crate) fn tun_from_client(sz: usize) {
+pub fn tun_from_client(sz: usize) {
     METRIC_TUN_FROM_CLIENT.increment(sz as u64);
 }
 
 /// Bytes received from TUN device (destined for client).
-pub(crate) fn tun_to_client(sz: usize) {
+pub fn tun_to_client(sz: usize) {
     METRIC_TUN_TO_CLIENT.increment(sz as u64);
 }
 
