@@ -25,6 +25,7 @@ use pnet::packet::ipv4::Ipv4Packet;
 use std::{
     collections::HashMap,
     net::{IpAddr, Ipv4Addr, SocketAddr},
+    num::NonZeroUsize,
     path::PathBuf,
     sync::Arc,
     time::Duration,
@@ -144,6 +145,9 @@ pub struct ServerConfig<SA: for<'a> ServerAuth<AuthState<'a>>> {
     /// Address to listen to
     pub bind_address: SocketAddr,
 
+    /// Number of bind attempts, in case of AddrInUse failure
+    pub bind_attempts: NonZeroUsize,
+
     /// Enable PROXY protocol support (TCP only)
     pub proxy_protocol: bool,
 
@@ -218,6 +222,7 @@ pub async fn server<SA: for<'a> ServerAuth<AuthState<'a>> + Sync + Send + 'stati
             io::outside::UdpServer::new(
                 conn_manager.clone(),
                 config.bind_address,
+                config.bind_attempts,
                 config.udp_buffer_size,
             )
             .await?,
@@ -226,6 +231,7 @@ pub async fn server<SA: for<'a> ServerAuth<AuthState<'a>> + Sync + Send + 'stati
             io::outside::TcpServer::new(
                 conn_manager.clone(),
                 config.bind_address,
+                config.bind_attempts,
                 config.proxy_protocol,
             )
             .await?,

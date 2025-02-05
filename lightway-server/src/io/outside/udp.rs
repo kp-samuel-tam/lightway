@@ -2,7 +2,9 @@ mod cmsg;
 
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
+    num::NonZeroUsize,
     sync::{Arc, RwLock},
+    time::Duration,
 };
 
 use anyhow::Result;
@@ -114,9 +116,28 @@ impl UdpServer {
     pub(crate) async fn new(
         conn_manager: Arc<ConnectionManager>,
         bind_address: SocketAddr,
+        bind_attempts: NonZeroUsize,
         udp_buffer_size: ByteSize,
     ) -> Result<UdpServer> {
-        let sock = Arc::new(tokio::net::UdpSocket::bind(bind_address).await?);
+        let bind_attempts = bind_attempts.get();
+        let mut attempts = 0;
+        let sock = loop {
+            match tokio::net::UdpSocket::bind(bind_address).await {
+                Ok(sock) => break sock,
+                Err(e) if matches!(e.kind(), std::io::ErrorKind::AddrInUse) => {
+                    attempts += 1;
+                    warn!("Bind failed, attempt: {}", attempts);
+                    if attempts >= bind_attempts {
+                        return Err(e.into());
+                    }
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                }
+                Err(e) => {
+                    return Err(e.into());
+                }
+            }
+        };
+        let sock = Arc::new(sock);
 
         let bind_mode = if bind_address.ip().is_unspecified() {
             BindMode::UnspecifiedAddress {
