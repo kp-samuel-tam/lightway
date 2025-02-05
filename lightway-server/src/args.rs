@@ -1,5 +1,6 @@
 use std::{
     net::{Ipv4Addr, SocketAddr},
+    num::NonZeroUsize,
     path::PathBuf,
 };
 
@@ -102,6 +103,11 @@ pub struct Config {
     /// Address to listen to
     #[clap(long, default_value = "0.0.0.0:27690")]
     pub bind_address: SocketAddr,
+
+    /// Number of bind attempts, in case of AddrInUse failure
+    /// Will wait 1 second after failed attempt, before retrying
+    #[clap(long, default_value_t = NonZeroUsize::MIN)]
+    pub bind_attempts: NonZeroUsize,
 
     /// Enable PROXY protocol support (TCP only)
     #[clap(long)]
