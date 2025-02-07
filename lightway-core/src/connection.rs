@@ -837,7 +837,7 @@ impl<AppState: Send> Connection<AppState> {
 
         let id = 0;
 
-        info!(id, "Sending ping");
+        debug!(id, "Sending ping");
 
         let ping = wire::Ping {
             id,
@@ -1178,7 +1178,7 @@ impl<AppState: Send> Connection<AppState> {
             return Err(ConnectionError::InvalidState);
         }
 
-        info!(
+        debug!(
             id = ping.id,
             payload_length = ping.payload.len(),
             "Received ping"
@@ -1186,7 +1186,7 @@ impl<AppState: Send> Connection<AppState> {
 
         let pong = wire::Pong { id: ping.id };
 
-        info!(id = pong.id, "Sending pong");
+        debug!(id = pong.id, "Sending pong");
 
         let msg = wire::Frame::Pong(pong);
 
