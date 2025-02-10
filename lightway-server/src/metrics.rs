@@ -14,6 +14,7 @@ static METRIC_CONNECTION_ACCEPT_PROXY_HEADER_FAILED: LazyLock<Counter> =
 const METRIC_CONNECTION_CREATE_FAILED: &str = "conn_create_failed";
 const METRIC_CONNECTION_CREATED: &str = "conn_created";
 const METRIC_CONNECTION_LINK_UP: &str = "conn_link_up";
+const METRIC_CONNECTION_ONLINE: &str = "conn_online";
 static METRIC_CONNECTION_REJECTED_NO_FREE_IP: LazyLock<Counter> =
     LazyLock::new(|| counter!("conn_rejected_no_free_ip"));
 static METRIC_CONNECTION_REJECTED_ACCESS_DENIED: LazyLock<Counter> =
@@ -160,6 +161,20 @@ pub(crate) fn connection_link_up(conn: &Connection) {
 /// to [`lightway_core::State::Online`] state
 pub(crate) fn connection_online(conn: &Connection) {
     let to_online = conn.connection_started.elapsed();
+    let cipher = conn
+        .current_cipher()
+        .unwrap_or_else(|| "unknown".to_string());
+    let curve = conn
+        .current_curve()
+        .unwrap_or_else(|| "unknown".to_string());
+
+    let tls_protocol_version = conn.tls_protocol_version();
+    counter!(METRIC_CONNECTION_ONLINE,
+                       CIPHER_LABEL => cipher,
+                       CURVE_LABEL => curve,
+                       TLS_PROTOCOL_VERSION_LABEL => tls_protocol_version.as_str(),
+    )
+    .increment(1);
     METRIC_TO_ONLINE_TIME.record(to_online);
 }
 
