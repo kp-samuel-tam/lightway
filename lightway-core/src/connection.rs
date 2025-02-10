@@ -464,7 +464,7 @@ impl<AppState: Send> Connection<AppState> {
         self.event(Event::StateChanged(new_state));
 
         if matches!(new_state, State::Online) {
-            debug!(curve = ?self.current_curve(), "ONLINE");
+            debug!(curve = ?self.current_curve(), cipher = ?self.current_cipher(), "ONLINE");
             self.session.io_cb_mut().aggressive_send = false;
             if let Some(ref mut pmtud) = self.pmtud {
                 let action = pmtud.online(&mut self.app_state);
