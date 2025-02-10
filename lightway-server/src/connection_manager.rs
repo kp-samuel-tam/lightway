@@ -35,6 +35,10 @@ const CONNECTION_AUTH_EXPIRATION_INTERVAL: Duration = Duration::hours(6);
 /// How long a connection can be idle for
 const CONNECTION_MAX_IDLE_AGE: Duration = Duration::days(1);
 
+/// How long a connection can take to become Online
+/// If connection is not online by this time, it will be closed to save resources
+const CONNECTION_STALE_AGE: std::time::Duration = std::time::Duration::from_secs(60);
+
 impl connection_map::Value for Connection {
     fn socket_addr(&self) -> SocketAddr {
         self.peer_addr()
@@ -179,6 +183,17 @@ async fn handle_events(mut stream: EventStream, conn: Weak<Connection>) {
     }
 }
 
+#[instrument(level = "trace", skip_all)]
+async fn handle_stale(conn: Weak<Connection>) {
+    tokio::time::sleep(CONNECTION_STALE_AGE).await;
+    if let Some(conn) = conn.upgrade() {
+        if !matches!(conn.state(), State::Online) {
+            metrics::connection_stale_closed();
+            let _ = conn.disconnect();
+        }
+    };
+}
+
 fn new_connection(
     manager: Arc<ConnectionManager>,
     ctx: &ServerContext<ConnectionState>,
@@ -205,6 +220,7 @@ fn new_connection(
     })?;
 
     tokio::spawn(handle_events(event_stream, Arc::downgrade(&conn)));
+    tokio::spawn(handle_stale(Arc::downgrade(&conn)));
 
     Ok(conn)
 }
