@@ -112,7 +112,6 @@ impl Connection {
     }
 
     pub fn handle_end_of_stream(&self) {
-        metrics::connection_closed();
         let _ = self.disconnect();
     }
 
@@ -126,6 +125,9 @@ impl Connection {
         let fatal = err.is_fatal(self.connection_type());
 
         match err {
+            ConnectionError::Goodbye => {
+                metrics::connection_client_closed();
+            }
             ConnectionError::WolfSSL(_) => {
                 metrics::connection_tls_error(fatal);
             }
@@ -173,6 +175,7 @@ impl Connection {
     }
 
     pub fn disconnect(&self) -> ConnectionResult<()> {
+        metrics::connection_closed();
         self.manager.remove_connection(self);
         self.lw_conn.lock().unwrap().disconnect()
     }

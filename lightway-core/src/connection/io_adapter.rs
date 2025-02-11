@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use bytes::{Buf, BytesMut};
 use delegate::delegate;
 use more_asserts::*;
@@ -105,7 +107,7 @@ pub(crate) struct WolfSSLIOAdapter {
     pub(crate) session_id: wire::SessionId,
 
     /// Plugins to act while egressing outside packet
-    pub(crate) outside_plugins: PluginList,
+    pub(crate) outside_plugins: Arc<PluginList>,
 }
 
 impl WolfSSLIOAdapter {
@@ -372,7 +374,7 @@ mod tests {
             send_buf: SendBuffer::new(MAX_OUTSIDE_MTU),
             io,
             session_id: SessionId::from_const(*b"\xde\xad\xbe\xef\xde\xad\xbe\xef"),
-            outside_plugins,
+            outside_plugins: outside_plugins.into(),
         }
     }
 

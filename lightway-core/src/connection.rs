@@ -313,7 +313,7 @@ pub struct Connection<AppState: Send = ()> {
     inside_plugins: PluginList,
 
     /// Outside plugins
-    outside_plugins: PluginList,
+    outside_plugins: Arc<PluginList>,
 
     /// Is a tick callback pending
     is_tick_timer_running: bool,
@@ -360,7 +360,7 @@ struct NewConnectionArgs<AppState> {
     schedule_tick_cb: Option<ScheduleTickCb<AppState>>,
     event_cb: Option<EventCallbackArg>,
     inside_plugins: PluginList,
-    outside_plugins: PluginList,
+    outside_plugins: Arc<PluginList>,
     max_fragment_map_entries: NonZeroU16,
     pmtud_timer: Option<dplpmtud::TimerArg<AppState>>,
 }
@@ -464,7 +464,7 @@ impl<AppState: Send> Connection<AppState> {
         self.event(Event::StateChanged(new_state));
 
         if matches!(new_state, State::Online) {
-            debug!(curve = ?self.current_curve(), "ONLINE");
+            debug!(curve = ?self.current_curve(), cipher = ?self.current_cipher(), "ONLINE");
             self.session.io_cb_mut().aggressive_send = false;
             if let Some(ref mut pmtud) = self.pmtud {
                 let action = pmtud.online(&mut self.app_state);
@@ -837,7 +837,7 @@ impl<AppState: Send> Connection<AppState> {
 
         let id = 0;
 
-        info!(id, "Sending ping");
+        debug!(id, "Sending ping");
 
         let ping = wire::Ping {
             id,
@@ -1178,7 +1178,7 @@ impl<AppState: Send> Connection<AppState> {
             return Err(ConnectionError::InvalidState);
         }
 
-        info!(
+        debug!(
             id = ping.id,
             payload_length = ping.payload.len(),
             "Received ping"
@@ -1186,7 +1186,7 @@ impl<AppState: Send> Connection<AppState> {
 
         let pong = wire::Pong { id: ping.id };
 
-        info!(id = pong.id, "Sending pong");
+        debug!(id = pong.id, "Sending pong");
 
         let msg = wire::Frame::Pong(pong);
 

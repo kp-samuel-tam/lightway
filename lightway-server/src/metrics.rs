@@ -14,6 +14,7 @@ static METRIC_CONNECTION_ACCEPT_PROXY_HEADER_FAILED: LazyLock<Counter> =
 const METRIC_CONNECTION_CREATE_FAILED: &str = "conn_create_failed";
 const METRIC_CONNECTION_CREATED: &str = "conn_created";
 const METRIC_CONNECTION_LINK_UP: &str = "conn_link_up";
+const METRIC_CONNECTION_ONLINE: &str = "conn_online";
 static METRIC_CONNECTION_REJECTED_NO_FREE_IP: LazyLock<Counter> =
     LazyLock::new(|| counter!("conn_rejected_no_free_ip"));
 static METRIC_CONNECTION_REJECTED_ACCESS_DENIED: LazyLock<Counter> =
@@ -24,6 +25,10 @@ static METRIC_CONNECTION_AGED_OUT: LazyLock<Counter> = LazyLock::new(|| counter!
 static METRIC_CONNECTION_EVICTED: LazyLock<Counter> =
     LazyLock::new(|| counter!("user_auth_eviction"));
 static METRIC_CONNECTION_CLOSED: LazyLock<Counter> = LazyLock::new(|| counter!("conn_closed"));
+static METRIC_CONNECTION_CLIENT_CLOSED: LazyLock<Counter> =
+    LazyLock::new(|| counter!("conn_client_closed"));
+static METRIC_CONNECTION_STALE_CLOSED: LazyLock<Counter> =
+    LazyLock::new(|| counter!("conn_stale_closed"));
 static METRIC_CONNECTION_KEY_UPDATE_START: LazyLock<Counter> =
     LazyLock::new(|| counter!("key_update_start"));
 static METRIC_CONNECTION_KEY_UPDATE_COMPLETE: LazyLock<Counter> =
@@ -160,6 +165,20 @@ pub(crate) fn connection_link_up(conn: &Connection) {
 /// to [`lightway_core::State::Online`] state
 pub(crate) fn connection_online(conn: &Connection) {
     let to_online = conn.connection_started.elapsed();
+    let cipher = conn
+        .current_cipher()
+        .unwrap_or_else(|| "unknown".to_string());
+    let curve = conn
+        .current_curve()
+        .unwrap_or_else(|| "unknown".to_string());
+
+    let tls_protocol_version = conn.tls_protocol_version();
+    counter!(METRIC_CONNECTION_ONLINE,
+                       CIPHER_LABEL => cipher,
+                       CURVE_LABEL => curve,
+                       TLS_PROTOCOL_VERSION_LABEL => tls_protocol_version.as_str(),
+    )
+    .increment(1);
     METRIC_TO_ONLINE_TIME.record(to_online);
 }
 
@@ -185,6 +204,18 @@ pub(crate) fn connection_aged_out() {
 /// expired.
 pub(crate) fn connection_expired() {
     METRIC_CONNECTION_EVICTED.increment(1);
+}
+
+/// Connection lifecycle: [`lightway_core::Connection`] closed when the
+/// connection does not come online in 60 minutes after link up
+pub(crate) fn connection_stale_closed() {
+    METRIC_CONNECTION_STALE_CLOSED.increment(1);
+}
+
+/// Connection lifecycle: [`lightway_core::Connection`] closed when the
+/// peer closed the connection
+pub(crate) fn connection_client_closed() {
+    METRIC_CONNECTION_CLIENT_CLOSED.increment(1);
 }
 
 /// Connection lifecycle: [`lightway_core::Connection`] closed.
