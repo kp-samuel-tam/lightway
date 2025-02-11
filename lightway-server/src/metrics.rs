@@ -25,6 +25,8 @@ static METRIC_CONNECTION_AGED_OUT: LazyLock<Counter> = LazyLock::new(|| counter!
 static METRIC_CONNECTION_EVICTED: LazyLock<Counter> =
     LazyLock::new(|| counter!("user_auth_eviction"));
 static METRIC_CONNECTION_CLOSED: LazyLock<Counter> = LazyLock::new(|| counter!("conn_closed"));
+static METRIC_CONNECTION_CLIENT_CLOSED: LazyLock<Counter> =
+    LazyLock::new(|| counter!("conn_client_closed"));
 static METRIC_CONNECTION_STALE_CLOSED: LazyLock<Counter> =
     LazyLock::new(|| counter!("conn_stale_closed"));
 static METRIC_CONNECTION_KEY_UPDATE_START: LazyLock<Counter> =
@@ -208,6 +210,12 @@ pub(crate) fn connection_expired() {
 /// connection does not come online in 60 minutes after link up
 pub(crate) fn connection_stale_closed() {
     METRIC_CONNECTION_STALE_CLOSED.increment(1);
+}
+
+/// Connection lifecycle: [`lightway_core::Connection`] closed when the
+/// peer closed the connection
+pub(crate) fn connection_client_closed() {
+    METRIC_CONNECTION_CLIENT_CLOSED.increment(1);
 }
 
 /// Connection lifecycle: [`lightway_core::Connection`] closed.

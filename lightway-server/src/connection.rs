@@ -125,6 +125,9 @@ impl Connection {
         let fatal = err.is_fatal(self.connection_type());
 
         match err {
+            ConnectionError::Goodbye => {
+                metrics::connection_client_closed();
+            }
             ConnectionError::WolfSSL(_) => {
                 metrics::connection_tls_error(fatal);
             }
