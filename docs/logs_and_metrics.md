@@ -34,13 +34,16 @@ Lightway server also supports metrics to monitor. The following are the metrics 
 | session_id_mismatch | core | Counter | Server has received a mismatched session_id in the header after the packet content has been validated <br><br>Should generally be expected to happen rarely|
 | conn_created | server | Counter | The number of new connections created |
 | conn_link_up | server | Counter | Counts connection which have reached the “link up” state (~(D)TLS connection established) |
+| conn_online | server | Counter | Counts connection which have reached the “online” state after successful authentication |
 | conn_rejected_no_free_ip | server | Counter | Counts connections which were rejected at auth time due to a lack of free IPs in the server pool<br><br>Should generally be expected to be 0 |
 | conn_rejected_access_denied | server | Counter | Counts connections rejected due to invalid auth |
 | conn_tls_error | server | Counter | Counts connections which failed due to a TLS failure from WolfSSL |
 | conn_unknown_error | server | Counter | Counts connections which failed due to a non-TLS failure from WolfSSL |
 | conn_aged_out | server | Counter | Counts connections which are disconnected due to being idle (after 1 day of inactivity) |
 | user_auth_eviction | server | Counter | Counts connections which are disconnected due to their auth expiring |
-| conn_closed | server | Counter | Counts connections which have been closed for any reason |
+| conn_client_closed | server | Counter | Counts connections which have been closed since client initiate Disconnect |
+| conn_stale_closed | server | Counter | Counts connections which have been closed since it has not become ONLINE within STALE_AGE (60s) |
+| conn_closed | server | Counter | Counts total connections which have been closed for any reason (including client_closed, stale_closed, etc.) |
 | udp_conn_recovered_via_session | server | Counter | Counts UDP connections which have been recovered using the session ID (which indicates that the client’s IP address changed) |
 | udp_session_rotation_attempted_via_replay | server | Counter | Counts UDP rotation attempted using duplicated packets. i.e An attack<br>ie. Some adversary capture and replay packets from different IP address.<br><br>There is also a possibility that counter is incremented due to aggressive connect.<br> |
 | udp_recv_truncated | server | Counter | Counts occurrences of UDP packet truncation on receive |
