@@ -313,7 +313,7 @@ pub struct Connection<AppState: Send = ()> {
     inside_plugins: PluginList,
 
     /// Outside plugins
-    outside_plugins: PluginList,
+    outside_plugins: Arc<PluginList>,
 
     /// Is a tick callback pending
     is_tick_timer_running: bool,
@@ -360,7 +360,7 @@ struct NewConnectionArgs<AppState> {
     schedule_tick_cb: Option<ScheduleTickCb<AppState>>,
     event_cb: Option<EventCallbackArg>,
     inside_plugins: PluginList,
-    outside_plugins: PluginList,
+    outside_plugins: Arc<PluginList>,
     max_fragment_map_entries: NonZeroU16,
     pmtud_timer: Option<dplpmtud::TimerArg<AppState>>,
 }

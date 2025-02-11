@@ -1,4 +1,4 @@
-use std::num::NonZeroU16;
+use std::{num::NonZeroU16, sync::Arc};
 
 use bytes::{Bytes, BytesMut};
 use rand::Rng;
@@ -18,7 +18,7 @@ use crate::{
     MIN_OUTSIDE_MTU,
 };
 
-use super::{ConnectionError, ConnectionMode, NewConnectionArgs};
+use super::{ConnectionError, ConnectionMode, NewConnectionArgs, PluginList};
 
 /// An error while building a [`Connection`] via [`ClientConnectionBuilder`]
 /// or [`ServerConnectionBuilder`].
@@ -66,6 +66,7 @@ pub struct ClientConnectionBuilder<AppState> {
     event_cb: Option<EventCallbackArg>,
     max_fragment_map_entries: NonZeroU16,
     pmtud_timer: Option<dplpmtud::TimerArg<AppState>>,
+    outside_plugins: Arc<PluginList>,
 }
 
 impl<AppState: Send + 'static> ClientConnectionBuilder<AppState> {
@@ -80,6 +81,8 @@ impl<AppState: Send + 'static> ClientConnectionBuilder<AppState> {
         }
 
         let connection_type = ctx.connection_type;
+        let outside_plugins = ctx.outside_plugins.build()?;
+        let outside_plugins = Arc::new(outside_plugins);
 
         let io = super::WolfSSLIOAdapter {
             connection_type,
@@ -90,7 +93,7 @@ impl<AppState: Send + 'static> ClientConnectionBuilder<AppState> {
             send_buf: super::IOAdapterSendBuffer::new(outside_mtu),
             io: outside_io,
             session_id: SessionId::EMPTY,
-            outside_plugins: ctx.outside_plugins.build()?,
+            outside_plugins: outside_plugins.clone(),
         };
         let session_config =
             wolfssl::SessionConfig::new(io).when(connection_type.is_datagram(), |s| {
@@ -107,6 +110,7 @@ impl<AppState: Send + 'static> ClientConnectionBuilder<AppState> {
             event_cb: None,
             max_fragment_map_entries: FragmentMap::DEFAULT_MAX_ENTRIES,
             pmtud_timer: None,
+            outside_plugins,
         })
     }
 
@@ -243,7 +247,7 @@ impl<AppState: Send + 'static> ClientConnectionBuilder<AppState> {
             schedule_tick_cb: self.ctx.schedule_tick_cb,
             event_cb: self.event_cb,
             inside_plugins: self.ctx.inside_plugins.build()?,
-            outside_plugins: self.ctx.outside_plugins.build()?,
+            outside_plugins: self.outside_plugins,
             max_fragment_map_entries: self.max_fragment_map_entries,
             pmtud_timer: self.pmtud_timer,
         })?)
@@ -265,6 +269,7 @@ pub struct ServerConnectionBuilder<'a, AppState> {
     session_id: SessionId,
     event_cb: Option<EventCallbackArg>,
     max_fragment_map_entries: NonZeroU16,
+    outside_plugins: Arc<PluginList>,
 }
 
 impl<'a, AppState: Send + 'static> ServerConnectionBuilder<'a, AppState> {
@@ -281,6 +286,8 @@ impl<'a, AppState: Send + 'static> ServerConnectionBuilder<'a, AppState> {
         let session_id = ctx.rng.lock().unwrap().gen();
 
         let outside_mtu = MAX_OUTSIDE_MTU;
+        let outside_plugins = ctx.outside_plugins.build()?;
+        let outside_plugins = Arc::new(outside_plugins);
 
         let io = super::WolfSSLIOAdapter {
             connection_type,
@@ -291,7 +298,7 @@ impl<'a, AppState: Send + 'static> ServerConnectionBuilder<'a, AppState> {
             send_buf: super::IOAdapterSendBuffer::new(outside_mtu),
             io: outside_io,
             session_id,
-            outside_plugins: ctx.outside_plugins.build()?,
+            outside_plugins: outside_plugins.clone(),
         };
         let session_config =
             wolfssl::SessionConfig::new(io).when(connection_type.is_datagram(), |s| {
@@ -310,6 +317,7 @@ impl<'a, AppState: Send + 'static> ServerConnectionBuilder<'a, AppState> {
             ip_pool,
             event_cb: None,
             max_fragment_map_entries: FragmentMap::DEFAULT_MAX_ENTRIES,
+            outside_plugins,
         })
     }
 
@@ -358,7 +366,7 @@ impl<'a, AppState: Send + 'static> ServerConnectionBuilder<'a, AppState> {
             schedule_tick_cb: self.ctx.schedule_tick_cb,
             event_cb: self.event_cb,
             inside_plugins: self.ctx.inside_plugins.build()?,
-            outside_plugins: self.ctx.outside_plugins.build()?,
+            outside_plugins: self.outside_plugins,
             max_fragment_map_entries: self.max_fragment_map_entries,
             pmtud_timer: None,
         })?)
