@@ -55,7 +55,7 @@ impl OffsetAndMoreFragments {
         } else {
             0
         };
-        Self(mf_bit | offset as u16 >> Self::OFFSET_SHIFT)
+        Self(mf_bit | (offset as u16 >> Self::OFFSET_SHIFT))
     }
 
     fn into_parts(self) -> (usize, bool) {
