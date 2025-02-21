@@ -6,14 +6,15 @@ use std::sync::{Arc, Mutex};
 use thiserror::Error;
 
 use crate::{
+    BuilderPredicates, Cipher, ClientConnectionBuilder, ConnectionBuilderError,
+    InsideIOSendCallbackArg, MAX_INSIDE_MTU, MIN_INSIDE_MTU, OutsideIOSendCallbackArg,
+    OutsidePacket, PluginResult, RootCertificate, Secret, ServerConnectionBuilder, ServerIpPoolArg,
+    Version,
     context::ip_pool::ClientIpConfigArg,
     packet::OutsidePacketError,
     plugin::{PluginFactoryError, PluginFactoryList, PluginList},
     version::VersionRangeInclusive,
-    wire, BuilderPredicates, Cipher, ClientConnectionBuilder, ConnectionBuilderError,
-    InsideIOSendCallbackArg, OutsideIOSendCallbackArg, OutsidePacket, PluginResult,
-    RootCertificate, Secret, ServerConnectionBuilder, ServerIpPoolArg, Version, MAX_INSIDE_MTU,
-    MIN_INSIDE_MTU,
+    wire,
 };
 pub use server_auth::{ServerAuth, ServerAuthArg, ServerAuthHandle, ServerAuthResult};
 
@@ -347,7 +348,9 @@ impl<AppState> ServerContextBuilder<AppState> {
 
         let cipher_list = match connection_type {
             ConnectionType::Stream => "TLS13-AES256-GCM-SHA384:TLS13-CHACHA20-POLY1305-SHA256",
-            ConnectionType::Datagram => "TLS13-CHACHA20-POLY1305-SHA256:ECDHE-RSA-CHACHA20-POLY1305:TLS13-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384",
+            ConnectionType::Datagram => {
+                "TLS13-CHACHA20-POLY1305-SHA256:ECDHE-RSA-CHACHA20-POLY1305:TLS13-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384"
+            }
         };
 
         let wolfssl = wolfssl::ContextBuilder::new(protocol)?

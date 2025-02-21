@@ -1,12 +1,12 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use bytes::{BufMut, Bytes, BytesMut};
 use lightway_core::IOCallbackResult;
 use thiserror::Error;
 
 use crate::metrics;
 use io_uring::{
-    cqueue::Entry as CEntry, opcode, squeue::Entry as SEntry, types::Fixed, Builder, IoUring,
-    SubmissionQueue, Submitter,
+    Builder, IoUring, SubmissionQueue, Submitter, cqueue::Entry as CEntry, opcode,
+    squeue::Entry as SEntry, types::Fixed,
 };
 use std::{
     os::fd::{AsRawFd, RawFd},
@@ -16,7 +16,7 @@ use std::{
 };
 use tokio::{
     io::AsyncReadExt,
-    sync::{mpsc, Mutex},
+    sync::{Mutex, mpsc},
 };
 use tokio_eventfd::EventFd;
 
@@ -124,11 +124,7 @@ enum SlotIdx {
 impl SlotIdx {
     fn from_user_data(u: u64) -> Self {
         let u = u as isize;
-        if u < 0 {
-            Self::Rx(!u)
-        } else {
-            Self::Tx(u)
-        }
+        if u < 0 { Self::Rx(!u) } else { Self::Tx(u) }
     }
 
     fn idx(&self) -> usize {

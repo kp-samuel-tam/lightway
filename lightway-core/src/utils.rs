@@ -1,9 +1,9 @@
 use pnet::packet::{
+    MutablePacket, PacketSize,
     ip::IpNextHeaderProtocols,
     ipv4::MutableIpv4Packet,
     tcp::{MutableTcpOptionPacket, MutableTcpPacket, TcpFlags, TcpOptionNumbers},
     udp::MutableUdpPacket,
-    MutablePacket, PacketSize,
 };
 use std::net::Ipv4Addr;
 use std::ops;

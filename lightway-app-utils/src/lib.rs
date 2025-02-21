@@ -16,7 +16,7 @@ mod tun;
 
 #[cfg(feature = "tokio")]
 pub use connection_ticker::{
-    connection_ticker_cb, ConnectionTicker, ConnectionTickerState, ConnectionTickerTask, Tickable,
+    ConnectionTicker, ConnectionTickerState, ConnectionTickerTask, Tickable, connection_ticker_cb,
 };
 #[cfg(feature = "tokio")]
 pub use dplpmtud_timer::{DplpmtudTimer, DplpmtudTimerTask};
@@ -33,4 +33,4 @@ pub use tun::{Tun, TunConfig, TunDirect};
 #[cfg(feature = "io-uring")]
 mod metrics;
 mod utils;
-pub use utils::{validate_configuration_file_path, Validate};
+pub use utils::{Validate, validate_configuration_file_path};

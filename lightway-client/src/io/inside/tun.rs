@@ -9,11 +9,11 @@ use pnet::packet::ipv4::Ipv4Packet;
 
 use lightway_app_utils::{Tun as AppUtilsTun, TunConfig};
 use lightway_core::{
-    ipv4_update_destination, ipv4_update_source, IOCallbackResult, InsideIOSendCallback,
-    InsideIpConfig,
+    IOCallbackResult, InsideIOSendCallback, InsideIpConfig, ipv4_update_destination,
+    ipv4_update_source,
 };
 
-use crate::{io::inside::InsideIO, ConnectionState};
+use crate::{ConnectionState, io::inside::InsideIO};
 
 pub struct Tun {
     tun: AppUtilsTun,

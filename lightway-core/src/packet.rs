@@ -1,7 +1,7 @@
 use bytes::BytesMut;
 use thiserror::Error;
 
-use crate::{plugin::PluginList, ConnectionType, Header, PluginResult};
+use crate::{ConnectionType, Header, PluginResult, plugin::PluginList};
 
 #[derive(Debug)]
 /// Packet structure used by application to inject outside packets into lightway-core

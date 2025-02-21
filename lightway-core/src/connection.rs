@@ -21,13 +21,13 @@ use wolfssl::{ErrorKind, IOCallbackResult, ProtocolVersion};
 
 use crate::max_dtls_mtu;
 use crate::{
+    ConnectionType, IPV4_HEADER_SIZE, InsideIOSendCallbackArg, PluginResult, SessionId,
+    TCP_HEADER_SIZE, Version,
     context::{ScheduleTickCb, ServerAuthArg, ServerAuthHandle, ServerAuthResult},
     metrics,
     plugin::PluginList,
     utils::tcp_clamp_mss,
     wire::{self, AuthMethod},
-    ConnectionType, InsideIOSendCallbackArg, PluginResult, SessionId, Version, IPV4_HEADER_SIZE,
-    TCP_HEADER_SIZE,
 };
 
 use crate::context::ip_pool::{ClientIpConfigArg, ServerIpPoolArg};
@@ -936,7 +936,7 @@ impl<AppState: Send> Connection<AppState> {
                 ref mut pending_session_id,
                 ..
             } => {
-                let new_session_id = rng.lock().unwrap().gen();
+                let new_session_id = rng.lock().unwrap().r#gen();
 
                 self.session.io_cb_mut().set_session_id(new_session_id);
 

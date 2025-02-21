@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use bytesize::ByteSize;
 use clap::Parser;
 use lightway_app_utils::args::{Cipher, ConnectionType, Duration, LogLevel};

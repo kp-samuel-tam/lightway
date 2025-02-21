@@ -28,14 +28,14 @@ pub use wolfssl::Tls13SecretCallbacks;
 pub use builder_predicates::BuilderPredicates;
 pub use cipher::Cipher;
 pub use connection::{
-    dplpmtud::Timer as DplpmtudTimer, ClientConnectionBuilder, Connection, ConnectionActivity,
-    ConnectionBuilderError, ConnectionError, ConnectionResult, Event, EventCallback,
-    EventCallbackArg, ServerConnectionBuilder, State,
+    ClientConnectionBuilder, Connection, ConnectionActivity, ConnectionBuilderError,
+    ConnectionError, ConnectionResult, Event, EventCallback, EventCallbackArg,
+    ServerConnectionBuilder, State, dplpmtud::Timer as DplpmtudTimer,
 };
 pub use context::{
-    ip_pool::{ClientIpConfig, ClientIpConfigArg, InsideIpConfig, ServerIpPool, ServerIpPoolArg},
     ClientContext, ClientContextBuilder, ConnectionType, ContextError, ScheduleTickCb, ServerAuth,
     ServerAuthArg, ServerAuthHandle, ServerAuthResult, ServerContext, ServerContextBuilder,
+    ip_pool::{ClientIpConfig, ClientIpConfigArg, InsideIpConfig, ServerIpPool, ServerIpPoolArg},
 };
 pub use io::{
     InsideIOSendCallback, InsideIOSendCallbackArg, OutsideIOSendCallback, OutsideIOSendCallbackArg,

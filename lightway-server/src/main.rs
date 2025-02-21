@@ -3,7 +3,7 @@ mod auth;
 
 use std::path::PathBuf;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use clap::CommandFactory;
 
 use metrics_util::debugging::DebuggingRecorder;
@@ -12,7 +12,7 @@ use tracing::{error, trace};
 use twelf::Layer;
 
 use args::Config;
-use lightway_app_utils::{validate_configuration_file_path, TunConfig, Validate};
+use lightway_app_utils::{TunConfig, Validate, validate_configuration_file_path};
 use lightway_server::*;
 
 async fn metrics_debug() {
@@ -50,7 +50,7 @@ async fn metrics_debug() {
                 metrics_util::debugging::DebugValue::Histogram(values) => {
                     // TODO: https://docs.rs/average/latest/average/macro.concatenate.html for min/max and avg?
 
-                    use average::{concatenate, Estimate, Max, Mean, Min};
+                    use average::{Estimate, Max, Mean, Min, concatenate};
 
                     concatenate!(Stats, [Min, min], [Mean, mean], [Max, max]);
                     let len = values.len();

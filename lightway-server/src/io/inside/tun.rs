@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use bytes::BytesMut;
 use lightway_app_utils::{Tun as AppUtilsTun, TunConfig};
 use lightway_core::{
-    ipv4_update_source, IOCallbackResult, InsideIOSendCallback, InsideIOSendCallbackArg,
+    IOCallbackResult, InsideIOSendCallback, InsideIOSendCallbackArg, ipv4_update_source,
 };
 use std::os::fd::{AsRawFd, RawFd};
 use std::sync::Arc;

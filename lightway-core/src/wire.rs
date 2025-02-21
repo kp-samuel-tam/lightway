@@ -129,7 +129,7 @@ impl SessionId {
 impl rand::distributions::Distribution<SessionId> for rand::distributions::Standard {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> SessionId {
         loop {
-            let candidate = SessionId(rng.gen());
+            let candidate = SessionId(rng.r#gen());
             if !candidate.is_reserved() {
                 break candidate;
             }
@@ -345,7 +345,7 @@ impl Frame<'_> {
         };
 
         buf.commit(); // We've successfully parsed a frame, move the
-                      // underlying buffer forward.
+        // underlying buffer forward.
 
         Ok(frame)
     }
@@ -357,15 +357,15 @@ impl Frame<'_> {
 
         match self {
             Self::NoOp => {}
-            Self::Ping(ref ping) => ping.append_to_wire(buf),
-            Self::Pong(ref ping) => ping.append_to_wire(buf),
-            Self::AuthRequest(ref auth) => auth.append_to_wire(buf),
-            Self::Data(ref data) => data.append_to_wire(buf),
-            Self::AuthSuccessWithConfigV4(ref cfg) => cfg.append_to_wire(buf),
-            Self::AuthFailure(ref auth) => auth.append_to_wire(buf),
+            Self::Ping(ping) => ping.append_to_wire(buf),
+            Self::Pong(ping) => ping.append_to_wire(buf),
+            Self::AuthRequest(auth) => auth.append_to_wire(buf),
+            Self::Data(data) => data.append_to_wire(buf),
+            Self::AuthSuccessWithConfigV4(cfg) => cfg.append_to_wire(buf),
+            Self::AuthFailure(auth) => auth.append_to_wire(buf),
             Self::Goodbye => {}
-            Self::ServerConfig(ref sc) => sc.append_to_wire(buf),
-            Self::DataFrag(ref df) => df.append_to_wire(buf),
+            Self::ServerConfig(sc) => sc.append_to_wire(buf),
+            Self::DataFrag(df) => df.append_to_wire(buf),
         }
     }
 }
@@ -391,8 +391,8 @@ mod session_id {
 
     #[test]
     fn gen_random() {
-        let a: SessionId = rand::thread_rng().gen();
-        let b: SessionId = rand::thread_rng().gen();
+        let a: SessionId = rand::thread_rng().r#gen();
+        let b: SessionId = rand::thread_rng().r#gen();
         assert_ne!(a, b, "Two genuinely random sessions IDs should not match");
     }
 }

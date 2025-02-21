@@ -2,27 +2,27 @@ mod debug;
 pub mod io;
 pub mod keepalive;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use bytes::BytesMut;
 use bytesize::ByteSize;
 use futures::future::OptionFuture;
 use keepalive::Keepalive;
 use lightway_app_utils::{
-    args::Cipher, connection_ticker_cb, ConnectionTicker, ConnectionTickerState, DplpmtudTimer,
-    EventStream, EventStreamCallback, TunConfig,
+    ConnectionTicker, ConnectionTickerState, DplpmtudTimer, EventStream, EventStreamCallback,
+    TunConfig, args::Cipher, connection_ticker_cb,
 };
 use lightway_core::{
-    ipv4_update_destination, ipv4_update_source, BuilderPredicates, ClientContextBuilder,
-    ClientIpConfig, Connection, ConnectionError, ConnectionType, Event, EventCallback,
-    IOCallbackResult, InsideIpConfig, OutsidePacket, State,
+    BuilderPredicates, ClientContextBuilder, ClientIpConfig, Connection, ConnectionError,
+    ConnectionType, Event, EventCallback, IOCallbackResult, InsideIpConfig, OutsidePacket, State,
+    ipv4_update_destination, ipv4_update_source,
 };
 
 // re-export so client app does not need to depend on lightway-core
 #[cfg(feature = "debug")]
 pub use lightway_core::enable_tls_debug;
 pub use lightway_core::{
-    AuthMethod, PluginFactoryError, PluginFactoryList, RootCertificate, Version, MAX_INSIDE_MTU,
-    MAX_OUTSIDE_MTU,
+    AuthMethod, MAX_INSIDE_MTU, MAX_OUTSIDE_MTU, PluginFactoryError, PluginFactoryList,
+    RootCertificate, Version,
 };
 use pnet::packet::ipv4::Ipv4Packet;
 
