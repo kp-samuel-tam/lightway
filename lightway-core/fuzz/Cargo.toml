@@ -2,9 +2,9 @@
 name = "lightway-core-fuzz"
 version = "0.0.0"
 publish = false
-edition = "2021"
-authors = ["lightway-developers@expressvpn.com"]
-license = "GPL-2.0-only"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
 
 [package.metadata]
 cargo-fuzz = true

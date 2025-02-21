@@ -1,10 +1,10 @@
 [package]
 name = "lightway-core"
 version = "0.1.0"
-edition = "2021"
-repository = "https://github.com/expressvpn/lightway"
-authors = ["lightway-developers@expressvpn.com"]
-license = "AGPL-3.0-only"
+repository.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
 readme = "README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
