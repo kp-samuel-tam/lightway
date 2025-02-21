@@ -13,8 +13,8 @@ use bytes::BytesMut;
 use bytesize::ByteSize;
 use lightway_app_utils::sockopt::socket_enable_pktinfo;
 use lightway_core::{
-    ConnectionType, Header, IOCallbackResult, OutsideIOSendCallback, OutsidePacket, SessionId,
-    Version, MAX_OUTSIDE_MTU,
+    ConnectionType, Header, IOCallbackResult, MAX_OUTSIDE_MTU, OutsideIOSendCallback,
+    OutsidePacket, SessionId, Version,
 };
 use socket2::{MaybeUninitSlice, MsgHdr, MsgHdrMut, SockAddr, SockRef};
 use tokio::io::Interest;

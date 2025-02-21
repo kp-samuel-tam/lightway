@@ -3,7 +3,7 @@ use self::channel::Channel;
 use lightway_app_utils::IOUring;
 
 use anyhow::Result;
-use async_channel::{bounded, Receiver, Sender};
+use async_channel::{Receiver, Sender, bounded};
 use bytes::BytesMut;
 use clap::Parser;
 use lightway_core::IOCallbackResult;

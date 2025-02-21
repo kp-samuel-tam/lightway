@@ -272,9 +272,10 @@ mod tests {
         let mut builder = cmsg.builder();
         let err = builder.fill_next(0, 0, 0).unwrap_err();
         assert!(matches!(err.kind(), std::io::ErrorKind::Other));
-        assert!(err
-            .to_string()
-            .contains("cmsg buffer: insufficient space for next header"));
+        assert!(
+            err.to_string()
+                .contains("cmsg buffer: insufficient space for next header")
+        );
     }
 
     #[test]
@@ -285,9 +286,10 @@ mod tests {
         let mut builder = cmsg.builder();
         let err = builder.fill_next(0, 0, 0).unwrap_err();
         assert!(matches!(err.kind(), std::io::ErrorKind::Other));
-        assert!(err
-            .to_string()
-            .contains("cmsg buffer: insufficient space for next header"));
+        assert!(
+            err.to_string()
+                .contains("cmsg buffer: insufficient space for next header")
+        );
     }
 
     #[test]
@@ -310,9 +312,10 @@ mod tests {
             .unwrap();
         let err = builder.fill_next(0, 0, 0).unwrap_err();
         assert!(matches!(err.kind(), std::io::ErrorKind::Other));
-        assert!(err
-            .to_string()
-            .contains("cmsg buffer: insufficient space for next header"));
+        assert!(
+            err.to_string()
+                .contains("cmsg buffer: insufficient space for next header")
+        );
     }
 
     #[test]
@@ -337,8 +340,9 @@ mod tests {
             )
             .unwrap_err();
         assert!(matches!(err.kind(), std::io::ErrorKind::Other));
-        assert!(err
-            .to_string()
-            .contains("cmsg buffer: insufficient space for data"));
+        assert!(
+            err.to_string()
+                .contains("cmsg buffer: insufficient space for data")
+        );
     }
 }

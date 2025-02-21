@@ -235,7 +235,7 @@ mod tests {
     use more_asserts::*;
     use std::collections::VecDeque;
     use test_case::test_case;
-    use tokio::sync::{mpsc, oneshot, Mutex as TokioMutex};
+    use tokio::sync::{Mutex as TokioMutex, mpsc, oneshot};
 
     #[derive(Copy, Clone, Debug)]
     enum FixtureEvent {

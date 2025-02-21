@@ -5,8 +5,8 @@ use std::{
     collections::HashMap,
     net::SocketAddr,
     sync::{
-        atomic::{AtomicUsize, Ordering},
         Arc, Mutex, Weak,
+        atomic::{AtomicUsize, Ordering},
     },
 };
 use thiserror::Error;

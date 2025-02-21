@@ -4,7 +4,7 @@
 
 use std::{sync::Arc, time::Duration};
 
-use crate::{wire, IPV4_HEADER_SIZE, MAX_DTLS_HEADER_SIZE, UDP_HEADER_SIZE};
+use crate::{IPV4_HEADER_SIZE, MAX_DTLS_HEADER_SIZE, UDP_HEADER_SIZE, wire};
 
 use more_asserts::*;
 
@@ -83,11 +83,11 @@ impl ProbeId {
     }
 
     fn is_zero(&self) -> bool {
-        self.0 .0 == 0
+        self.0.0 == 0
     }
 
     fn as_u16(&self) -> u16 {
-        self.0 .0
+        self.0.0
     }
 }
 
@@ -121,7 +121,7 @@ impl std::ops::Sub<u16> for ProbeId {
 
 impl std::cmp::PartialEq<u16> for ProbeId {
     fn eq(&self, other: &u16) -> bool {
-        &self.0 .0 == other
+        &self.0.0 == other
     }
 }
 
@@ -513,7 +513,7 @@ impl<AppState> Dplpmtud<AppState> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{max_dtls_mtu, MAX_OUTSIDE_MTU};
+    use crate::{MAX_OUTSIDE_MTU, max_dtls_mtu};
 
     use super::*;
     use std::sync::Mutex;

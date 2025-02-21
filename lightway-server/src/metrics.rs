@@ -1,5 +1,5 @@
 use lightway_core::{SessionId, Version};
-use metrics::{counter, gauge, histogram, Counter, Gauge, Histogram};
+use metrics::{Counter, Gauge, Histogram, counter, gauge, histogram};
 use std::sync::LazyLock;
 use tracing::trace;
 

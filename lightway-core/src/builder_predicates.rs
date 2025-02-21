@@ -8,11 +8,7 @@ pub trait BuilderPredicates: Sized {
     where
         F: FnOnce(Self) -> Self,
     {
-        if cond {
-            func(self)
-        } else {
-            self
-        }
+        if cond { func(self) } else { self }
     }
 
     /// When `cond` is True call fallible `func` on `Self`
@@ -20,11 +16,7 @@ pub trait BuilderPredicates: Sized {
     where
         F: FnOnce(Self) -> Result<Self, Self::Error>,
     {
-        if cond {
-            func(self)
-        } else {
-            Ok(self)
-        }
+        if cond { func(self) } else { Ok(self) }
     }
 
     /// When `maybe` is Some(_) call `func` on `Self` and the contained value

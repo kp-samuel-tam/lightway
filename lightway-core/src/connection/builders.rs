@@ -8,14 +8,13 @@ use thiserror::Error;
 use wolfssl::Tls13SecretCallbacksArg;
 
 use crate::{
-    connection::{dplpmtud, fragment_map::FragmentMap, key_update, EventCallbackArg},
+    AuthMethod, BuilderPredicates, ClientContext, Connection, ConnectionType, MAX_OUTSIDE_MTU,
+    MIN_OUTSIDE_MTU, OutsideIOSendCallbackArg, ServerContext, ServerIpPoolArg, Version,
+    connection::{EventCallbackArg, dplpmtud, fragment_map::FragmentMap, key_update},
     context::ServerAuthArg,
     dtls_required_outside_mtu, max_dtls_outside_mtu,
     plugin::PluginFactoryError,
     wire::SessionId,
-    AuthMethod, BuilderPredicates, ClientContext, Connection, ConnectionType,
-    OutsideIOSendCallbackArg, ServerContext, ServerIpPoolArg, Version, MAX_OUTSIDE_MTU,
-    MIN_OUTSIDE_MTU,
 };
 
 use super::{ConnectionError, ConnectionMode, NewConnectionArgs, PluginList};
@@ -283,7 +282,7 @@ impl<'a, AppState: Send + 'static> ServerConnectionBuilder<'a, AppState> {
         let auth = ctx.auth.clone();
         let ip_pool = ctx.ip_pool.clone();
 
-        let session_id = ctx.rng.lock().unwrap().gen();
+        let session_id = ctx.rng.lock().unwrap().r#gen();
 
         let outside_mtu = MAX_OUTSIDE_MTU;
         let outside_plugins = ctx.outside_plugins.build()?;

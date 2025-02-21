@@ -1,4 +1,4 @@
-use metrics::{counter, Counter};
+use metrics::{Counter, counter};
 use std::sync::LazyLock;
 use tracing::debug;
 use wolfssl::ProtocolVersion;

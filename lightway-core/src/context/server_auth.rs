@@ -3,7 +3,7 @@ use std::sync::Arc;
 use bytes::Bytes;
 use tracing::info;
 
-use crate::{wire, Version};
+use crate::{Version, wire};
 
 /// A handle onto a successful auth result.
 pub trait ServerAuthHandle: std::fmt::Debug {

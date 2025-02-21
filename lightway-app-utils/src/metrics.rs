@@ -1,4 +1,4 @@
-use metrics::{counter, Counter};
+use metrics::{Counter, counter};
 use std::sync::LazyLock;
 
 static METRIC_TUN_IOURING_RX_ERR: LazyLock<Counter> =

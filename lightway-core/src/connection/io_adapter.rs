@@ -7,7 +7,7 @@ use more_asserts::*;
 use wolfssl::IOCallbackResult;
 
 use crate::{
-    plugin::PluginList, wire, ConnectionType, OutsideIOSendCallbackArg, PluginResult, Version,
+    ConnectionType, OutsideIOSendCallbackArg, PluginResult, Version, plugin::PluginList, wire,
 };
 
 pub(crate) struct SendBuffer {
@@ -299,7 +299,7 @@ impl wolfssl::IOCallbacks for WolfSSLIOAdapter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{OutsideIOSendCallback, Plugin, SessionId, MAX_OUTSIDE_MTU};
+    use crate::{MAX_OUTSIDE_MTU, OutsideIOSendCallback, Plugin, SessionId};
     use std::{
         collections::VecDeque,
         io::{Error, ErrorKind},

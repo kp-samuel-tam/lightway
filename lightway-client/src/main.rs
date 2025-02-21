@@ -1,12 +1,12 @@
 use std::path::PathBuf;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use clap::CommandFactory;
 use lightway_core::{Event, EventCallback};
 use twelf::Layer;
 
 use lightway_app_utils::{
-    args::ConnectionType, validate_configuration_file_path, TunConfig, Validate,
+    TunConfig, Validate, args::ConnectionType, validate_configuration_file_path,
 };
 use lightway_client::*;
 

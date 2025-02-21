@@ -1,11 +1,11 @@
 use std::{net::SocketAddr, num::NonZeroUsize, sync::Arc, time::Duration};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use bytes::BytesMut;
 use lightway_core::{
-    ConnectionType, IOCallbackResult, OutsideIOSendCallback, OutsidePacket, Version,
-    MAX_OUTSIDE_MTU,
+    ConnectionType, IOCallbackResult, MAX_OUTSIDE_MTU, OutsideIOSendCallback, OutsidePacket,
+    Version,
 };
 use socket2::SockRef;
 use tokio::io::AsyncReadExt as _;

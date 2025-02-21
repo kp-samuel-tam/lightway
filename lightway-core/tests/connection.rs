@@ -14,7 +14,7 @@ use tokio::{
 };
 use tokio_stream::StreamExt;
 
-use lightway_app_utils::{connection_ticker_cb, ConnectionTicker, EventStreamCallback};
+use lightway_app_utils::{ConnectionTicker, EventStreamCallback, connection_ticker_cb};
 use lightway_core::*;
 
 const CA_CERT: &[u8] = &include!("data/ca_cert_der_2048");
@@ -340,7 +340,9 @@ async fn client<S: TestSock>(
                     let protocol = client.tls_protocol_version();
                     let cipher = client.current_cipher().unwrap();
                     let curve = client.current_curve().unwrap();
-                    eprintln!("{conn_type:?} connection is Online with {session_id:?}, negotiated protocol {protocol:?}, {cipher} & {curve}");
+                    eprintln!(
+                        "{conn_type:?} connection is Online with {session_id:?}, negotiated protocol {protocol:?}, {cipher} & {curve}"
+                    );
                 }
                 Event::StateChanged(state) => eprintln!("Connection change to {state:?}"),
                 Event::KeepaliveReply => eprintln!("Got keepalive reply"),
