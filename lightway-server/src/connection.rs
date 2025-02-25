@@ -20,10 +20,12 @@ use lightway_core::{
 pub struct ConnectionState {
     // Handler for tick callbacks.
     ticker: ConnectionTicker,
-    // The backend IP (from IP pool) associated with this connection
-    pub internal_ip: Option<Ipv4Addr>,
     // The local IP which the client has connected to
     pub local_addr: SocketAddr,
+    // Addr of connected client
+    pub peer_addr: SocketAddr,
+    // The backend IP (from IP pool) associated with this connection
+    pub internal_ip: Option<Ipv4Addr>,
     // The connection
     pub(crate) conn: std::cell::OnceCell<Weak<Connection>>,
 }
@@ -61,8 +63,9 @@ impl Connection {
         let (ticker, ticker_task) = ConnectionTicker::new();
         let state = ConnectionState {
             ticker,
-            internal_ip: None,
             local_addr,
+            peer_addr: outside_io.peer_addr(),
+            internal_ip: None,
             conn: std::cell::OnceCell::new(),
         };
 
