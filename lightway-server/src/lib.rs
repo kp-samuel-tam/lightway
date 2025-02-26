@@ -48,8 +48,11 @@ fn debug_fmt_plugin_list(
     write!(f, "{} plugins", list.len())
 }
 
+#[derive(Debug)]
 pub struct AuthState<'a> {
     pub local_addr: &'a SocketAddr,
+    pub peer_addr: &'a SocketAddr,
+    pub internal_ip: &'a Option<Ipv4Addr>,
 }
 
 struct AuthAdapter<SA: for<'a> ServerAuth<AuthState<'a>>>(SA);
@@ -63,7 +66,9 @@ impl<SA: for<'a> ServerAuth<AuthState<'a>>> ServerAuth<connection::ConnectionSta
         app_state: &mut connection::ConnectionState,
     ) -> ServerAuthResult {
         let mut auth_state = AuthState {
-            local_addr: &mut app_state.local_addr,
+            local_addr: &app_state.local_addr,
+            peer_addr: &app_state.peer_addr,
+            internal_ip: &app_state.internal_ip,
         };
         let authorized = self.0.authorize(method, &mut auth_state);
         if matches!(authorized, ServerAuthResult::Denied) {
