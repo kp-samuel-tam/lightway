@@ -51,10 +51,16 @@ impl Checksum {
     }
 }
 
-struct ChecksumUpdate(Vec<(u16, u16)>);
+/// Represents a collection of checksum updates for packets.
+///
+/// Each tuple contains (old_value, new_value) where:
+/// * `old_value` - The original value in the packet in u16
+/// * `new_value` - The updated value to replace it in u16
+pub struct ChecksumUpdate(Vec<(u16, u16)>);
 
 impl ChecksumUpdate {
-    fn from_ipv4_address(old: Ipv4Addr, new: Ipv4Addr) -> Self {
+    /// Returns a new [`ChecksumUpdate`] based on old and new IPv4 address
+    pub fn from_ipv4_address(old: Ipv4Addr, new: Ipv4Addr) -> Self {
         let mut result = vec![];
         let old: [u8; 4] = old.octets();
         let new: [u8; 4] = new.octets();
@@ -65,9 +71,25 @@ impl ChecksumUpdate {
         }
         Self(result)
     }
+
+    /// Returns a new [`ChecksumUpdate`] with a single value update
+    ///
+    /// # Arguments
+    /// * `old` - The original value
+    /// * `new` - The replacement value
+    pub fn from_port(old: u16, new: u16) -> Self {
+        Self(vec![(old, new)])
+    }
 }
 
-fn tcp_adjust_packet_checksum(mut packet: MutableIpv4Packet, updates: ChecksumUpdate) {
+impl From<Vec<(u16, u16)>> for ChecksumUpdate {
+    fn from(value: Vec<(u16, u16)>) -> Self {
+        Self(value)
+    }
+}
+
+/// Utility function to update TCP packet when we modify any of the packet payload/headers
+pub fn tcp_adjust_packet_checksum(mut packet: MutableIpv4Packet, updates: ChecksumUpdate) {
     let packet = MutableTcpPacket::new(packet.payload_mut());
     let Some(mut packet) = packet else {
         warn!("Invalid packet size (less than Tcp header)!");
@@ -79,7 +101,8 @@ fn tcp_adjust_packet_checksum(mut packet: MutableIpv4Packet, updates: ChecksumUp
     packet.set_checksum(*checksum);
 }
 
-fn udp_adjust_packet_checksum(mut packet: MutableIpv4Packet, updates: ChecksumUpdate) {
+/// Utility function to update UDP packet when we modify any of the packet payload/headers
+pub fn udp_adjust_packet_checksum(mut packet: MutableIpv4Packet, updates: ChecksumUpdate) {
     let packet = MutableUdpPacket::new(packet.payload_mut());
     let Some(mut packet) = packet else {
         warn!("Invalid packet size (less than Udp header)!");
@@ -95,7 +118,8 @@ fn udp_adjust_packet_checksum(mut packet: MutableIpv4Packet, updates: ChecksumUp
     }
 }
 
-fn ipv4_adjust_packet_checksum(mut packet: MutableIpv4Packet, updates: ChecksumUpdate) {
+/// Utility function to update ipv4 packet header checksum when we modify any of the ipv4 packet headers
+pub fn ipv4_adjust_packet_checksum(mut packet: MutableIpv4Packet, updates: ChecksumUpdate) {
     let checksum = Checksum(packet.get_checksum());
     let checksum = checksum.update(&updates);
     packet.set_checksum(*checksum);
