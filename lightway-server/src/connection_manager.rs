@@ -27,7 +27,7 @@ use lightway_core::{
 };
 
 /// How often to check for connections to expire aged connections
-const CONNECTION_AGE_EXPIRATION_INTERVAL: Duration = Duration::minutes(1);
+pub(crate) const CONNECTION_AGE_EXPIRATION_INTERVAL: Duration = Duration::minutes(1);
 
 /// How often to check for connections to expire connections where authentication has expired
 const CONNECTION_AUTH_EXPIRATION_INTERVAL: Duration = Duration::hours(6);

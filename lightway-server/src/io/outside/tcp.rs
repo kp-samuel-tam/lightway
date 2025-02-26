@@ -4,7 +4,7 @@ use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use bytes::BytesMut;
 use lightway_core::{
-    ConnectionType, IOCallbackResult, MAX_OUTSIDE_MTU, OutsideIOSendCallback, OutsidePacket,
+    ConnectionType, IOCallbackResult, MAX_OUTSIDE_MTU, OutsideIOSendCallback, OutsidePacket, State,
     Version,
 };
 use socket2::SockRef;
@@ -126,13 +126,28 @@ async fn handle_connection(
     drop(conn_manager);
 
     let mut buf = BytesMut::with_capacity(MAX_OUTSIDE_MTU);
+    let age_expiration_interval: Duration =
+        crate::connection_manager::CONNECTION_AGE_EXPIRATION_INTERVAL
+            .try_into()
+            .unwrap();
     let err: anyhow::Error = loop {
+        tokio::select! {
+            res = sock.readable() => {
+                if let Err(e) = res {
+                    break anyhow!(e).context("Sock readable error");
+                }
+            },
+            _ = tokio::time::sleep(age_expiration_interval) => {
+                if !matches!(conn.state(), State::Online) {
+                    break anyhow!("Connection not online (may be aged out or evicted)");
+                }
+                continue;
+            }
+        }
+
         // Recover full capacity
         buf.clear();
         buf.reserve(MAX_OUTSIDE_MTU);
-        if let Err(e) = sock.readable().await {
-            break anyhow!(e).context("Sock readable error");
-        }
 
         match sock.try_read_buf(&mut buf) {
             Ok(0) => {
