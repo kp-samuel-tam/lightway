@@ -178,9 +178,6 @@ impl Connection {
     }
 
     pub fn disconnect(&self) -> ConnectionResult<()> {
-        if matches!(self.state(), State::Disconnecting | State::Disconnected) {
-            return Ok(());
-        }
         metrics::connection_closed();
         self.manager.remove_connection(self);
         self.lw_conn.lock().unwrap().disconnect()
