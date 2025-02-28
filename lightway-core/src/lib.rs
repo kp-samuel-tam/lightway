@@ -45,7 +45,10 @@ pub use plugin::{
     Plugin, PluginFactory, PluginFactoryError, PluginFactoryList, PluginFactoryType, PluginResult,
     PluginType,
 };
-pub use utils::{ipv4_update_destination, ipv4_update_source};
+pub use utils::{
+    ChecksumUpdate, ipv4_adjust_packet_checksum, ipv4_update_destination, ipv4_update_source,
+    tcp_adjust_packet_checksum, udp_adjust_packet_checksum,
+};
 pub use version::Version;
 pub use wire::{AuthMethod, Header, SessionId};
 
