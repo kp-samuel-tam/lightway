@@ -20,6 +20,9 @@ impl Udp {
             None => tokio::net::UdpSocket::bind("0.0.0.0:0").await?,
         };
         let default_ip_pmtudisc = sockopt::get_ip_mtu_discover(&sock)?;
+        // Check for the socket's writable ready status, so that it can be used
+        // successfuly in WolfSsl's `OutsideIOSendCallback` callback
+        sock.writable().await?;
 
         let peer_addr = tokio::net::lookup_host(remote_addr)
             .await?
