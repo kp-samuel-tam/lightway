@@ -168,6 +168,10 @@ pub struct ClientConfig<'cert, A: 'static + Send + EventCallback> {
     #[educe(Debug(ignore))]
     pub event_handler: Option<A>,
 
+    /// Enable WolfSsl debugging
+    #[cfg(feature = "debug")]
+    pub tls_debug: bool,
+
     /// File path to save wireshark keylog
     #[cfg(feature = "debug")]
     pub keylog: Option<PathBuf>,
@@ -420,6 +424,11 @@ pub async fn client<A: 'static + Send + EventCallback>(
         extended: (),
     };
     let (pmtud_timer, pmtud_timer_task) = DplpmtudTimer::new();
+
+    #[cfg(feature = "debug")]
+    if config.tls_debug {
+        enable_tls_debug();
+    }
 
     let conn_builder = ClientContextBuilder::new(
         connection_type,

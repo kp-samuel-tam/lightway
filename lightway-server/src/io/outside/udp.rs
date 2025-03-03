@@ -137,6 +137,9 @@ impl UdpServer {
                 }
             }
         };
+        // Check for the socket's writable ready status, so that it can be used
+        // successfuly in WolfSsl's `OutsideIOSendCallback` callback
+        sock.writable().await?;
         let sock = Arc::new(sock);
 
         let bind_mode = if bind_address.ip().is_unspecified() {
