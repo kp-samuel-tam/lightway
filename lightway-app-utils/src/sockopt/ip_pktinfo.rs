@@ -1,7 +1,9 @@
 #![allow(unsafe_code)]
 
+#[cfg(not(target_vendor = "apple"))]
 use std::os::fd::AsRawFd;
 
+#[cfg(not(target_vendor = "apple"))]
 /// Enable IP_PKTINFO sockopt.
 pub fn socket_enable_pktinfo(sock: &impl AsRawFd) -> std::io::Result<()> {
     // SAFETY: `setsockopt` requires a valid fd and a valid buffer of `c_int` size

@@ -60,13 +60,13 @@ pub fn get_ip_mtu_discover(sock: &impl AsRawFd) -> std::io::Result<IpPmtudisc> {
     let level: i32;
     let optname: i32;
 
-    #[cfg(target_os = "macos")]
+    #[cfg(target_vendor = "apple")]
     {
         level = libc::IPPROTO_IP;
         optname = libc::IP_DONTFRAG;
     }
 
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(not(target_vendor = "apple"))]
     {
         level = libc::SOL_IP;
         optname = libc::IP_MTU_DISCOVER;
@@ -106,13 +106,13 @@ pub fn set_ip_mtu_discover(sock: &impl AsRawFd, pmtudisc: IpPmtudisc) -> std::io
     let level: i32;
     let optname: i32;
 
-    #[cfg(target_os = "macos")]
+    #[cfg(target_vendor = "apple")]
     {
         level = libc::IPPROTO_IP;
         optname = libc::IP_DONTFRAG;
     }
 
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(not(target_vendor = "apple"))]
     {
         level = libc::SOL_IP;
         optname = libc::IP_MTU_DISCOVER;
