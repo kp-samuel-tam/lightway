@@ -1266,6 +1266,8 @@ impl<AppState: Send> Connection<AppState> {
                 wire::Frame::AuthFailure(_) => return Err(ConnectionError::Unauthorized),
                 wire::Frame::Goodbye => return Err(ConnectionError::Goodbye),
                 wire::Frame::ServerConfig(_) => warn!("Ignoring ServerConfig"),
+                wire::Frame::EncodingRequest(er) => self.process_encoding_request_pkt(er)?,
+                wire::Frame::EncodingResponse(er) => self.process_encoding_response_pkt(er)?,
             };
         }
 
@@ -1535,5 +1537,130 @@ impl<AppState: Send> Connection<AppState> {
     /// Get a weak pointer to the inside packet decoder
     pub fn get_inside_packet_decoder(&self) -> Option<Weak<Mutex<PacketDecoderType>>> {
         self.inside_pkt_decoder.clone().map(|d| Arc::downgrade(&d))
+    }
+
+    fn process_encoding_request_pkt(&mut self, er: wire::EncodingRequest) -> ConnectionResult<()> {
+        let encoder = match &mut self.inside_pkt_encoder {
+            Some(encoder) => encoder,
+            None => {
+                debug!("Received EncodingRequest packet without an encoder.");
+                return Ok(()); // No Accumulator. Ignoring the request.
+            }
+        };
+
+        if !matches!(self.state, State::Online) {
+            warn!("Received EncodingRequest packet before state is Online");
+            metrics::received_encoding_req_non_online();
+            return Err(ConnectionError::InvalidState);
+        }
+
+        if !matches!(self.connection_type, ConnectionType::Datagram) {
+            warn!("Received EncodingRequest packet in TCP mode.");
+            metrics::received_encoding_req_with_tcp();
+            return Err(ConnectionError::InvalidConnectionType);
+        }
+
+        if !matches!(self.mode, ConnectionMode::Server { .. }) {
+            error!("Received EncodingRequest as a client");
+            return Err(ConnectionError::InvalidMode);
+        }
+
+        let new_setting = er.enable;
+
+        let mut encoder_guard = encoder.lock().unwrap();
+        if encoder_guard.get_encoding_state() == new_setting {
+            // No change.
+            return Ok(());
+        }
+
+        encoder_guard.set_encoding_state(new_setting);
+
+        debug!(
+            "Client {:?}: EncodingRequest received. encoding state now: {}.",
+            self.session_id,
+            encoder_guard.get_encoding_state()
+        );
+
+        drop(encoder_guard);
+
+        // Reply to the client.
+        // TODO: this is not reliable when the packet loss is high (this response packet could be dropped)
+        // Is there any other better solution?
+        let msg = wire::Frame::EncodingResponse(wire::EncodingResponse {
+            enable: new_setting,
+        });
+        self.send_frame_or_drop(msg)
+    }
+
+    fn process_encoding_response_pkt(
+        &mut self,
+        te: wire::EncodingResponse,
+    ) -> ConnectionResult<()> {
+        let encoder = match &mut self.inside_pkt_encoder {
+            Some(encoder) => encoder,
+            None => {
+                error!("Received EncodingResponse packet even without an encoder.");
+                return Err(ConnectionError::PacketCodecDoesNotExist);
+            }
+        };
+
+        if !matches!(self.state, State::Online) {
+            error!("Received encoding request packet before state is Online");
+            return Err(ConnectionError::InvalidState);
+        }
+
+        if !matches!(self.connection_type, ConnectionType::Datagram) {
+            error!("Received Encoding response packet in TCP mode.");
+            return Err(ConnectionError::InvalidConnectionType);
+        }
+
+        if !matches!(self.mode, ConnectionMode::Client { .. }) {
+            warn!("Received an encoding response as a server");
+            metrics::received_encoding_res_as_server();
+            return Err(ConnectionError::InvalidMode);
+        }
+
+        let new_setting = te.enable;
+
+        let mut encoder_guard = encoder.lock().unwrap();
+        if encoder_guard.get_encoding_state() == new_setting {
+            // No change.
+            return Ok(());
+        }
+
+        encoder_guard.set_encoding_state(new_setting);
+        info!("inside packet encoding state is now set to {}", new_setting);
+
+        Ok(())
+    }
+
+    /// Send an encoding request to the server. (Client only)
+    pub fn send_encoding_request(&mut self, enable: bool) -> ConnectionResult<()> {
+        if self.inside_pkt_encoder.is_none() {
+            return Err(ConnectionError::PacketCodecDoesNotExist);
+        }
+
+        if !matches!(self.state, State::Online) {
+            error!("Attempting to send encoding request packet before state is Online");
+            return Err(ConnectionError::InvalidState);
+        }
+
+        if !matches!(self.connection_type, ConnectionType::Datagram) {
+            return Err(ConnectionError::InvalidConnectionType);
+        }
+
+        if !matches!(self.mode, ConnectionMode::Client { .. }) {
+            error!("Attempting to send an EncodingRequest as a server");
+            return Err(ConnectionError::InvalidMode);
+        }
+
+        debug!("Attempting to send encoding request packet.");
+
+        // TODO: this is not reliable when the packet loss is high (this request packet could be dropped)
+        // Is there any other better solution?
+        let encoding_request = wire::EncodingRequest { enable };
+        let msg = wire::Frame::EncodingRequest(encoding_request);
+
+        self.send_frame_or_drop(msg)
     }
 }
