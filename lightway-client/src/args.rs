@@ -124,6 +124,10 @@ pub struct Config {
     #[clap(long, default_value = "500ms")]
     pub pkt_decoder_clean_up_interval: Duration,
 
+    /// Enable inside packet encoding
+    #[clap(short, long, default_value_t)]
+    pub enable_inside_pkt_encoding: bool,
+
     /// File path to save wireshark keylog
     #[cfg(feature = "debug")]
     #[clap(long, default_value = None)]
