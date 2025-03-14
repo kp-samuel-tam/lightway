@@ -116,6 +116,14 @@ pub struct Config {
     #[clap(short, long, default_value_t)]
     pub server: String,
 
+    /// How often the pkt encoder is flushed
+    #[clap(long, default_value = "100us")]
+    pub pkt_encoder_flush_interval: Duration,
+
+    /// How often the pkt decoder's states are cleaned up
+    #[clap(long, default_value = "500ms")]
+    pub pkt_decoder_clean_up_interval: Duration,
+
     /// File path to save wireshark keylog
     #[cfg(feature = "debug")]
     #[clap(long, default_value = None)]
