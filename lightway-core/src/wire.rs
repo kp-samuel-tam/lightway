@@ -79,6 +79,9 @@ pub enum FromWireError {
     /// An unknown value was encountered in an enum-like field
     #[error("Invalid enum encoding")]
     InvalidEnumEncoding,
+    /// An unknown value was encountered in an frame type field
+    #[error("Invalid/Unknown frame type")]
+    UnknownFrameType,
     /// A non UTF-8 string was encountered
     #[error("Invalid string encoding")]
     InvalidStringEncoding,
@@ -327,8 +330,7 @@ impl Frame<'_> {
         // return without advancing, so the next parse will start from the same buffer.
         let mut buf = BorrowedBytesMut::from(buf);
 
-        let ty =
-            FrameKind::try_from(buf.get_u8()).map_err(|_| FromWireError::InvalidEnumEncoding)?;
+        let ty = FrameKind::try_from(buf.get_u8()).map_err(|_| FromWireError::UnknownFrameType)?;
         let frame = match ty {
             FrameKind::NoOp => Self::NoOp,
             FrameKind::Ping => Self::Ping(Ping::try_from_wire(&mut buf)?),
@@ -588,7 +590,7 @@ mod test_frame {
         let mut buf = BytesMut::from(&[127u8; 1][..]);
         assert!(matches!(
             Frame::try_from_wire(&mut buf).err().unwrap(),
-            FromWireError::InvalidEnumEncoding
+            FromWireError::UnknownFrameType
         ));
     }
 
