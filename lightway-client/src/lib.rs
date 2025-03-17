@@ -154,22 +154,12 @@ pub struct ClientConfig<'cert, A: 'static + Send + EventCallback> {
     #[educe(Debug(method(debug_fmt_plugin_list)))]
     pub outside_plugins: PluginFactoryList,
 
-    /// Inside packet encoder to use
+    /// Inside packet codec to use
     #[educe(Debug(method(debug_pkt_codec_fac)))]
     pub inside_pkt_codec: Option<PacketCodecFactoryType>,
 
-    /// How often the packet encoder is flushed
-    pub pkt_encoder_flush_interval: Duration,
-
-    /// How often the packet decoder's states are cleaned up
-    pub pkt_decoder_clean_up_interval: Duration,
-
-    /// Enables inside packet encoding when connection is established.
-    pub enable_inside_pkt_encoding_at_connect: bool,
-
-    /// Signal for send inside packet encoding request to the server.
-    #[educe(Debug(ignore))]
-    pub encoding_request_signal: tokio::sync::mpsc::Receiver<bool>,
+    /// Inside packet codec's config
+    pub inside_pkt_codec_config: Option<ClientInsidePacketCodecConfig>,
 
     /// Specifies if the program responds to INT/TERM signals
     #[educe(Debug(ignore))]
@@ -192,6 +182,23 @@ pub struct ClientConfig<'cert, A: 'static + Send + EventCallback> {
     /// File path to save wireshark keylog
     #[cfg(feature = "debug")]
     pub keylog: Option<PathBuf>,
+}
+
+#[derive(educe::Educe)]
+#[educe(Debug)]
+pub struct ClientInsidePacketCodecConfig {
+    /// How often the packet encoder is flushed
+    pub flush_interval: Duration,
+
+    /// How often the packet decoder's states are cleaned up
+    pub clean_up_interval: Duration,
+
+    /// Enables inside packet encoding when connection is established.
+    pub enable_encoding_at_connect: bool,
+
+    /// Signal for send inside packet encoding request to the server.
+    #[educe(Debug(ignore))]
+    pub encoding_request_signal: tokio::sync::mpsc::Receiver<bool>,
 }
 
 fn debug_fmt_plugin_list(
@@ -395,8 +402,16 @@ async fn handle_network_change(
 
 async fn pkt_encoder_flush(
     weak: Weak<Mutex<lightway_core::Connection<ConnectionState>>>,
-    interval: Duration,
+    interval: Option<Duration>,
 ) -> Result<()> {
+    let interval = match interval {
+        Some(interval) => interval,
+        None => {
+            // encoder is not set.
+            return Ok(());
+        }
+    };
+
     let conn = match weak.upgrade() {
         Some(conn) => conn,
         None => return Ok(()), // Client Disconnected;
@@ -507,18 +522,20 @@ fn validate_client_config<A: 'static + Send + EventCallback>(
         ));
     }
 
-    if config.inside_pkt_codec.is_none() && config.enable_inside_pkt_encoding_at_connect {
+    if config.inside_pkt_codec.is_some() != config.inside_pkt_codec_config.is_some() {
         return Err(anyhow!(
-            "Cannot enable inside pkt encoding at connect if pkt codec is not set"
+            "Inside packet codec has to be provided together with its config, vice versa."
         ));
     }
 
-    if config.enable_inside_pkt_encoding_at_connect
-        && matches!(config.mode, ClientConnectionType::Stream(_))
-    {
-        return Err(anyhow!(
-            "inside pkt encoding should not be enabled with TCP"
-        ));
+    if let Some(inside_pkt_codec_config) = &config.inside_pkt_codec_config {
+        if inside_pkt_codec_config.enable_encoding_at_connect
+            && matches!(config.mode, ClientConnectionType::Stream(_))
+        {
+            return Err(anyhow!(
+                "inside pkt encoding should not be enabled with TCP"
+            ));
+        }
     }
 
     Ok(())
@@ -643,7 +660,10 @@ pub async fn client<A: 'static + Send + EventCallback>(
         event_stream,
         keepalive.clone(),
         Arc::downgrade(&conn),
-        config.enable_inside_pkt_encoding_at_connect,
+        config
+            .inside_pkt_codec_config
+            .as_ref()
+            .is_some_and(|x| x.enable_encoding_at_connect),
         event_handler,
     ));
 
@@ -674,20 +694,23 @@ pub async fn client<A: 'static + Send + EventCallback>(
 
     let pkt_encoder_flush_task: JoinHandle<anyhow::Result<()>> = tokio::spawn(pkt_encoder_flush(
         Arc::downgrade(&conn),
-        config.pkt_encoder_flush_interval,
+        config
+            .inside_pkt_codec_config
+            .as_ref()
+            .map(|x| x.flush_interval),
     ));
 
-    if has_inside_pkt_codec {
+    if let Some(pkt_codec_config) = config.inside_pkt_codec_config {
         tokio::spawn(pkt_decoder_clean_up(
             Arc::downgrade(&conn),
-            config.pkt_decoder_clean_up_interval,
+            pkt_codec_config.clean_up_interval,
+        ));
+
+        tokio::spawn(encoding_request_task(
+            Arc::downgrade(&conn),
+            pkt_codec_config.encoding_request_signal,
         ));
     };
-
-    tokio::spawn(encoding_request_task(
-        Arc::downgrade(&conn),
-        config.encoding_request_signal,
-    ));
 
     tokio::select! {
         Some(_) = keepalive_task => Err(anyhow!("Keepalive timeout")),

@@ -68,10 +68,6 @@ async fn main() -> Result<()> {
         }
     })?;
 
-    // TODO: create an interface to send a toggle encoding signal
-    #[allow(unused_variables)]
-    let (encoding_request_tx, encoding_request_rx) = tokio::sync::mpsc::channel(1);
-
     let config = ClientConfig {
         mode,
         auth,
@@ -102,10 +98,7 @@ async fn main() -> Result<()> {
         inside_plugins: Default::default(),
         outside_plugins: Default::default(),
         inside_pkt_codec: None,
-        pkt_encoder_flush_interval: config.pkt_encoder_flush_interval.into(),
-        pkt_decoder_clean_up_interval: config.pkt_decoder_clean_up_interval.into(),
-        enable_inside_pkt_encoding_at_connect: config.enable_inside_pkt_encoding,
-        encoding_request_signal: encoding_request_rx,
+        inside_pkt_codec_config: None,
         stop_signal: ctrlc_rx,
         network_change_signal: None,
         event_handler: Some(EventHandler),
