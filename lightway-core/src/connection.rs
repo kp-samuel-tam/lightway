@@ -193,9 +193,11 @@ impl ConnectionError {
                     InvalidInsideIpConfig(_) => true,
                     AccessDenied => true,
                     Goodbye => true,
-                    WireError(_) => true,
                     WolfSSL(wolfssl::Error::Fatal(ErrorKind::DomainNameMismatch)) => true,
                     WolfSSL(wolfssl::Error::Fatal(ErrorKind::DuplicateMessage)) => true,
+
+                    WireError(wire::FromWireError::UnknownFrameType) => false,
+                    WireError(_) => true,
 
                     InvalidState => false, // Can be due to out of order or repeated messages
                     UnknownSessionID => false,
