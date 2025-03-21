@@ -97,6 +97,8 @@ async fn main() -> Result<()> {
         server: config.server,
         inside_plugins: Default::default(),
         outside_plugins: Default::default(),
+        inside_pkt_codec: None,
+        inside_pkt_codec_config: None,
         stop_signal: ctrlc_rx,
         network_change_signal: None,
         event_handler: Some(EventHandler),

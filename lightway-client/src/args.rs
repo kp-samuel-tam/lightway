@@ -116,6 +116,21 @@ pub struct Config {
     #[clap(short, long, default_value_t)]
     pub server: String,
 
+    /// How often the pkt encoder is flushed
+    /// Only used if a codec is set
+    #[clap(long, default_value = "100us")]
+    pub pkt_encoder_flush_interval: Duration,
+
+    /// How often the pkt decoder's states are cleaned up
+    /// Only used if a codec is set
+    #[clap(long, default_value = "500ms")]
+    pub pkt_decoder_clean_up_interval: Duration,
+
+    /// Enable inside packet encoding once lightway connects
+    /// Only used if a codec is set
+    #[clap(short, long, default_value_t)]
+    pub enable_inside_pkt_encoding_at_connect: bool,
+
     /// File path to save wireshark keylog
     #[cfg(feature = "debug")]
     #[clap(long, default_value = None)]

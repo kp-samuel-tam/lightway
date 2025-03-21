@@ -50,6 +50,8 @@ mod auth_request;
 mod auth_success_with_config_ipv4;
 mod data;
 mod data_frag;
+mod encoding_request;
+mod encoding_response;
 mod ping;
 mod pong;
 mod server_config;
@@ -61,6 +63,8 @@ pub(crate) use auth_request::AuthRequest;
 pub(crate) use auth_success_with_config_ipv4::AuthSuccessWithConfigV4;
 pub(crate) use data::Data;
 pub(crate) use data_frag::DataFrag;
+pub(crate) use encoding_request::EncodingRequest;
+pub(crate) use encoding_response::EncodingResponse;
 pub(crate) use ping::Ping;
 pub(crate) use pong::Pong;
 pub(crate) use server_config::ServerConfig;
@@ -91,6 +95,9 @@ pub enum FromWireError {
     /// Wire contains an invalid protocol version
     #[error("Invalid protocol version {0}.{1}")]
     InvalidProtocolVersion(u8, u8),
+    /// The toggle option is not a boolean
+    #[error("Invalid toggle option: is not a boolean")]
+    InvalidBool,
 }
 
 /// The result of an attempted wire decode.
@@ -265,6 +272,14 @@ pub(crate) enum FrameKind {
     ServerConfig = 14,
     /// Fragmented Data Packet
     DataFrag = 15,
+    /// Encoded Data Packets of data to / from the tunnel
+    EncodedData = 16,
+    /// Encoded Fragmented Data Packet
+    EncodedDataFrag = 17,
+    /// Encoding Request
+    EncodingRequest = 18,
+    /// Encoding Response
+    EncodingResponse = 19,
 }
 
 /// Encapsulates a single frame.
@@ -300,6 +315,14 @@ pub(crate) enum Frame<'data> {
     ServerConfig(server_config::ServerConfig),
     /// Fragmented Data Packet
     DataFrag(data_frag::DataFrag),
+    /// Encoded packet of data to / from the tunnel
+    EncodedData(data::Data<'data>),
+    /// Encoded Fragmented Data Packet
+    EncodedDataFrag(data_frag::DataFrag),
+    /// Encoding Request
+    EncodingRequest(encoding_request::EncodingRequest),
+    /// Encoding Response
+    EncodingResponse(encoding_response::EncodingResponse),
 }
 
 impl Frame<'_> {
@@ -315,6 +338,10 @@ impl Frame<'_> {
             Self::Goodbye => FrameKind::Goodbye,
             Self::ServerConfig(_) => FrameKind::ServerConfig,
             Self::DataFrag(_) => FrameKind::DataFrag,
+            Self::EncodedData(_) => FrameKind::EncodedData,
+            Self::EncodedDataFrag(_) => FrameKind::EncodedDataFrag,
+            Self::EncodingRequest(_) => FrameKind::EncodingRequest,
+            Self::EncodingResponse(_) => FrameKind::EncodingResponse,
         }
     }
 
@@ -344,6 +371,14 @@ impl Frame<'_> {
             FrameKind::Goodbye => Self::Goodbye,
             FrameKind::ServerConfig => Self::ServerConfig(ServerConfig::try_from_wire(&mut buf)?),
             FrameKind::DataFrag => Self::DataFrag(DataFrag::try_from_wire(&mut buf)?),
+            FrameKind::EncodedData => Self::EncodedData(Data::try_from_wire(&mut buf)?),
+            FrameKind::EncodedDataFrag => Self::EncodedDataFrag(DataFrag::try_from_wire(&mut buf)?),
+            FrameKind::EncodingRequest => {
+                Self::EncodingRequest(EncodingRequest::try_from_wire(&mut buf)?)
+            }
+            FrameKind::EncodingResponse => {
+                Self::EncodingResponse(EncodingResponse::try_from_wire(&mut buf)?)
+            }
         };
 
         buf.commit(); // We've successfully parsed a frame, move the
@@ -368,6 +403,10 @@ impl Frame<'_> {
             Self::Goodbye => {}
             Self::ServerConfig(sc) => sc.append_to_wire(buf),
             Self::DataFrag(df) => df.append_to_wire(buf),
+            Self::EncodedData(data) => data.append_to_wire(buf),
+            Self::EncodedDataFrag(df) => df.append_to_wire(buf),
+            Self::EncodingRequest(er) => er.append_to_wire(buf),
+            Self::EncodingResponse(er) => er.append_to_wire(buf),
         }
     }
 }
@@ -487,6 +526,10 @@ mod test_frame_kind {
     #[test_case(FrameKind::Goodbye => 12)]
     #[test_case(FrameKind::ServerConfig => 14)]
     #[test_case(FrameKind::DataFrag => 15)]
+    #[test_case(FrameKind::EncodedData => 16)]
+    #[test_case(FrameKind::EncodedDataFrag => 17)]
+    #[test_case(FrameKind::EncodingRequest => 18)]
+    #[test_case(FrameKind::EncodingResponse => 19)]
     fn into_primitive(ty: FrameKind) -> u8 {
         ty.into()
     }
@@ -506,13 +549,17 @@ mod test_frame_kind {
     #[test_case(13 => panics "TryFromPrimitiveError { number: 13 }")]
     #[test_case(14 => FrameKind::ServerConfig)]
     #[test_case(15 => FrameKind::DataFrag)]
+    #[test_case(16 => FrameKind::EncodedData)]
+    #[test_case(17 => FrameKind::EncodedDataFrag)]
+    #[test_case(18 => FrameKind::EncodingRequest)]
+    #[test_case(19 => FrameKind::EncodingResponse)]
     fn try_from_primitive(b: u8) -> FrameKind {
         FrameKind::try_from(b).unwrap()
     }
 
     #[test]
     fn try_from_primitive_out_of_range() {
-        for b in 16..=255 {
+        for b in 20..=255 {
             assert!(FrameKind::try_from(b).is_err())
         }
     }
@@ -535,6 +582,8 @@ mod test_frame {
     #[test_case(Frame::Goodbye => FrameKind::Goodbye)]
     #[test_case(Frame::ServerConfig(ServerConfig{ data: Default::default() }) => FrameKind::ServerConfig)]
     #[test_case(Frame::DataFrag(DataFrag{ id: 0, offset: 0, more_fragments: true, data: Default::default() }) => FrameKind::DataFrag)]
+    #[test_case(Frame::EncodingRequest(EncodingRequest{enable: true}) => FrameKind::EncodingRequest)]
+    #[test_case(Frame::EncodingResponse(EncodingResponse{enable: true}) => FrameKind::EncodingResponse)]
     fn frame_kind(f: Frame) -> FrameKind {
         f.kind()
     }
@@ -551,6 +600,8 @@ mod test_frame {
     #[test_case(Frame::Goodbye => vec![0x0c]; "goodbye")]
     #[test_case(Frame::ServerConfig(ServerConfig{ data: Bytes::from_static(b"server config")}) => b"\x0e\x00\x0dserver config".to_vec(); "server config")]
     #[test_case(Frame::DataFrag(DataFrag{ id: 0x1234, offset: 0x5678, more_fragments: true, data: Bytes::from_static(b"fragmentary") }) => b"\x0f\x00\x0b\x12\x34\x2a\xcffragmentary".to_vec() ; "data frag")]
+    #[test_case(Frame::EncodingRequest(EncodingRequest{enable: true}) => b"\x12\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00".to_vec(); "encoding request")]
+    #[test_case(Frame::EncodingResponse(EncodingResponse{enable: true}) => b"\x13\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00".to_vec(); "encoding response")]
     fn into_wire(f: Frame) -> Vec<u8> {
         let mut buf = BytesMut::new();
         f.append_to_wire(&mut buf);
@@ -569,6 +620,10 @@ mod test_frame {
     #[test_case(&[0x0c] => Frame::Goodbye; "goodbye")]
     #[test_case(b"\x0e\x00\x0dserver config" => Frame::ServerConfig(ServerConfig{ data: Bytes::from_static(b"server config")}); "server config")]
     #[test_case(b"\x0f\x00\x0b\x12\x34\x2a\xcffragmentary"=> Frame::DataFrag(DataFrag{ id: 0x1234, offset: 0x5678, more_fragments: true, data: Bytes::from_static(b"fragmentary") }) ; "data frag")]
+    #[test_case(&[0x10, 0, 3, 0xfe, 0xbe, 0xaa] => Frame::EncodedData(Data{ data: Cow::Owned(BytesMut::from(&[0xfe, 0xbe, 0xaa][..]))}); "encoded data")]
+    #[test_case(b"\x11\x00\x0b\x12\x34\x2a\xcffragmentary"=> Frame::EncodedDataFrag(DataFrag{ id: 0x1234, offset: 0x5678, more_fragments: true, data: Bytes::from_static(b"fragmentary") }) ; "encoded data frag")]
+    #[test_case(b"\x12\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"=> Frame::EncodingRequest(EncodingRequest{enable: true}) ; "encoding request")]
+    #[test_case(b"\x13\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"=> Frame::EncodingResponse(EncodingResponse{enable: true}) ; "encoding response")]
     fn try_from_wire(buf: &'static [u8]) -> Frame<'static> {
         let mut buf = BytesMut::from(buf);
         let r = Frame::try_from_wire(&mut buf).unwrap();
