@@ -168,9 +168,6 @@ pub struct ServerConfig<SA: for<'a> ServerAuth<AuthState<'a>>> {
     /// How often the pkt encoder is flushed
     pub pkt_encoder_flush_interval: Duration,
 
-    /// How often the pkt decoder's states are cleaned up
-    pub pkt_decoder_clean_up_interval: Duration,
-
     /// Address to listen to
     pub bind_address: SocketAddr,
 

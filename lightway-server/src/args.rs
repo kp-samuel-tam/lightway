@@ -121,10 +121,6 @@ pub struct Config {
     #[clap(long, default_value = "100us")]
     pub pkt_encoder_flush_interval: Duration,
 
-    /// How often the pkt decoder's states are cleaned up
-    #[clap(long, default_value = "500ms")]
-    pub pkt_decoder_clean_up_interval: Duration,
-
     /// Enable WolfSSL debug logging
     #[cfg(feature = "debug")]
     #[clap(long)]
