@@ -1432,7 +1432,7 @@ impl<AppState: Send> Connection<AppState> {
 
     fn handle_outside_data_bytes(
         &mut self,
-        inside_bytes: BytesMut,
+        mut inside_bytes: BytesMut,
         is_encoded: bool,
     ) -> ConnectionResult<()> {
         if !is_encoded {
@@ -1447,7 +1447,7 @@ impl<AppState: Send> Connection<AppState> {
             }
         };
 
-        let decoder_state = decoder.store(&inside_bytes);
+        let decoder_state = decoder.store(&mut inside_bytes);
         match decoder_state {
             Ok(CodecStatus::ReadyToFlush) => {
                 for result in self.flush_pkts_to_inside() {

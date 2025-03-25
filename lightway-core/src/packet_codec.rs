@@ -13,7 +13,7 @@ pub trait PacketEncoder {
     /// If the status is [`CodecStatus::ReadyToFlush`], encoded packets are ready to be retrieved.
     /// If the status is [`CodecStatus::SkipPacket`], the packet is skipped by the encoder and lightway
     /// may send it as a normal wire::Data packet.
-    fn store(&self, data: &BytesMut) -> PacketCodecResult<CodecStatus>;
+    fn store(&self, data: &mut BytesMut) -> PacketCodecResult<CodecStatus>;
 
     /// Retrieve the encoded packets
     fn get_encoded_pkts(&self) -> PacketCodecResult<Vec<BytesMut>>;
@@ -40,7 +40,7 @@ pub trait PacketDecoder {
     /// If the status is [`CodecStatus::ReadyToFlush`], decoded inside packets are ready to be retrieved.
     /// If the status is [`CodecStatus::SkipPacket`], the packet should not be added to the decoder.
     /// and should be sent directly.
-    fn store(&self, data: &BytesMut) -> PacketCodecResult<CodecStatus>;
+    fn store(&self, data: &mut BytesMut) -> PacketCodecResult<CodecStatus>;
 
     /// Retrieve the decoded inside packets
     fn get_decoded_pkts(&self) -> PacketCodecResult<Vec<BytesMut>>;
