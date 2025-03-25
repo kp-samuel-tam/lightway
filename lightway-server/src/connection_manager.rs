@@ -26,7 +26,7 @@ use lightway_core::{
     OutsideIOSendCallbackArg, OutsidePacket, ServerContext, SessionId, State, Version,
 };
 
-use crate::codec_list::{DecoderList, InternalIPToEncoderMap};
+use crate::codec_list::InternalIPToEncoderMap;
 
 /// How often to check for connections to expire aged connections
 pub(crate) const CONNECTION_AGE_EXPIRATION_INTERVAL: Duration = Duration::minutes(1);
@@ -110,7 +110,6 @@ pub(crate) struct ConnectionManager {
     ctx: ServerContext<ConnectionState>,
     connections: Mutex<ConnectionMap<Connection>>,
     pending_session_id_rotations: Mutex<HashMap<SessionId, Arc<Connection>>>,
-    decoders: Arc<Mutex<DecoderList>>,
     encoders: Arc<Mutex<InternalIPToEncoderMap>>,
     /// Total number of sessions there have ever been
     total_sessions: AtomicUsize,
@@ -120,7 +119,6 @@ pub(crate) struct ConnectionManager {
 async fn handle_state_change(
     state: State,
     conn: &Weak<Connection>,
-    decoders: Arc<Mutex<DecoderList>>,
     encoders: Arc<Mutex<InternalIPToEncoderMap>>,
 ) {
     let Some(conn) = conn.upgrade() else {
@@ -151,21 +149,6 @@ async fn handle_state_change(
                     None => {
                         tracing::error!(
                             "Internal IP not found when trying to add encoder to the list. "
-                        );
-                    }
-                }
-            }
-
-            if let Some(decoder) = conn.get_inside_packet_decoder() {
-                let decoder = Arc::downgrade(&decoder);
-                match conn.get_internal_ip() {
-                    Some(internal_ip) => {
-                        decoders.lock().unwrap().push(decoder);
-                        tracing::debug!("{}'s decoder has been added to the list.", internal_ip);
-                    }
-                    None => {
-                        tracing::error!(
-                            "Internal IP not found when trying to add decoder to the list. "
                         );
                     }
                 }
@@ -210,14 +193,11 @@ fn handle_tls_keys_update_complete() {
 async fn handle_events(
     mut stream: EventStream,
     conn: Weak<Connection>,
-    decoders: Arc<Mutex<DecoderList>>,
     encoders: Arc<Mutex<InternalIPToEncoderMap>>,
 ) {
     while let Some(event) = stream.next().await {
         match event {
-            Event::StateChanged(state) => {
-                handle_state_change(state, &conn, decoders.clone(), encoders.clone()).await
-            }
+            Event::StateChanged(state) => handle_state_change(state, &conn, encoders.clone()).await,
             Event::KeepaliveReply => {}
             Event::SessionIdRotationAcknowledged { old, new } => {
                 handle_finalize_session_rotation(&conn, old, new);
@@ -248,7 +228,6 @@ fn new_connection(
     protocol_version: Version,
     local_addr: SocketAddr,
     outside_io: OutsideIOSendCallbackArg,
-    decoders: Arc<Mutex<DecoderList>>,
     encoders: Arc<Mutex<InternalIPToEncoderMap>>,
 ) -> Result<Arc<Connection>, ConnectionManagerError> {
     metrics::connection_created(&protocol_version);
@@ -272,7 +251,6 @@ fn new_connection(
     tokio::spawn(handle_events(
         event_stream,
         Arc::downgrade(&conn),
-        decoders.clone(),
         encoders.clone(),
     ));
     tokio::spawn(handle_stale(Arc::downgrade(&conn)));
@@ -283,7 +261,6 @@ fn new_connection(
 impl ConnectionManager {
     pub(crate) fn new(
         ctx: ServerContext<ConnectionState>,
-        decoders: Arc<Mutex<DecoderList>>,
         encoders: Arc<Mutex<InternalIPToEncoderMap>>,
     ) -> Arc<Self> {
         let conn_manager = Arc::new(Self {
@@ -291,7 +268,6 @@ impl ConnectionManager {
             connections: Mutex::new(Default::default()),
             pending_session_id_rotations: Mutex::new(Default::default()),
             total_sessions: Default::default(),
-            decoders,
             encoders,
         });
 
@@ -328,7 +304,6 @@ impl ConnectionManager {
             protocol_version,
             socket_addr,
             outside_io,
-            self.decoders.clone(),
             self.encoders.clone(),
         )?;
         // TODO: what if addr was already present?
@@ -385,7 +360,6 @@ impl ConnectionManager {
                     protocol_version,
                     local_addr,
                     outside_io,
-                    self.decoders.clone(),
                     self.encoders.clone(),
                 )?;
                 e.insert(&c)?;

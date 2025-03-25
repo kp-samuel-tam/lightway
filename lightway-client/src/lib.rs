@@ -462,22 +462,6 @@ async fn pkt_encoder_flush(
     }
 }
 
-async fn pkt_decoder_clean_up(weak: Weak<Mutex<Connection<ConnectionState>>>, interval: Duration) {
-    let Some(conn) = weak.upgrade() else {
-        return; // Connection disconnected.
-    };
-
-    let decoder = match conn.lock().unwrap().get_inside_packet_decoder() {
-        Some(decoder) => decoder,
-        None => return, // Decoder is not set
-    };
-
-    loop {
-        tokio::time::sleep(interval).await;
-        decoder.cleanup_stale_states();
-    }
-}
-
 async fn encoding_request_task(
     weak: Weak<Mutex<Connection<ConnectionState>>>,
     mut signal: tokio::sync::mpsc::Receiver<bool>,
@@ -686,11 +670,6 @@ pub async fn client<A: 'static + Send + EventCallback>(
     ));
 
     if let Some(pkt_codec_config) = config.inside_pkt_codec_config {
-        tokio::spawn(pkt_decoder_clean_up(
-            Arc::downgrade(&conn),
-            pkt_codec_config.clean_up_interval,
-        ));
-
         tokio::spawn(encoding_request_task(
             Arc::downgrade(&conn),
             pkt_codec_config.encoding_request_signal,

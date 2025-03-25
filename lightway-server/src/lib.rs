@@ -43,7 +43,7 @@ use crate::ip_manager::IpManager;
 use connection_manager::ConnectionManager;
 use io::outside::Server;
 
-use codec_list::{DecoderList, InternalIPToEncoderMap};
+use codec_list::InternalIPToEncoderMap;
 
 fn debug_fmt_plugin_list(
     list: &PluginFactoryList,
@@ -243,29 +243,6 @@ async fn pkt_encoder_flush(
     }
 }
 
-async fn pkt_decoder_clean_up(interval: Duration, decoders: Arc<Mutex<DecoderList>>) -> Result<()> {
-    loop {
-        tokio::time::sleep(interval).await;
-
-        let mut decoders = decoders.lock().unwrap();
-
-        for decoder in decoders.iter() {
-            let decoder = match decoder.upgrade() {
-                Some(decoder) => decoder,
-                None => {
-                    // Decoder has been dropped when the Connection has disconnected.
-                    continue;
-                }
-            };
-
-            decoder.cleanup_stale_states();
-        }
-
-        // Remove decoders with dropped connection
-        decoders.retain(|decoder| decoder.upgrade().is_some());
-    }
-}
-
 pub async fn server<SA: for<'a> ServerAuth<AuthState<'a>> + Sync + Send + 'static>(
     mut config: ServerConfig<SA>,
 ) -> Result<()> {
@@ -328,9 +305,8 @@ pub async fn server<SA: for<'a> ServerAuth<AuthState<'a>> + Sync + Send + 'stati
     .build()?;
 
     let encoders = Arc::new(Mutex::new(InternalIPToEncoderMap::default()));
-    let decoders = Arc::new(Mutex::new(DecoderList::default()));
 
-    let conn_manager = ConnectionManager::new(ctx, decoders.clone(), encoders.clone());
+    let conn_manager = ConnectionManager::new(ctx, encoders.clone());
 
     tokio::spawn(statistics::run(conn_manager.clone(), ip_manager.clone()));
 
@@ -392,11 +368,6 @@ pub async fn server<SA: for<'a> ServerAuth<AuthState<'a>> + Sync + Send + 'stati
             ip_manager_clone,
             config.pkt_encoder_flush_interval,
             encoders,
-        ));
-
-        tokio::spawn(pkt_decoder_clean_up(
-            config.pkt_decoder_clean_up_interval,
-            decoders,
         ));
     }
 

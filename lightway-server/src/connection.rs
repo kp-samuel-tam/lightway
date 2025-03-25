@@ -13,8 +13,8 @@ use crate::{
 use lightway_app_utils::{ConnectionTicker, ConnectionTickerState, EventStreamCallback, Tickable};
 use lightway_core::{
     ConnectionActivity, ConnectionError, ConnectionResult, ConnectionType,
-    OutsideIOSendCallbackArg, OutsidePacket, PacketDecoderType, PacketEncoderType, ProtocolVersion,
-    ServerContext, SessionId, State, Version,
+    OutsideIOSendCallbackArg, OutsidePacket, PacketEncoderType, ProtocolVersion, ServerContext,
+    SessionId, State, Version,
 };
 
 pub struct ConnectionState {
@@ -112,7 +112,6 @@ impl Connection {
             pub fn inside_data_received(&self, pkt: &mut BytesMut) -> ConnectionResult<()>;
 
             pub fn get_inside_packet_encoder(&self) -> Option<PacketEncoderType>;
-            pub fn get_inside_packet_decoder(&self) -> Option<PacketDecoderType>;
         }
     }
 

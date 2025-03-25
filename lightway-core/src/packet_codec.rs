@@ -44,11 +44,6 @@ pub trait PacketDecoder {
 
     /// Retrieve the decoded inside packets
     fn get_decoded_pkts(&self) -> PacketCodecResult<Vec<BytesMut>>;
-
-    /// Clean up the inner stale states.
-    /// Should be called periodically to avoid stale states
-    /// from unnecessarily holding memory.
-    fn cleanup_stale_states(&self);
 }
 
 /// Indicates the status of [`PacketEncoder`] or [`PacketDecoder`] after storing the current packet
