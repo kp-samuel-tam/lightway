@@ -111,8 +111,8 @@ impl Connection {
             pub fn outside_data_received(&self, buf: OutsidePacket) -> ConnectionResult<usize>;
             pub fn inside_data_received(&self, pkt: &mut BytesMut) -> ConnectionResult<()>;
 
-            pub fn get_inside_packet_encoder(&self) -> Option<Weak<Mutex<PacketEncoderType>>>;
-            pub fn get_inside_packet_decoder(&self) -> Option<Weak<Mutex<PacketDecoderType>>>;
+            pub fn get_inside_packet_encoder(&self) -> Option<PacketEncoderType>;
+            pub fn get_inside_packet_decoder(&self) -> Option<PacketDecoderType>;
         }
     }
 

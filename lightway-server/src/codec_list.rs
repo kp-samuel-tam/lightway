@@ -1,12 +1,8 @@
-use lightway_core::{PacketDecoderType, PacketEncoderType};
-use std::{
-    collections::HashMap,
-    net::Ipv4Addr,
-    sync::{Mutex, Weak},
-};
+use lightway_core::{WeakPacketDecoderType, WeakPacketEncoderType};
+use std::{collections::HashMap, net::Ipv4Addr};
 
 // Maps client's internal IP (assigned by IPManager) to its connection's packet encoder
-pub type InternalIPToEncoderMap = HashMap<Ipv4Addr, Weak<Mutex<PacketEncoderType>>>;
+pub type InternalIPToEncoderMap = HashMap<Ipv4Addr, WeakPacketEncoderType>;
 
 // List of Decoders of each connection
-pub type DecoderList = Vec<Weak<Mutex<PacketDecoderType>>>;
+pub type DecoderList = Vec<WeakPacketDecoderType>;

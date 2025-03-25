@@ -225,7 +225,7 @@ async fn pkt_encoder_flush(
                 }
             };
 
-            if !encoder.lock().unwrap().should_flush() {
+            if !encoder.should_flush() {
                 // No need to flush now
                 continue;
             }
@@ -258,7 +258,7 @@ async fn pkt_decoder_clean_up(interval: Duration, decoders: Arc<Mutex<DecoderLis
                 }
             };
 
-            decoder.lock().unwrap().cleanup_stale_states();
+            decoder.cleanup_stale_states();
         }
 
         // Remove decoders with dropped connection

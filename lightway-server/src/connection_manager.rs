@@ -142,6 +142,7 @@ async fn handle_state_change(
             // If codec is initialized, add the encoder and decoder to the lists so that
             // the server can flush the encoder and clean up stale states in the decoder.
             if let Some(encoder) = conn.get_inside_packet_encoder() {
+                let encoder = Arc::downgrade(&encoder);
                 match conn.get_internal_ip() {
                     Some(internal_ip) => {
                         encoders.lock().unwrap().insert(internal_ip, encoder);
@@ -156,6 +157,7 @@ async fn handle_state_change(
             }
 
             if let Some(decoder) = conn.get_inside_packet_decoder() {
+                let decoder = Arc::downgrade(&decoder);
                 match conn.get_internal_ip() {
                     Some(internal_ip) => {
                         decoders.lock().unwrap().push(decoder);

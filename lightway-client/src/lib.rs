@@ -419,7 +419,7 @@ async fn pkt_encoder_flush(
 
     let maybe_encoder_weak = conn.lock().unwrap().get_inside_packet_encoder();
 
-    let encoder_weak = match maybe_encoder_weak {
+    let encoder = match maybe_encoder_weak {
         Some(encoder_weak) => encoder_weak,
         None => {
             // encoder is not set.
@@ -430,12 +430,6 @@ async fn pkt_encoder_flush(
     loop {
         tokio::time::sleep(interval).await;
 
-        let encoder = match encoder_weak.upgrade() {
-            Some(encoder) => encoder,
-            None => return Ok(()), // Decoder dropped with the connection. Time to bail.
-        };
-
-        let encoder = encoder.lock().unwrap();
         if !encoder.get_encoding_state() {
             // Encoder is not enabled
             continue;
@@ -445,10 +439,6 @@ async fn pkt_encoder_flush(
             // Not yet time to flush
             continue;
         }
-
-        // call to conn.flush_pkts_to_outside() below tries to lock the encoder to get the packets.
-        // Dropping the encoder here to avoid a deadlock.
-        drop(encoder);
 
         let conn = match weak.upgrade() {
             Some(conn) => conn,
@@ -477,19 +467,14 @@ async fn pkt_decoder_clean_up(weak: Weak<Mutex<Connection<ConnectionState>>>, in
         return; // Connection disconnected.
     };
 
-    let maybe_decoder = match conn.lock().unwrap().get_inside_packet_decoder() {
+    let decoder = match conn.lock().unwrap().get_inside_packet_decoder() {
         Some(decoder) => decoder,
         None => return, // Decoder is not set
     };
 
     loop {
         tokio::time::sleep(interval).await;
-        let decoder = match maybe_decoder.upgrade() {
-            Some(decoder) => decoder,
-            None => return, // Decoder dropped with the connection. Time to bail.
-        };
-
-        decoder.lock().unwrap().cleanup_stale_states();
+        decoder.cleanup_stale_states();
     }
 }
 
