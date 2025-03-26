@@ -23,13 +23,14 @@ use lightway_core::{
     AuthMethod, BuilderPredicates, ConnectionError, ConnectionResult, IOCallbackResult,
     InsideIpConfig, PacketCodecFactoryType, Secret, ServerContextBuilder, ipv4_update_destination,
 };
+use parking_lot::Mutex;
 use pnet::packet::ipv4::Ipv4Packet;
 use std::{
     collections::HashMap,
     net::{IpAddr, Ipv4Addr, SocketAddr},
     num::NonZeroUsize,
     path::PathBuf,
-    sync::{Arc, Mutex},
+    sync::Arc,
     time::Duration,
 };
 use tokio::task::JoinHandle;
@@ -210,7 +211,7 @@ async fn pkt_encoder_flush(
     loop {
         tokio::time::sleep(interval).await;
 
-        let mut encoders = encoders.lock().unwrap();
+        let mut encoders = encoders.lock();
 
         for (internal_ip, encoder) in encoders.clone().into_iter() {
             let encoder = match encoder.upgrade() {
