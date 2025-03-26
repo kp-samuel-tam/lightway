@@ -404,27 +404,18 @@ async fn pkt_encoder_flush(
     weak: Weak<Mutex<lightway_core::Connection<ConnectionState>>>,
     interval: Option<Duration>,
 ) -> Result<()> {
-    let interval = match interval {
-        Some(interval) => interval,
-        None => {
-            // encoder is not set.
-            return Ok(());
-        }
+    let Some(interval) = interval else {
+        // encoder is not set.
+        return Ok(());
     };
 
-    let conn = match weak.upgrade() {
-        Some(conn) => conn,
-        None => return Ok(()), // Client Disconnected;
+    let Some(conn) = weak.upgrade() else {
+        return Ok(()); // Client Disconnected
     };
 
-    let maybe_encoder_weak = conn.lock().unwrap().get_inside_packet_encoder();
-
-    let encoder = match maybe_encoder_weak {
-        Some(encoder_weak) => encoder_weak,
-        None => {
-            // encoder is not set.
-            return Ok(());
-        }
+    let Some(encoder) = conn.lock().unwrap().get_inside_packet_encoder() else {
+        // encoder is not set.
+        return Ok(());
     };
 
     loop {
