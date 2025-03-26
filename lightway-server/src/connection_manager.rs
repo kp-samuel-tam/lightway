@@ -1,11 +1,12 @@
 mod connection_map;
 
 use delegate::delegate;
+use parking_lot::Mutex;
 use std::{
     collections::HashMap,
     net::SocketAddr,
     sync::{
-        Arc, Mutex, Weak,
+        Arc, Weak,
         atomic::{AtomicUsize, Ordering},
     },
 };
@@ -26,7 +27,7 @@ use lightway_core::{
     OutsideIOSendCallbackArg, OutsidePacket, ServerContext, SessionId, State, Version,
 };
 
-use crate::codec_list::{DecoderList, InternalIPToEncoderMap};
+use crate::codec_list::InternalIPToEncoderMap;
 
 /// How often to check for connections to expire aged connections
 pub(crate) const CONNECTION_AGE_EXPIRATION_INTERVAL: Duration = Duration::minutes(1);
@@ -110,7 +111,6 @@ pub(crate) struct ConnectionManager {
     ctx: ServerContext<ConnectionState>,
     connections: Mutex<ConnectionMap<Connection>>,
     pending_session_id_rotations: Mutex<HashMap<SessionId, Arc<Connection>>>,
-    decoders: Arc<Mutex<DecoderList>>,
     encoders: Arc<Mutex<InternalIPToEncoderMap>>,
     /// Total number of sessions there have ever been
     total_sessions: AtomicUsize,
@@ -120,7 +120,6 @@ pub(crate) struct ConnectionManager {
 async fn handle_state_change(
     state: State,
     conn: &Weak<Connection>,
-    decoders: Arc<Mutex<DecoderList>>,
     encoders: Arc<Mutex<InternalIPToEncoderMap>>,
 ) {
     let Some(conn) = conn.upgrade() else {
@@ -142,28 +141,15 @@ async fn handle_state_change(
             // If codec is initialized, add the encoder and decoder to the lists so that
             // the server can flush the encoder and clean up stale states in the decoder.
             if let Some(encoder) = conn.get_inside_packet_encoder() {
+                let encoder = Arc::downgrade(&encoder);
                 match conn.get_internal_ip() {
                     Some(internal_ip) => {
-                        encoders.lock().unwrap().insert(internal_ip, encoder);
+                        encoders.lock().insert(internal_ip, encoder);
                         tracing::debug!("{}'s encoder has been added to the list.", internal_ip);
                     }
                     None => {
                         tracing::error!(
                             "Internal IP not found when trying to add encoder to the list. "
-                        );
-                    }
-                }
-            }
-
-            if let Some(decoder) = conn.get_inside_packet_decoder() {
-                match conn.get_internal_ip() {
-                    Some(internal_ip) => {
-                        decoders.lock().unwrap().push(decoder);
-                        tracing::debug!("{}'s decoder has been added to the list.", internal_ip);
-                    }
-                    None => {
-                        tracing::error!(
-                            "Internal IP not found when trying to add decoder to the list. "
                         );
                     }
                 }
@@ -208,14 +194,11 @@ fn handle_tls_keys_update_complete() {
 async fn handle_events(
     mut stream: EventStream,
     conn: Weak<Connection>,
-    decoders: Arc<Mutex<DecoderList>>,
     encoders: Arc<Mutex<InternalIPToEncoderMap>>,
 ) {
     while let Some(event) = stream.next().await {
         match event {
-            Event::StateChanged(state) => {
-                handle_state_change(state, &conn, decoders.clone(), encoders.clone()).await
-            }
+            Event::StateChanged(state) => handle_state_change(state, &conn, encoders.clone()).await,
             Event::KeepaliveReply => {}
             Event::SessionIdRotationAcknowledged { old, new } => {
                 handle_finalize_session_rotation(&conn, old, new);
@@ -246,7 +229,6 @@ fn new_connection(
     protocol_version: Version,
     local_addr: SocketAddr,
     outside_io: OutsideIOSendCallbackArg,
-    decoders: Arc<Mutex<DecoderList>>,
     encoders: Arc<Mutex<InternalIPToEncoderMap>>,
 ) -> Result<Arc<Connection>, ConnectionManagerError> {
     metrics::connection_created(&protocol_version);
@@ -270,7 +252,6 @@ fn new_connection(
     tokio::spawn(handle_events(
         event_stream,
         Arc::downgrade(&conn),
-        decoders.clone(),
         encoders.clone(),
     ));
     tokio::spawn(handle_stale(Arc::downgrade(&conn)));
@@ -281,7 +262,6 @@ fn new_connection(
 impl ConnectionManager {
     pub(crate) fn new(
         ctx: ServerContext<ConnectionState>,
-        decoders: Arc<Mutex<DecoderList>>,
         encoders: Arc<Mutex<InternalIPToEncoderMap>>,
     ) -> Arc<Self> {
         let conn_manager = Arc::new(Self {
@@ -289,7 +269,6 @@ impl ConnectionManager {
             connections: Mutex::new(Default::default()),
             pending_session_id_rotations: Mutex::new(Default::default()),
             total_sessions: Default::default(),
-            decoders,
             encoders,
         });
 
@@ -311,7 +290,7 @@ impl ConnectionManager {
     }
 
     pub(crate) fn pending_session_id_rotations_count(&self) -> usize {
-        self.pending_session_id_rotations.lock().unwrap().len()
+        self.pending_session_id_rotations.lock().len()
     }
 
     pub(crate) fn create_streaming_connection(
@@ -326,11 +305,10 @@ impl ConnectionManager {
             protocol_version,
             socket_addr,
             outside_io,
-            self.decoders.clone(),
             self.encoders.clone(),
         )?;
         // TODO: what if addr was already present?
-        self.connections.lock().unwrap().insert(&conn)?;
+        self.connections.lock().insert(&conn)?;
         Ok(conn)
     }
 
@@ -363,7 +341,7 @@ impl ConnectionManager {
     where
         F: FnOnce() -> OutsideIOSendCallbackArg,
     {
-        match self.connections.lock().unwrap().lookup(addr, session_id) {
+        match self.connections.lock().lookup(addr, session_id) {
             connection_map::Entry::Occupied(c) => {
                 if session_id == SessionId::EMPTY || c.session_id() == session_id {
                     let update_peer_address = addr != c.peer_addr();
@@ -383,7 +361,6 @@ impl ConnectionManager {
                     protocol_version,
                     local_addr,
                     outside_io,
-                    self.decoders.clone(),
                     self.encoders.clone(),
                 )?;
                 e.insert(&c)?;
@@ -391,12 +368,7 @@ impl ConnectionManager {
             }
             connection_map::Entry::Vacant(_e) => {
                 // Maybe this is a pending session rotation
-                if let Some(c) = self
-                    .pending_session_id_rotations
-                    .lock()
-                    .unwrap()
-                    .get(&session_id)
-                {
+                if let Some(c) = self.pending_session_id_rotations.lock().get(&session_id) {
                     let update_peer_address = addr != c.peer_addr();
 
                     return Ok((c.clone(), update_peer_address));
@@ -412,19 +384,18 @@ impl ConnectionManager {
         self: &Arc<Self>,
         addr: SocketAddr,
     ) -> Option<Arc<Connection>> {
-        self.connections.lock().unwrap().find_by(addr)
+        self.connections.lock().find_by(addr)
     }
 
     pub(crate) fn set_peer_addr(&self, conn: &Arc<Connection>, new_addr: SocketAddr) {
         let old_addr = conn.set_peer_addr(new_addr);
         self.connections
             .lock()
-            .unwrap()
             .update_socketaddr_for_connection(old_addr, new_addr);
     }
 
     pub(crate) fn remove_connection(&self, conn: &Connection) {
-        self.connections.lock().unwrap().remove(conn)
+        self.connections.lock().remove(conn)
     }
 
     pub(crate) fn begin_session_id_rotation(
@@ -434,7 +405,6 @@ impl ConnectionManager {
     ) {
         self.pending_session_id_rotations
             .lock()
-            .unwrap()
             .insert(new_session_id, conn.clone());
 
         metrics::udp_session_rotation_begin();
@@ -446,13 +416,9 @@ impl ConnectionManager {
         old: SessionId,
         new: SessionId,
     ) {
-        self.pending_session_id_rotations
-            .lock()
-            .unwrap()
-            .remove(&new);
+        self.pending_session_id_rotations.lock().remove(&new);
         self.connections
             .lock()
-            .unwrap()
             .update_session_id_for_connection(old, new);
 
         metrics::udp_session_rotation_finalized();
@@ -461,7 +427,6 @@ impl ConnectionManager {
     pub(crate) fn online_connection_activity(&self) -> Vec<ConnectionActivity> {
         self.connections
             .lock()
-            .unwrap()
             .iter_connections()
             .filter_map(|c| match c.state() {
                 State::Online => Some(c.activity()),
@@ -474,7 +439,7 @@ impl ConnectionManager {
     fn evict_idle_connections(&self) {
         tracing::trace!("Aging connections");
 
-        for conn in self.connections.lock().unwrap().iter_connections() {
+        for conn in self.connections.lock().iter_connections() {
             let age = conn.activity().last_outside_data_received.elapsed();
             if age > CONNECTION_MAX_IDLE_AGE {
                 tracing::info!(session = ?conn.session_id(), age = ?age, "Disconnecting idle connection");
@@ -494,7 +459,7 @@ impl ConnectionManager {
     fn evict_expired_connections(&self) {
         tracing::trace!("Expiring connections");
 
-        for conn in self.connections.lock().unwrap().iter_connections() {
+        for conn in self.connections.lock().iter_connections() {
             let Ok(expired) = conn.authentication_expired() else {
                 continue;
             };
@@ -512,7 +477,7 @@ impl ConnectionManager {
     }
 
     pub(crate) fn close_all_connections(&self) {
-        let connections = self.connections.lock().unwrap().remove_connections();
+        let connections = self.connections.lock().remove_connections();
         for conn in connections {
             let _ = conn.lw_disconnect();
         }

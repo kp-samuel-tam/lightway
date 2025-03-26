@@ -109,6 +109,28 @@ async fn main() -> Result<()> {
 
     tokio::spawn(metrics_debug());
 
+    std::thread::spawn(move || {
+        use parking_lot::deadlock;
+        use std::time::Duration;
+
+        loop {
+            std::thread::sleep(Duration::from_secs(10));
+            let deadlocks = deadlock::check_deadlock();
+            if deadlocks.is_empty() {
+                continue;
+            }
+
+            error!("{} deadlocks detected", deadlocks.len());
+            for (i, threads) in deadlocks.iter().enumerate() {
+                error!("Deadlock #{}", i);
+                for t in threads {
+                    error!("Thread Id {:#?}", t.thread_id());
+                    error!("{:#?}", t.backtrace());
+                }
+            }
+        }
+    });
+
     let auth = auth::Auth::new(
         config.user_db.as_ref().map(AsRef::as_ref),
         config.token_rsa_pub_key_pem.as_ref().map(AsRef::as_ref),
@@ -139,7 +161,6 @@ async fn main() -> Result<()> {
         outside_plugins: Default::default(),
         inside_pkt_codec: None,
         pkt_encoder_flush_interval: config.pkt_encoder_flush_interval.into(),
-        pkt_decoder_clean_up_interval: config.pkt_decoder_clean_up_interval.into(),
         bind_address: config.bind_address,
         bind_attempts: config.bind_attempts,
         proxy_protocol: config.proxy_protocol,

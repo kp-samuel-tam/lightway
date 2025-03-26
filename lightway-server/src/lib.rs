@@ -23,13 +23,14 @@ use lightway_core::{
     AuthMethod, BuilderPredicates, ConnectionError, ConnectionResult, IOCallbackResult,
     InsideIpConfig, PacketCodecFactoryType, Secret, ServerContextBuilder, ipv4_update_destination,
 };
+use parking_lot::Mutex;
 use pnet::packet::ipv4::Ipv4Packet;
 use std::{
     collections::HashMap,
     net::{IpAddr, Ipv4Addr, SocketAddr},
     num::NonZeroUsize,
     path::PathBuf,
-    sync::{Arc, Mutex},
+    sync::Arc,
     time::Duration,
 };
 use tokio::task::JoinHandle;
@@ -43,7 +44,7 @@ use crate::ip_manager::IpManager;
 use connection_manager::ConnectionManager;
 use io::outside::Server;
 
-use codec_list::{DecoderList, InternalIPToEncoderMap};
+use codec_list::InternalIPToEncoderMap;
 
 fn debug_fmt_plugin_list(
     list: &PluginFactoryList,
@@ -168,9 +169,6 @@ pub struct ServerConfig<SA: for<'a> ServerAuth<AuthState<'a>>> {
     /// How often the pkt encoder is flushed
     pub pkt_encoder_flush_interval: Duration,
 
-    /// How often the pkt decoder's states are cleaned up
-    pub pkt_decoder_clean_up_interval: Duration,
-
     /// Address to listen to
     pub bind_address: SocketAddr,
 
@@ -213,7 +211,7 @@ async fn pkt_encoder_flush(
     loop {
         tokio::time::sleep(interval).await;
 
-        let mut encoders = encoders.lock().unwrap();
+        let mut encoders = encoders.lock();
 
         for (internal_ip, encoder) in encoders.clone().into_iter() {
             let encoder = match encoder.upgrade() {
@@ -225,7 +223,7 @@ async fn pkt_encoder_flush(
                 }
             };
 
-            if !encoder.lock().unwrap().should_flush() {
+            if !encoder.should_flush() {
                 // No need to flush now
                 continue;
             }
@@ -240,29 +238,6 @@ async fn pkt_encoder_flush(
             let flush_result = conn.flush_ingress_pkt_accumulator();
             handle_inside_io_error(conn, flush_result);
         }
-    }
-}
-
-async fn pkt_decoder_clean_up(interval: Duration, decoders: Arc<Mutex<DecoderList>>) -> Result<()> {
-    loop {
-        tokio::time::sleep(interval).await;
-
-        let mut decoders = decoders.lock().unwrap();
-
-        for decoder in decoders.iter() {
-            let decoder = match decoder.upgrade() {
-                Some(decoder) => decoder,
-                None => {
-                    // Decoder has been dropped when the Connection has disconnected.
-                    continue;
-                }
-            };
-
-            decoder.lock().unwrap().cleanup_stale_states();
-        }
-
-        // Remove decoders with dropped connection
-        decoders.retain(|decoder| decoder.upgrade().is_some());
     }
 }
 
@@ -328,9 +303,8 @@ pub async fn server<SA: for<'a> ServerAuth<AuthState<'a>> + Sync + Send + 'stati
     .build()?;
 
     let encoders = Arc::new(Mutex::new(InternalIPToEncoderMap::default()));
-    let decoders = Arc::new(Mutex::new(DecoderList::default()));
 
-    let conn_manager = ConnectionManager::new(ctx, decoders.clone(), encoders.clone());
+    let conn_manager = ConnectionManager::new(ctx, encoders.clone());
 
     tokio::spawn(statistics::run(conn_manager.clone(), ip_manager.clone()));
 
@@ -392,11 +366,6 @@ pub async fn server<SA: for<'a> ServerAuth<AuthState<'a>> + Sync + Send + 'stati
             ip_manager_clone,
             config.pkt_encoder_flush_interval,
             encoders,
-        ));
-
-        tokio::spawn(pkt_decoder_clean_up(
-            config.pkt_decoder_clean_up_interval,
-            decoders,
         ));
     }
 

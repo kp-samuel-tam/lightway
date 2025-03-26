@@ -12,7 +12,7 @@ use std::net::AddrParseError;
 use std::num::{NonZeroU16, Wrapping};
 use std::{
     net::SocketAddr,
-    sync::{Arc, Mutex, Weak},
+    sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
 use thiserror::Error;
@@ -369,10 +369,10 @@ pub struct Connection<AppState: Send = ()> {
     is_first_packet_received: bool,
 
     // Inside packet encoder
-    inside_pkt_encoder: Option<Arc<Mutex<PacketEncoderType>>>,
+    inside_pkt_encoder: Option<PacketEncoderType>,
 
     // Inside packet decoder
-    inside_pkt_decoder: Option<Arc<Mutex<PacketDecoderType>>>,
+    inside_pkt_decoder: Option<PacketDecoderType>,
 }
 
 /// Information about the new session being established with a new
@@ -435,12 +435,8 @@ impl<AppState: Send> Connection<AppState> {
             },
             fragment_counter: Wrapping(0),
             is_first_packet_received: false,
-            inside_pkt_encoder: args
-                .inside_pkt_encoder
-                .map(|encoder| Arc::new(Mutex::new(encoder))),
-            inside_pkt_decoder: args
-                .inside_pkt_decoder
-                .map(|decoder| Arc::new(Mutex::new(decoder))),
+            inside_pkt_encoder: args.inside_pkt_encoder,
+            inside_pkt_decoder: args.inside_pkt_decoder,
         };
 
         // This will very likely fail since negotiation always needs
@@ -821,7 +817,7 @@ impl<AppState: Send> Connection<AppState> {
         }
 
         if let Some(encoder) = &mut self.inside_pkt_encoder {
-            let codec_state = encoder.lock().unwrap().store(pkt);
+            let codec_state = encoder.store(pkt);
             match codec_state {
                 Ok(CodecStatus::ReadyToFlush) => self.flush_pkts_to_outside(),
                 Ok(CodecStatus::Pending) => Ok(()),
@@ -853,7 +849,7 @@ impl<AppState: Send> Connection<AppState> {
             }
         };
 
-        let encoded_pkts = encoder.lock().unwrap().get_encoded_pkts();
+        let encoded_pkts = encoder.get_encoded_pkts();
         let pkts = match encoded_pkts {
             Ok(pkts) => pkts,
             Err(e) => return Err(ConnectionError::PacketCodecError(e)),
@@ -1436,7 +1432,7 @@ impl<AppState: Send> Connection<AppState> {
 
     fn handle_outside_data_bytes(
         &mut self,
-        inside_bytes: BytesMut,
+        mut inside_bytes: BytesMut,
         is_encoded: bool,
     ) -> ConnectionResult<()> {
         if !is_encoded {
@@ -1451,7 +1447,7 @@ impl<AppState: Send> Connection<AppState> {
             }
         };
 
-        let decoder_state = decoder.lock().unwrap().store(&inside_bytes);
+        let decoder_state = decoder.store(&mut inside_bytes);
         match decoder_state {
             Ok(CodecStatus::ReadyToFlush) => {
                 for result in self.flush_pkts_to_inside() {
@@ -1476,7 +1472,7 @@ impl<AppState: Send> Connection<AppState> {
             None => return vec![Err(ConnectionError::PacketCodecDoesNotExist)],
         };
 
-        let decoded_pkts = decoder.lock().unwrap().get_decoded_pkts();
+        let decoded_pkts = decoder.get_decoded_pkts();
         let pkts = match decoded_pkts {
             Ok(pkts) => pkts,
             Err(e) => return vec![Err(ConnectionError::PacketCodecError(e))],
@@ -1559,13 +1555,13 @@ impl<AppState: Send> Connection<AppState> {
     }
 
     /// Get a weak pointer to the inside packet encoder
-    pub fn get_inside_packet_encoder(&self) -> Option<Weak<Mutex<PacketEncoderType>>> {
-        self.inside_pkt_encoder.clone().map(|d| Arc::downgrade(&d))
+    pub fn get_inside_packet_encoder(&self) -> Option<PacketEncoderType> {
+        self.inside_pkt_encoder.clone()
     }
 
     /// Get a weak pointer to the inside packet decoder
-    pub fn get_inside_packet_decoder(&self) -> Option<Weak<Mutex<PacketDecoderType>>> {
-        self.inside_pkt_decoder.clone().map(|d| Arc::downgrade(&d))
+    pub fn get_inside_packet_decoder(&self) -> Option<PacketDecoderType> {
+        self.inside_pkt_decoder.clone()
     }
 
     fn process_encoding_request_pkt(&mut self, er: wire::EncodingRequest) -> ConnectionResult<()> {
@@ -1596,21 +1592,18 @@ impl<AppState: Send> Connection<AppState> {
 
         let new_setting = er.enable;
 
-        let mut encoder_guard = encoder.lock().unwrap();
-        if encoder_guard.get_encoding_state() == new_setting {
+        if encoder.get_encoding_state() == new_setting {
             // No change.
             return Ok(());
         }
 
-        encoder_guard.set_encoding_state(new_setting);
+        encoder.set_encoding_state(new_setting);
 
         debug!(
             "Client {:?}: EncodingRequest received. encoding state now: {}.",
             self.session_id,
-            encoder_guard.get_encoding_state()
+            encoder.get_encoding_state()
         );
-
-        drop(encoder_guard);
 
         // Reply to the client.
         // TODO: this is not reliable when the packet loss is high (this response packet could be dropped)
@@ -1651,13 +1644,12 @@ impl<AppState: Send> Connection<AppState> {
 
         let new_setting = te.enable;
 
-        let mut encoder_guard = encoder.lock().unwrap();
-        if encoder_guard.get_encoding_state() == new_setting {
+        if encoder.get_encoding_state() == new_setting {
             // No change.
             return Ok(());
         }
 
-        encoder_guard.set_encoding_state(new_setting);
+        encoder.set_encoding_state(new_setting);
         info!("inside packet encoding state is now set to {}", new_setting);
 
         Ok(())

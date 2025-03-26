@@ -1,3 +1,5 @@
+use std::sync::{Arc, Weak};
+
 use bytes::BytesMut;
 
 /// PacketEncoder and PacketDecoder's trait function's return type
@@ -11,10 +13,10 @@ pub trait PacketEncoder {
     /// If the status is [`CodecStatus::ReadyToFlush`], encoded packets are ready to be retrieved.
     /// If the status is [`CodecStatus::SkipPacket`], the packet is skipped by the encoder and lightway
     /// may send it as a normal wire::Data packet.
-    fn store(&mut self, data: &BytesMut) -> PacketCodecResult<CodecStatus>;
+    fn store(&self, data: &mut BytesMut) -> PacketCodecResult<CodecStatus>;
 
     /// Retrieve the encoded packets
-    fn get_encoded_pkts(&mut self) -> PacketCodecResult<Vec<BytesMut>>;
+    fn get_encoded_pkts(&self) -> PacketCodecResult<Vec<BytesMut>>;
 
     /// Get the encoding state
     ///
@@ -24,7 +26,7 @@ pub trait PacketEncoder {
     /// Set the encoding status
     ///
     /// The param indicates whether encoding is enabled or disabled.
-    fn set_encoding_state(&mut self, enabled: bool);
+    fn set_encoding_state(&self, enabled: bool);
 
     /// Indicates whether the packets in the encoder should be retrieved.
     fn should_flush(&self) -> bool;
@@ -38,15 +40,10 @@ pub trait PacketDecoder {
     /// If the status is [`CodecStatus::ReadyToFlush`], decoded inside packets are ready to be retrieved.
     /// If the status is [`CodecStatus::SkipPacket`], the packet should not be added to the decoder.
     /// and should be sent directly.
-    fn store(&mut self, data: &BytesMut) -> PacketCodecResult<CodecStatus>;
+    fn store(&self, data: &mut BytesMut) -> PacketCodecResult<CodecStatus>;
 
     /// Retrieve the decoded inside packets
-    fn get_decoded_pkts(&mut self) -> PacketCodecResult<Vec<BytesMut>>;
-
-    /// Clean up the inner stale states.
-    /// Should be called periodically to avoid stale states
-    /// from unnecessarily holding memory.
-    fn cleanup_stale_states(&mut self);
+    fn get_decoded_pkts(&self) -> PacketCodecResult<Vec<BytesMut>>;
 }
 
 /// Indicates the status of [`PacketEncoder`] or [`PacketDecoder`] after storing the current packet
@@ -65,10 +62,14 @@ pub enum CodecStatus {
 }
 
 /// Type for [`PacketEncoder`]
-pub type PacketEncoderType = Box<dyn PacketEncoder + Send>;
+pub type PacketEncoderType = Arc<dyn PacketEncoder + Send + Sync>;
+/// Weak reference for [`PacketEncoder`]
+pub type WeakPacketEncoderType = Weak<dyn PacketEncoder + Send + Sync>;
 
 /// Type for [`PacketDecoder`]
-pub type PacketDecoderType = Box<dyn PacketDecoder + Send>;
+pub type PacketDecoderType = Arc<dyn PacketDecoder + Send + Sync>;
+/// Weak reference for [`PacketDecoder`]
+pub type WeakPacketDecoderType = Weak<dyn PacketDecoder + Send + Sync>;
 
 /// Factory to build [`PacketEncoderType`] and [`PacketDecoderType`]
 /// This will be used to build a new instance of [`PacketEncoderType`] and [`PacketDecoderType`] for every connection.
