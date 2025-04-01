@@ -132,6 +132,9 @@ impl Connection {
             ConnectionError::Goodbye => {
                 metrics::connection_client_closed();
             }
+            ConnectionError::Disconnected => {
+                metrics::connection_data_after_disconnect();
+            }
             ConnectionError::WolfSSL(_) => {
                 metrics::connection_tls_error(fatal);
             }

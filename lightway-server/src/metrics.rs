@@ -19,6 +19,8 @@ static METRIC_CONNECTION_REJECTED_NO_FREE_IP: LazyLock<Counter> =
     LazyLock::new(|| counter!("conn_rejected_no_free_ip"));
 static METRIC_CONNECTION_REJECTED_ACCESS_DENIED: LazyLock<Counter> =
     LazyLock::new(|| counter!("conn_rejected_access_denied"));
+static METRIC_CONNECTION_DATA_AFT_DISCONNECT: LazyLock<Counter> =
+    LazyLock::new(|| counter!("conn_data_after_disconnect"));
 const METRIC_CONNECTION_TLS_ERROR: &str = "conn_tls_error";
 const METRIC_CONNECTION_UNKNOWN_ERROR: &str = "conn_unknown_error";
 static METRIC_CONNECTION_AGED_OUT: LazyLock<Counter> = LazyLock::new(|| counter!("conn_aged_out"));
@@ -295,6 +297,11 @@ pub(crate) fn connection_tls_error(fatal: bool) {
 /// Unknown error for [`lightway_core::Connection`].
 pub(crate) fn connection_unknown_error(fatal: bool) {
     counter!(METRIC_CONNECTION_UNKNOWN_ERROR, FATAL_LABEL => fatal.to_string()).increment(1);
+}
+
+/// [`lightway_core::Connection`] already in disconnected state
+pub(crate) fn connection_data_after_disconnect() {
+    METRIC_CONNECTION_DATA_AFT_DISCONNECT.increment(1)
 }
 
 /// Tunnel rejected packet, [`lightway_core::Connection`] not in
