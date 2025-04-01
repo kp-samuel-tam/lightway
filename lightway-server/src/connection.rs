@@ -90,6 +90,7 @@ impl Connection {
             .unwrap();
 
         ticker_task.spawn(Arc::downgrade(&conn));
+        metrics::connection_created(&protocol_version);
 
         Ok(conn)
     }
@@ -192,7 +193,6 @@ impl Connection {
     }
 
     pub fn disconnect(&self) -> ConnectionResult<()> {
-        metrics::connection_closed();
         self.manager.remove_connection(self);
         self.lw_conn.lock().unwrap().disconnect()
     }
@@ -201,5 +201,6 @@ impl Connection {
 impl Drop for Connection {
     fn drop(&mut self) {
         trace!("Dropping Connection!");
+        metrics::connection_closed();
     }
 }
