@@ -185,7 +185,7 @@ pub struct ServerConfig<SA: for<'a> ServerAuth<AuthState<'a>>> {
 fn handle_inside_io_error(conn: Arc<Connection>, result: ConnectionResult<()>) {
     match result {
         Ok(()) => {}
-        Err(ConnectionError::InvalidState) => {
+        Err(ConnectionError::InvalidState | ConnectionError::Disconnected) => {
             // Skip forwarding packet when offline
             metrics::tun_rejected_packet_invalid_state();
         }
@@ -197,7 +197,7 @@ fn handle_inside_io_error(conn: Arc<Connection>, result: ConnectionResult<()>) {
             let fatal = err.is_fatal(conn.connection_type());
             metrics::tun_rejected_packet_invalid_other(fatal);
             if fatal {
-                conn.handle_end_of_stream();
+                let _ = conn.disconnect();
             }
         }
     }

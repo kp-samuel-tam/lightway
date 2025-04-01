@@ -90,6 +90,7 @@ impl Connection {
             .unwrap();
 
         ticker_task.spawn(Arc::downgrade(&conn));
+        metrics::connection_created(&protocol_version);
 
         Ok(conn)
     }
@@ -115,10 +116,6 @@ impl Connection {
         }
     }
 
-    pub fn handle_end_of_stream(&self) {
-        let _ = self.disconnect();
-    }
-
     /// Handle an outside data error. On a fatal error will disconnect
     /// and return [`std::ops::ControlFlow::Break`], the caller should
     /// stop processing further traffic for this connection (closing
@@ -131,6 +128,9 @@ impl Connection {
         match err {
             ConnectionError::Goodbye => {
                 metrics::connection_client_closed();
+            }
+            ConnectionError::Disconnected => {
+                metrics::connection_data_after_disconnect();
             }
             ConnectionError::WolfSSL(_) => {
                 metrics::connection_tls_error(fatal);
@@ -193,7 +193,6 @@ impl Connection {
     }
 
     pub fn disconnect(&self) -> ConnectionResult<()> {
-        metrics::connection_closed();
         self.manager.remove_connection(self);
         self.lw_conn.lock().unwrap().disconnect()
     }
@@ -202,5 +201,6 @@ impl Connection {
 impl Drop for Connection {
     fn drop(&mut self) {
         trace!("Dropping Connection!");
+        metrics::connection_closed();
     }
 }

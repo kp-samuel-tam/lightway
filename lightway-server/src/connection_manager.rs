@@ -231,8 +231,6 @@ fn new_connection(
     outside_io: OutsideIOSendCallbackArg,
     encoders: Arc<Mutex<InternalIPToEncoderMap>>,
 ) -> Result<Arc<Connection>, ConnectionManagerError> {
-    metrics::connection_created(&protocol_version);
-
     let (event_cb, event_stream) = EventStreamCallback::new();
 
     manager.total_sessions.fetch_add(1, Ordering::Relaxed);
