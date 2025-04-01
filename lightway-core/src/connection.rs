@@ -677,7 +677,7 @@ impl<AppState: Send> Connection<AppState> {
             }
             _ if self.connection_type.is_datagram() => match self.session.dtls_has_timed_out() {
                 wolfssl::Poll::Ready(true) => {
-                    self.set_state(State::Disconnected)?;
+                    let _ = self.disconnect();
                     return Err(ConnectionError::TimedOut);
                 }
                 wolfssl::Poll::PendingWrite
