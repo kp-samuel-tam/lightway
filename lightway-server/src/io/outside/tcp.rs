@@ -171,8 +171,6 @@ async fn handle_connection(
         }
     };
 
-    conn.handle_end_of_stream();
-
     info!("Connection closed: {:?}", err);
 }
 

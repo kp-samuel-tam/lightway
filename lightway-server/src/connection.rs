@@ -115,10 +115,6 @@ impl Connection {
         }
     }
 
-    pub fn handle_end_of_stream(&self) {
-        let _ = self.disconnect();
-    }
-
     /// Handle an outside data error. On a fatal error will disconnect
     /// and return [`std::ops::ControlFlow::Break`], the caller should
     /// stop processing further traffic for this connection (closing
