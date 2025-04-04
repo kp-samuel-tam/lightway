@@ -171,6 +171,15 @@ async fn handle_connection(
         }
     };
 
+    // Disconnect the session in case of TCP shutdown or other fatal failures.
+    //
+    // Note that it is possible, disconnect has been called in `conn.handle_outside_data_error` already
+    // in case of fatal error case. It is still fine to call it again, since `disconnect`
+    // call is idempotent and no-op if it is already disconnected
+    //
+    // But we need this disconnect in case of TCP connection shutdown
+    let _ = conn.disconnect();
+
     info!("Connection closed: {:?}", err);
 }
 
