@@ -192,6 +192,8 @@ impl Connection {
         self.lw_conn.lock().unwrap().disconnect()
     }
 
+    // This api should be idempotent since it can be called from multiple places
+    // when there is failures
     pub fn disconnect(&self) -> ConnectionResult<()> {
         self.manager.remove_connection(self);
         self.lw_conn.lock().unwrap().disconnect()
