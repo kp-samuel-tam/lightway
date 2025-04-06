@@ -151,8 +151,7 @@ impl Connection {
     pub fn begin_session_id_rotation(self: &Arc<Self>) {
         let mut conn = self.lw_conn.lock().unwrap();
 
-        // A rotation is already in flight, nothing to be done this
-        // time.
+        // A rotation is already in flight, nothing to be done this time.
         if conn.pending_session_id().is_some() {
             return;
         }

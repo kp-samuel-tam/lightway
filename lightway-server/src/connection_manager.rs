@@ -127,7 +127,7 @@ async fn handle_state_change(
         return;
     };
 
-    info!(session = ?conn.session_id(), ?state, "State changed for {:?}", conn.peer_addr(),);
+    info!(session = ?conn.session_id(), ?state, "State changed for {:?}", conn.peer_addr());
 
     match state {
         State::Connecting => {}
