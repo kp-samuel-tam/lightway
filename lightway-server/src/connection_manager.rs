@@ -82,48 +82,6 @@ pub(crate) enum ConnectionManagerError {
     LwContextError(#[from] ContextError),
 }
 
-async fn evict_idle_connections(manager: Weak<ConnectionManager>) {
-    let mut ticker = tokio::time::interval(CONNECTION_AGE_EXPIRATION_INTERVAL.unsigned_abs());
-    ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-    let mut ticker = tokio_stream::wrappers::IntervalStream::new(ticker);
-
-    while ticker.next().await.is_some() {
-        let Some(manager) = manager.upgrade() else {
-            info!("Connection Manager has gone away, stopping");
-            return;
-        };
-        manager.evict_idle_connections();
-    }
-}
-
-async fn evict_expired_connections(manager: Weak<ConnectionManager>) {
-    let mut ticker = tokio::time::interval(CONNECTION_AUTH_EXPIRATION_INTERVAL.unsigned_abs());
-    ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-    let mut ticker = tokio_stream::wrappers::IntervalStream::new(ticker);
-
-    while ticker.next().await.is_some() {
-        let Some(manager) = manager.upgrade() else {
-            info!("Connection Manager has gone away, stopping");
-            return;
-        };
-        manager.evict_expired_connections();
-    }
-}
-
-async fn cleanup_pending_session_ids(manager: Weak<ConnectionManager>) {
-    let mut ticker = tokio::time::interval(PENDING_SESSION_ID_EXPIRATION_INTERVAL.unsigned_abs());
-    ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-    let mut ticker = tokio_stream::wrappers::IntervalStream::new(ticker);
-
-    while ticker.next().await.is_some() {
-        let Some(manager) = manager.upgrade() else {
-            info!("Connection Manager has gone away, stopping");
-            return;
-        };
-        manager.cleanup_pending_session_ids();
-    }
-}
-
 pub(crate) struct ConnectionManager {
     ctx: ServerContext<ConnectionState>,
     connections: Mutex<ConnectionMap<Connection>>,
@@ -287,11 +245,41 @@ impl ConnectionManager {
             encoders,
         });
 
-        tokio::spawn(evict_idle_connections(Arc::downgrade(&conn_manager)));
-        tokio::spawn(evict_expired_connections(Arc::downgrade(&conn_manager)));
-        tokio::spawn(cleanup_pending_session_ids(Arc::downgrade(&conn_manager)));
+        conn_manager.spawn_periodic_task(
+            CONNECTION_AGE_EXPIRATION_INTERVAL,
+            Self::evict_idle_connections,
+        );
+        conn_manager.spawn_periodic_task(
+            CONNECTION_AUTH_EXPIRATION_INTERVAL,
+            Self::evict_expired_connections,
+        );
+        conn_manager.spawn_periodic_task(
+            PENDING_SESSION_ID_EXPIRATION_INTERVAL,
+            Self::cleanup_pending_session_ids,
+        );
 
         conn_manager
+    }
+
+    pub(crate) fn spawn_periodic_task<T>(self: &Arc<Self>, interval: Duration, task: T)
+    where
+        T: Fn(&Self) + Send + Sync + 'static,
+    {
+        let weak_conn_manager = Arc::downgrade(self);
+
+        tokio::spawn(async move {
+            let mut ticker = tokio::time::interval(interval.unsigned_abs());
+            ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+            let mut ticker = tokio_stream::wrappers::IntervalStream::new(ticker);
+
+            while ticker.next().await.is_some() {
+                let Some(conn_manager) = weak_conn_manager.upgrade() else {
+                    info!("Connection Manager has gone away");
+                    return;
+                };
+                task(&conn_manager);
+            }
+        });
     }
 
     delegate! {
