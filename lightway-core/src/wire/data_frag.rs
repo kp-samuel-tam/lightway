@@ -180,9 +180,9 @@ mod tests {
         DataFrag::maximum_packet_size_for_plpmtu(size)
     }
 
-    #[test_case(DataFrag{ id: 0, offset: 0, more_fragments: true, data: std::iter::repeat(b'.').take(3).collect::<Vec<_>>().into() } => (0,3))]
-    #[test_case(DataFrag{ id: 0, offset: 0xfff1, more_fragments: true, data: std::iter::repeat(b'.').take(32).collect::<Vec<_>>().into() } => (65521, 65553))]
-    #[test_case(DataFrag{ id: 0, offset: 0xfff1, more_fragments: true, data: std::iter::repeat(b'.').take(0xffff).collect::<Vec<_>>().into() } => (65521,131056))]
+    #[test_case(DataFrag{ id: 0, offset: 0, more_fragments: true, data: std::iter::repeat_n(b'.', 3).collect::<Vec<_>>().into() } => (0,3))]
+    #[test_case(DataFrag{ id: 0, offset: 0xfff1, more_fragments: true, data: std::iter::repeat_n(b'.', 32).collect::<Vec<_>>().into() } => (65521, 65553))]
+    #[test_case(DataFrag{ id: 0, offset: 0xfff1, more_fragments: true, data: std::iter::repeat_n(b'.', 0xffff).collect::<Vec<_>>().into() } => (65521,131056))]
     fn start_end_offset(frag: DataFrag) -> (usize, usize) {
         (frag.start_offset(), frag.end_offset())
     }

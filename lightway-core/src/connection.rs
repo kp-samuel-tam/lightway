@@ -263,7 +263,7 @@ enum ConnectionMode<AppState> {
         auth_handle: Option<Box<dyn ServerAuthHandle + Sync + Send>>,
         ip_pool: ServerIpPoolArg<AppState>,
         key_update: key_update::State,
-        rng: Arc<Mutex<dyn rand_core::CryptoRngCore + Send>>,
+        rng: Arc<Mutex<dyn rand_core::CryptoRng + Send>>,
         /// `Some(_)` iff a session ID rotation is in progress.
         pending_session_id: Option<SessionId>,
     },
@@ -1065,7 +1065,7 @@ impl<AppState: Send> Connection<AppState> {
                 ref mut pending_session_id,
                 ..
             } => {
-                let new_session_id = rng.lock().unwrap().r#gen();
+                let new_session_id = rng.lock().unwrap().random();
 
                 self.session.io_cb_mut().set_session_id(new_session_id);
 
