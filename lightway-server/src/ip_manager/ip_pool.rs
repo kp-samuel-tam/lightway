@@ -32,9 +32,7 @@ impl IpPool {
 
         // make it harder to guess IPs during the early life of a
         // server.
-        available_ips
-            .make_contiguous()
-            .shuffle(&mut rand::thread_rng());
+        available_ips.make_contiguous().shuffle(&mut rand::rng());
 
         Self {
             reserved_ips,
@@ -335,7 +333,7 @@ mod tests {
         assert!(pool.allocate_ip().is_none());
 
         // Now free all the other IPs in a random order
-        other_ips.shuffle(&mut rand::thread_rng());
+        other_ips.shuffle(&mut rand::rng());
         for other_ip in other_ips.iter() {
             pool.free_ip(*other_ip)
         }

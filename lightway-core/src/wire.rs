@@ -136,10 +136,10 @@ impl SessionId {
     }
 }
 
-impl rand::distributions::Distribution<SessionId> for rand::distributions::Standard {
+impl rand::distr::Distribution<SessionId> for rand::distr::StandardUniform {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> SessionId {
         loop {
-            let candidate = SessionId(rng.r#gen());
+            let candidate = SessionId(rng.random());
             if !candidate.is_reserved() {
                 break candidate;
             }
@@ -432,8 +432,8 @@ mod session_id {
 
     #[test]
     fn gen_random() {
-        let a: SessionId = rand::thread_rng().r#gen();
-        let b: SessionId = rand::thread_rng().r#gen();
+        let a: SessionId = rand::rng().random();
+        let b: SessionId = rand::rng().random();
         assert_ne!(a, b, "Two genuinely random sessions IDs should not match");
     }
 }

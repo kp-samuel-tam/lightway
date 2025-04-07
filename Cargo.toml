@@ -49,7 +49,7 @@ metrics = "0.24.0"
 more-asserts = "0.3.1"
 parking_lot = { version = "0.12.3", features = ["deadlock_detection"] }
 pnet = "0.35.0"
-rand = "0.8.5"
+rand = "0.9.0"
 serde = "1.0.189"
 socket2 = "0.5.5"
 test-case = "3.1.0"
