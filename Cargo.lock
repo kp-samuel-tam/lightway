@@ -2896,9 +2896,9 @@ checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
 
 [[package]]
 name = "winnow"
-version = "0.7.4"
+version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e97b544156e9bebe1a0ffbc03484fc1ffe3100cbce3ffb17eac35f7cdd7ab36"
+checksum = "63d3fcd9bba44b03821e7d699eeee959f3126dcc4aa8e4ae18ec617c2a5cea10"
 dependencies = [
  "memchr",
 ]
@@ -2941,7 +2941,7 @@ dependencies = [
 [[package]]
 name = "wolfssl"
 version = "3.0.0"
-source = "git+https://github.com/expressvpn/wolfssl-rs#b21cbbaaf5720e2bf060f20648ffa25e51d7d3e5"
+source = "git+https://github.com/expressvpn/wolfssl-rs#a5ce5c4aad60cf8b9ed698030146813fc8d150cd"
 dependencies = [
  "bytes",
  "log",
@@ -2952,7 +2952,7 @@ dependencies = [
 [[package]]
 name = "wolfssl-sys"
 version = "2.0.0"
-source = "git+https://github.com/expressvpn/wolfssl-rs#b21cbbaaf5720e2bf060f20648ffa25e51d7d3e5"
+source = "git+https://github.com/expressvpn/wolfssl-rs#a5ce5c4aad60cf8b9ed698030146813fc8d150cd"
 dependencies = [
  "autotools",
  "bindgen",
