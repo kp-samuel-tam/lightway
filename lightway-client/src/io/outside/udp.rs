@@ -82,8 +82,14 @@ impl OutsideIOSendCallback for Udp {
                 // Swallow the error so the WolfSSL socket does not
                 // enter the error state.
                 //
-                // This way we can continue if/when the server shows up. 
-                IOCallbackResult::Ok(0)
+                // This way we can continue if/when the server shows up.
+                //
+                // Returning the number of bytes requested to be sent to mock
+                // that the send is successful.
+                // Otherwise, WolfSSL perceives that no data is sent and try
+                // to send the same data again, creating a live-lock until
+                // the network is reachable.
+                IOCallbackResult::Ok(buf.len())
             }
             Err(err) if matches!(err.kind(), std::io::ErrorKind::NetworkUnreachable) => {
                 // This case indicates network unreachable error.
@@ -92,7 +98,13 @@ impl OutsideIOSendCallback for Udp {
                 // Swallow the socket error so the error is not passed to the
                 // WolfSSL layer. Then the WolfSSL layer would not enter a
                 // fatal error state
-                IOCallbackResult::Ok(0)
+                //
+                // Returning the number of bytes requested to be sent to mock
+                // that the send is successful.
+                // Otherwise, WolfSSL perceives that no data is sent and try
+                // to send the same data again, creating a live-lock until the
+                // network is reachable.
+                IOCallbackResult::Ok(buf.len())
             }
             Err(err) => IOCallbackResult::Err(err),
         }
