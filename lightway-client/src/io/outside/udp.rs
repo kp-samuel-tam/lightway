@@ -83,9 +83,15 @@ impl OutsideIOSendCallback for Udp {
                 // enter the error state.
                 //
                 // This way we can continue if/when the server shows up.
-                IOCallbackResult::Ok(0)
+                //
+                // Returning the number of bytes requested to be sent to mock
+                // that the send is successful.
+                // Otherwise, WolfSSL perceives that no data is sent and try
+                // to send the same data again, creating a live-lock until
+                // the network is reachable.
+                IOCallbackResult::Ok(buf.len())
             }
-            Err(err) if matches!(err.raw_os_error(), Some(libc::ENETUNREACH)) => {
+            Err(err) if matches!(err.kind(), std::io::ErrorKind::NetworkUnreachable) => {
                 // This case indicates network unreachable error.
                 // Possibly there is a network change at the moment.
                 //
@@ -93,13 +99,12 @@ impl OutsideIOSendCallback for Udp {
                 // WolfSSL layer. Then the WolfSSL layer would not enter a
                 // fatal error state
                 //
-                // Note: this case should be matched by
-                // matches!(err.kind(), std::io::ErrorKind::NetworkUnreachable)
-                // However, at the time of implementing this match case,
-                // the version of rust we use does not support NetworkUnreachable.
-                // This match case can be rewritten to use NetworkUnreachable
-                // once rust is updated to support it.
-                IOCallbackResult::Ok(0)
+                // Returning the number of bytes requested to be sent to mock
+                // that the send is successful.
+                // Otherwise, WolfSSL perceives that no data is sent and try
+                // to send the same data again, creating a live-lock until the
+                // network is reachable.
+                IOCallbackResult::Ok(buf.len())
             }
             Err(err) => IOCallbackResult::Err(err),
         }
