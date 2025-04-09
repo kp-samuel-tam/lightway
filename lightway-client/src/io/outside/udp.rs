@@ -82,23 +82,16 @@ impl OutsideIOSendCallback for Udp {
                 // Swallow the error so the WolfSSL socket does not
                 // enter the error state.
                 //
-                // This way we can continue if/when the server shows up.
+                // This way we can continue if/when the server shows up. 
                 IOCallbackResult::Ok(0)
             }
-            Err(err) if matches!(err.raw_os_error(), Some(libc::ENETUNREACH)) => {
+            Err(err) if matches!(err.kind(), std::io::ErrorKind::NetworkUnreachable) => {
                 // This case indicates network unreachable error.
                 // Possibly there is a network change at the moment.
                 //
                 // Swallow the socket error so the error is not passed to the
                 // WolfSSL layer. Then the WolfSSL layer would not enter a
                 // fatal error state
-                //
-                // Note: this case should be matched by
-                // matches!(err.kind(), std::io::ErrorKind::NetworkUnreachable)
-                // However, at the time of implementing this match case,
-                // the version of rust we use does not support NetworkUnreachable.
-                // This match case can be rewritten to use NetworkUnreachable
-                // once rust is updated to support it.
                 IOCallbackResult::Ok(0)
             }
             Err(err) => IOCallbackResult::Err(err),
