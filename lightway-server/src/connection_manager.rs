@@ -371,10 +371,11 @@ impl ConnectionManager {
                 Ok((c, false))
             }
             connection_map::Entry::Vacant(_e) => {
+                let mut pending_session_id_rotations = self.pending_session_id_rotations.lock();
                 // Maybe this is a pending session rotation
-                if let Some(c) = self.pending_session_id_rotations.lock().get(&session_id) {
+                if let Some(c) = pending_session_id_rotations.get(&session_id) {
                     let Some(c) = c.upgrade() else {
-                        self.pending_session_id_rotations.lock().remove(&session_id);
+                        pending_session_id_rotations.remove(&session_id);
                         return Err(ConnectionManagerError::NoActiveSession);
                     };
                     let update_peer_address = addr != c.peer_addr();
