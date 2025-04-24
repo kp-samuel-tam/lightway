@@ -45,8 +45,8 @@ pub struct Config {
     pub inside_mtu: Option<u16>,
 
     /// Tun device name to use
-    #[clap(short, long, default_value = "lightway")]
-    pub tun_name: String,
+    #[clap(short, long, default_value = None)]
+    pub tun_name: Option<String>,
 
     /// Local IP to use in Tun device
     #[clap(long, default_value = "100.64.0.6")]
