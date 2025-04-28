@@ -164,6 +164,9 @@ impl Connection {
             }
         };
 
+        // Drop Connection mutex, before adding it in pending_session_ids
+        drop(conn);
+
         self.manager.begin_session_id_rotation(self, new_session);
     }
 
