@@ -16,6 +16,7 @@ use lightway_core::{
     ConnectionType, Event, EventCallback, IOCallbackResult, InsideIpConfig, OutsidePacket, State,
     ipv4_update_destination, ipv4_update_source,
 };
+use tokio::sync::mpsc::UnboundedReceiver;
 
 // re-export so client app does not need to depend on lightway-core
 #[cfg(feature = "debug")]
@@ -400,44 +401,26 @@ async fn handle_network_change(
     ClientResult::UserDisconnect
 }
 
-async fn pkt_encoder_flush(
-    weak: Weak<Mutex<lightway_core::Connection<ConnectionState>>>,
-    interval: Option<Duration>,
+pub async fn handle_encoded_pkt_send<T: Send + Sync>(
+    conn: Weak<Mutex<lightway_core::Connection<ConnectionState<T>>>>,
+    rx: Option<UnboundedReceiver<BytesMut>>,
 ) -> Result<()> {
-    let Some(interval) = interval else {
-        // encoder is not set.
-        return Ok(());
-    };
-
-    let Some(conn) = weak.upgrade() else {
-        return Ok(()); // Client Disconnected
-    };
-
-    let Some(encoder) = conn.lock().unwrap().get_inside_packet_encoder() else {
-        // encoder is not set.
+    let Some(mut rx) = rx else {
         return Ok(());
     };
 
     loop {
-        tokio::time::sleep(interval).await;
+        let Some(mut encoded_packet) = rx.recv().await else {
+            break; // Channel is closed
+        };
 
-        if !encoder.get_encoding_state() {
-            // Encoder is not enabled
-            continue;
-        }
-
-        if !encoder.should_flush() {
-            // Not yet time to flush
-            continue;
-        }
-
-        let conn = match weak.upgrade() {
-            Some(conn) => conn,
-            None => return Ok(()), // Client Disconnected;
+        let Some(conn) = conn.upgrade() else {
+            break; // Client disconnected
         };
 
         let mut conn = conn.lock().unwrap();
-        match conn.flush_pkts_to_outside() {
+
+        match conn.send_to_outside(&mut encoded_packet, true) {
             Ok(()) => {}
             Err(ConnectionError::InvalidState) => {
                 // Ignore the packet till the connection is online
@@ -451,10 +434,44 @@ async fn pkt_encoder_flush(
             }
         }
     }
+
+    // Ready signal channel closed.
+    Ok(())
 }
 
-async fn encoding_request_task(
-    weak: Weak<Mutex<Connection<ConnectionState>>>,
+pub async fn handle_decoded_pkt_send<T: Send + Sync>(
+    conn: Weak<Mutex<lightway_core::Connection<ConnectionState<T>>>>,
+    rx: Option<UnboundedReceiver<BytesMut>>,
+) -> Result<()> {
+    let Some(mut rx) = rx else {
+        return Ok(());
+    };
+
+    loop {
+        let Some(decoded_packet) = rx.recv().await else {
+            break; // Channel is closed
+        };
+
+        let Some(conn) = conn.upgrade() else {
+            break; // Client disconnected
+        };
+
+        let mut conn = conn.lock().unwrap();
+
+        if let Err(err) = conn.send_to_inside(decoded_packet) {
+            if err.is_fatal(conn.connection_type()) {
+                return Err(err.into());
+            }
+            tracing::error!("Failed to process outside data: {err}");
+        }
+    }
+
+    // Ready signal channel closed.
+    Ok(())
+}
+
+async fn encoding_request_task<T: Send + Sync>(
+    weak: Weak<Mutex<Connection<ConnectionState<T>>>>,
     mut signal: tokio::sync::mpsc::Receiver<bool>,
 ) {
     while let Some(enable) = signal.recv().await {
@@ -569,7 +586,18 @@ pub async fn client<A: 'static + Send + EventCallback>(
         enable_tls_debug();
     }
 
-    let has_inside_pkt_codec = config.inside_pkt_codec.is_some();
+    let (inside_io_codec, encoded_pkt_receiver, decoded_pkt_receiver) =
+        match &config.inside_pkt_codec {
+            Some(codec_factory) => {
+                let codec = codec_factory.build();
+                (
+                    Some((codec.encoder, codec.decoder)),
+                    Some(codec.encoded_pkt_receiver),
+                    Some(codec.decoded_pkt_receiver),
+                )
+            }
+            None => (None, None, None),
+        };
 
     let conn_builder = ClientContextBuilder::new(
         connection_type,
@@ -581,7 +609,6 @@ pub async fn client<A: 'static + Send + EventCallback>(
     .with_schedule_tick_cb(connection_ticker_cb)
     .with_inside_plugins(config.inside_plugins)
     .with_outside_plugins(config.outside_plugins)
-    .with_inside_pkt_codec(config.inside_pkt_codec)
     .build()
     .start_connect(
         outside_io.clone().into_io_send_callback(),
@@ -589,6 +616,7 @@ pub async fn client<A: 'static + Send + EventCallback>(
     )?
     .with_auth(config.auth)
     .with_event_cb(Box::new(event_cb))
+    .with_inside_pkt_codec(inside_io_codec)
     .when_some(config.server_dn, |b, sdn| {
         b.with_server_domain_name_validation(sdn)
     })
@@ -652,13 +680,13 @@ pub async fn client<A: 'static + Send + EventCallback>(
             None => None.into(),
         };
 
-    let pkt_encoder_flush_task: JoinHandle<anyhow::Result<()>> = tokio::spawn(pkt_encoder_flush(
-        Arc::downgrade(&conn),
-        config
-            .inside_pkt_codec_config
-            .as_ref()
-            .map(|x| x.flush_interval),
-    ));
+    let encoded_pkt_send_task: JoinHandle<anyhow::Result<()>> = tokio::spawn(
+        handle_encoded_pkt_send(Arc::downgrade(&conn), encoded_pkt_receiver),
+    );
+
+    let decoded_pkt_send_task: JoinHandle<anyhow::Result<()>> = tokio::spawn(
+        handle_decoded_pkt_send(Arc::downgrade(&conn), decoded_pkt_receiver),
+    );
 
     if let Some(pkt_codec_config) = config.inside_pkt_codec_config {
         tokio::spawn(encoding_request_task(
@@ -671,7 +699,8 @@ pub async fn client<A: 'static + Send + EventCallback>(
         Some(_) = keepalive_task => Err(anyhow!("Keepalive timeout")),
         io = outside_io_loop => Err(anyhow!("Outside IO loop exited: {io:?}")),
         io = inside_io_loop => Err(anyhow!("Inside IO loop exited: {io:?}")),
-        io = pkt_encoder_flush_task, if has_inside_pkt_codec => Err(anyhow!("Inside IO (Pkt encoder flush task) exited: {io:?}")),
+        io = encoded_pkt_send_task, if config.inside_pkt_codec.is_some() => Err(anyhow!("Inside IO (Encoded packet send task) exited: {io:?}")),
+        io = decoded_pkt_send_task, if config.inside_pkt_codec.is_some() => Err(anyhow!("Inside IO (Decoded packet send task) exited: {io:?}")),
         _ = config.stop_signal => {
             info!("client shutting down ..");
             let _ = conn.lock().unwrap().disconnect();
