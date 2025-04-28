@@ -43,9 +43,8 @@ pub use io::{
 };
 pub use packet::OutsidePacket;
 pub use packet_codec::{
-    CodecStatus, PacketCodecFactory, PacketCodecFactoryType, PacketCodecResult, PacketDecoder,
-    PacketDecoderType, PacketEncoder, PacketEncoderType, WeakPacketDecoderType,
-    WeakPacketEncoderType,
+    CodecStatus, PacketCodecResult, PacketDecoder, PacketDecoderType, PacketEncoder,
+    PacketEncoderType, WeakPacketDecoderType, WeakPacketEncoderType,
 };
 pub use plugin::{
     Plugin, PluginFactory, PluginFactoryError, PluginFactoryList, PluginFactoryType, PluginResult,

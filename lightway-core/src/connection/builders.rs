@@ -9,7 +9,8 @@ use wolfssl::Tls13SecretCallbacksArg;
 
 use crate::{
     AuthMethod, BuilderPredicates, ClientContext, Connection, ConnectionType, MAX_OUTSIDE_MTU,
-    MIN_OUTSIDE_MTU, OutsideIOSendCallbackArg, ServerContext, ServerIpPoolArg, Version,
+    MIN_OUTSIDE_MTU, OutsideIOSendCallbackArg, PacketDecoderType, PacketEncoderType, ServerContext,
+    ServerIpPoolArg, Version,
     connection::{EventCallbackArg, dplpmtud, fragment_map::FragmentMap, key_update},
     context::ServerAuthArg,
     dtls_required_outside_mtu, max_dtls_outside_mtu,
@@ -66,6 +67,7 @@ pub struct ClientConnectionBuilder<AppState> {
     max_fragment_map_entries: NonZeroU16,
     pmtud_timer: Option<dplpmtud::TimerArg<AppState>>,
     outside_plugins: Arc<PluginList>,
+    inside_pkt_codec: Option<(PacketEncoderType, PacketDecoderType)>,
 }
 
 impl<AppState: Send + 'static> ClientConnectionBuilder<AppState> {
@@ -110,6 +112,7 @@ impl<AppState: Send + 'static> ClientConnectionBuilder<AppState> {
             max_fragment_map_entries: FragmentMap::DEFAULT_MAX_ENTRIES,
             pmtud_timer: None,
             outside_plugins,
+            inside_pkt_codec: None,
         })
     }
 
@@ -210,6 +213,18 @@ impl<AppState: Send + 'static> ClientConnectionBuilder<AppState> {
         }
     }
 
+    /// Sets the Inside Packet Codec which should be used for Lightway connection.
+    /// See [`PacketEncoderType`] and [`PacketDecoderType`].
+    pub fn with_inside_pkt_codec(
+        self,
+        inside_pkt_codec: Option<(PacketEncoderType, PacketDecoderType)>,
+    ) -> Self {
+        Self {
+            inside_pkt_codec,
+            ..self
+        }
+    }
+
     /// Finalize the builder to create a [`Connection`] and begin the connection process.
     pub fn connect(self, app_state: AppState) -> ConnectionBuilderResult<Connection<AppState>> {
         let auth_method = self
@@ -249,16 +264,7 @@ impl<AppState: Send + 'static> ClientConnectionBuilder<AppState> {
             outside_plugins: self.outside_plugins,
             max_fragment_map_entries: self.max_fragment_map_entries,
             pmtud_timer: self.pmtud_timer,
-            inside_pkt_encoder: self
-                .ctx
-                .inside_pkt_codec
-                .as_ref()
-                .map(|factory| factory.build_encoder()),
-            inside_pkt_decoder: self
-                .ctx
-                .inside_pkt_codec
-                .as_ref()
-                .map(|factory| factory.build_decoder()),
+            inside_pkt_codec: self.inside_pkt_codec,
         })?)
     }
 }
@@ -279,6 +285,7 @@ pub struct ServerConnectionBuilder<'a, AppState> {
     event_cb: Option<EventCallbackArg>,
     max_fragment_map_entries: NonZeroU16,
     outside_plugins: Arc<PluginList>,
+    inside_pkt_codec: Option<(PacketEncoderType, PacketDecoderType)>,
 }
 
 impl<'a, AppState: Send + 'static> ServerConnectionBuilder<'a, AppState> {
@@ -327,6 +334,7 @@ impl<'a, AppState: Send + 'static> ServerConnectionBuilder<'a, AppState> {
             event_cb: None,
             max_fragment_map_entries: FragmentMap::DEFAULT_MAX_ENTRIES,
             outside_plugins,
+            inside_pkt_codec: None,
         })
     }
 
@@ -342,6 +350,18 @@ impl<'a, AppState: Send + 'static> ServerConnectionBuilder<'a, AppState> {
     pub fn with_fragment_map_entries(self, max_fragment_map_entries: NonZeroU16) -> Self {
         Self {
             max_fragment_map_entries,
+            ..self
+        }
+    }
+
+    /// Sets the Inside Packet Codec which should be used for Lightway connection.
+    /// See [`PacketEncoderType`] and [`PacketDecoderType`].
+    pub fn with_inside_pkt_codec(
+        self,
+        inside_pkt_codec: Option<(PacketEncoderType, PacketDecoderType)>,
+    ) -> Self {
+        Self {
+            inside_pkt_codec,
             ..self
         }
     }
@@ -378,16 +398,7 @@ impl<'a, AppState: Send + 'static> ServerConnectionBuilder<'a, AppState> {
             outside_plugins: self.outside_plugins,
             max_fragment_map_entries: self.max_fragment_map_entries,
             pmtud_timer: None,
-            inside_pkt_encoder: self
-                .ctx
-                .inside_pkt_codec
-                .as_ref()
-                .map(|factory| factory.build_encoder()),
-            inside_pkt_decoder: self
-                .ctx
-                .inside_pkt_codec
-                .as_ref()
-                .map(|factory| factory.build_decoder()),
+            inside_pkt_codec: self.inside_pkt_codec,
         })?)
     }
 }

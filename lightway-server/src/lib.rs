@@ -18,10 +18,10 @@ pub use lightway_core::{
 
 use anyhow::{Context, Result, anyhow};
 use ipnet::Ipv4Net;
-use lightway_app_utils::{TunConfig, connection_ticker_cb};
+use lightway_app_utils::{PacketCodecFactoryType, TunConfig, connection_ticker_cb};
 use lightway_core::{
     AuthMethod, BuilderPredicates, ConnectionError, ConnectionResult, IOCallbackResult,
-    InsideIpConfig, PacketCodecFactoryType, Secret, ServerContextBuilder, ipv4_update_destination,
+    InsideIpConfig, Secret, ServerContextBuilder, ipv4_update_destination,
 };
 use parking_lot::Mutex;
 use pnet::packet::ipv4::Ipv4Packet;

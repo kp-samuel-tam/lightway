@@ -9,12 +9,12 @@ use futures::future::OptionFuture;
 use keepalive::Keepalive;
 use lightway_app_utils::{
     ConnectionTicker, ConnectionTickerState, DplpmtudTimer, EventStream, EventStreamCallback,
-    TunConfig, args::Cipher, connection_ticker_cb,
+    PacketCodecFactoryType, TunConfig, args::Cipher, connection_ticker_cb,
 };
 use lightway_core::{
     BuilderPredicates, ClientContextBuilder, ClientIpConfig, Connection, ConnectionError,
-    ConnectionType, Event, EventCallback, IOCallbackResult, InsideIpConfig, OutsidePacket,
-    PacketCodecFactoryType, State, ipv4_update_destination, ipv4_update_source,
+    ConnectionType, Event, EventCallback, IOCallbackResult, InsideIpConfig, OutsidePacket, State,
+    ipv4_update_destination, ipv4_update_source,
 };
 
 // re-export so client app does not need to depend on lightway-core

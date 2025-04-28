@@ -393,8 +393,7 @@ struct NewConnectionArgs<AppState> {
     outside_plugins: Arc<PluginList>,
     max_fragment_map_entries: NonZeroU16,
     pmtud_timer: Option<dplpmtud::TimerArg<AppState>>,
-    inside_pkt_encoder: Option<PacketEncoderType>,
-    inside_pkt_decoder: Option<PacketDecoderType>,
+    inside_pkt_codec: Option<(PacketEncoderType, PacketDecoderType)>,
 }
 
 impl<AppState: Send> Connection<AppState> {
@@ -402,6 +401,10 @@ impl<AppState: Send> Connection<AppState> {
     fn new(args: NewConnectionArgs<AppState>) -> ConnectionResult<Self> {
         let now = Instant::now();
         let max_fragment_map_entries = args.max_fragment_map_entries;
+        let (inside_pkt_encoder, inside_pkt_decoder) = match args.inside_pkt_codec {
+            Some(e) => (Some(e.0), Some(e.1)),
+            None => (None, None),
+        };
         let mut conn = Connection {
             connection_type: args.connection_type,
             tunnel_protocol_version: args.protocol_version,
@@ -436,8 +439,8 @@ impl<AppState: Send> Connection<AppState> {
             },
             fragment_counter: Wrapping(0),
             is_first_packet_received: false,
-            inside_pkt_encoder: args.inside_pkt_encoder,
-            inside_pkt_decoder: args.inside_pkt_decoder,
+            inside_pkt_encoder,
+            inside_pkt_decoder,
         };
 
         // This will very likely fail since negotiation always needs
