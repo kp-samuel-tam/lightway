@@ -1,5 +1,6 @@
 mod connection_map;
 
+use bytes::BytesMut;
 use delegate::delegate;
 use parking_lot::Mutex;
 use std::{
@@ -12,6 +13,7 @@ use std::{
 };
 use thiserror::Error;
 use time::Duration;
+use tokio::sync::mpsc::UnboundedReceiver;
 use tokio_stream::StreamExt;
 use tracing::{info, instrument, warn};
 
@@ -21,13 +23,14 @@ use crate::{
     metrics,
 };
 use connection_map::ConnectionMap;
-use lightway_app_utils::{EventStream, EventStreamCallback};
+use lightway_app_utils::{EventStream, EventStreamCallback, PacketCodecFactoryType};
 use lightway_core::{
     ConnectionActivity, ConnectionBuilderError, ConnectionError, ContextError, Event,
     OutsideIOSendCallbackArg, OutsidePacket, ServerContext, SessionId, State, Version,
 };
 
 use crate::codec_list::InternalIPToEncoderMap;
+use crate::handle_inside_io_error;
 
 /// How often to check for connections to expire aged connections
 pub(crate) const CONNECTION_AGE_EXPIRATION_INTERVAL: Duration = Duration::minutes(1);
@@ -89,6 +92,7 @@ pub(crate) struct ConnectionManager {
     encoders: Arc<Mutex<InternalIPToEncoderMap>>,
     /// Total number of sessions there have ever been
     total_sessions: AtomicUsize,
+    inside_io_codec_factory: Option<PacketCodecFactoryType>,
 }
 
 #[instrument(level = "trace", skip_all)]
@@ -198,6 +202,42 @@ async fn handle_stale(conn: Weak<Connection>) {
     };
 }
 
+#[instrument(level = "trace", skip_all)]
+async fn handle_encoded_pkt_send(conn: Weak<Connection>, mut rx: UnboundedReceiver<BytesMut>) {
+    loop {
+        let Some(encoded_packet) = rx.recv().await else {
+            break; // Channel is closed
+        };
+
+        let Some(conn) = conn.upgrade() else {
+            // Connection is dropped.
+            break;
+        };
+
+        if let Err(err) = conn.send_to_outside(encoded_packet, true) {
+            handle_inside_io_error(conn, Err(err));
+        }
+    }
+}
+
+#[instrument(level = "trace", skip_all)]
+async fn handle_decoded_pkt_send(conn: Weak<Connection>, mut rx: UnboundedReceiver<BytesMut>) {
+    loop {
+        let Some(decoded_packet) = rx.recv().await else {
+            break; // Channel is closed
+        };
+
+        let Some(conn) = conn.upgrade() else {
+            // Connection is dropped.
+            break;
+        };
+
+        if let Err(err) = conn.send_to_inside(decoded_packet) {
+            conn.handle_outside_data_error(&err);
+        }
+    }
+}
+
 fn new_connection(
     manager: Arc<ConnectionManager>,
     ctx: &ServerContext<ConnectionState>,
@@ -209,12 +249,25 @@ fn new_connection(
     let (event_cb, event_stream) = EventStreamCallback::new();
 
     manager.total_sessions.fetch_add(1, Ordering::Relaxed);
+
+    let (inside_io_codec, pkt_receivers) = match &manager.inside_io_codec_factory {
+        Some(codec_factory) => {
+            let codec = codec_factory.build();
+            (
+                Some((codec.encoder, codec.decoder)),
+                Some((codec.encoded_pkt_receiver, codec.decoded_pkt_receiver)),
+            )
+        }
+        None => (None, None),
+    };
+
     let conn = Connection::new(
         ctx,
         manager,
         protocol_version,
         local_addr,
         outside_io,
+        inside_io_codec,
         event_cb,
     )
     .inspect_err(|err| {
@@ -229,6 +282,17 @@ fn new_connection(
     ));
     tokio::spawn(handle_stale(Arc::downgrade(&conn)));
 
+    if let Some((encoded_pkt_receiver, decoded_pkt_receiver)) = pkt_receivers {
+        tokio::spawn(handle_encoded_pkt_send(
+            Arc::downgrade(&conn),
+            encoded_pkt_receiver,
+        ));
+        tokio::spawn(handle_decoded_pkt_send(
+            Arc::downgrade(&conn),
+            decoded_pkt_receiver,
+        ));
+    }
+
     Ok(conn)
 }
 
@@ -236,6 +300,7 @@ impl ConnectionManager {
     pub(crate) fn new(
         ctx: ServerContext<ConnectionState>,
         encoders: Arc<Mutex<InternalIPToEncoderMap>>,
+        inside_io_codec_factory: Option<PacketCodecFactoryType>,
     ) -> Arc<Self> {
         let conn_manager = Arc::new(Self {
             ctx,
@@ -243,6 +308,7 @@ impl ConnectionManager {
             pending_session_id_rotations: Mutex::new(Default::default()),
             total_sessions: Default::default(),
             encoders,
+            inside_io_codec_factory,
         });
 
         conn_manager.spawn_periodic_task(

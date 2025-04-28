@@ -13,8 +13,8 @@ use crate::{
 use lightway_app_utils::{ConnectionTicker, ConnectionTickerState, EventStreamCallback, Tickable};
 use lightway_core::{
     ConnectionActivity, ConnectionError, ConnectionResult, ConnectionType,
-    OutsideIOSendCallbackArg, OutsidePacket, PacketEncoderType, ProtocolVersion, ServerContext,
-    SessionId, State, Version,
+    OutsideIOSendCallbackArg, OutsidePacket, PacketDecoderType, PacketEncoderType, ProtocolVersion,
+    ServerContext, SessionId, State, Version,
 };
 
 pub struct ConnectionState {
@@ -55,6 +55,7 @@ impl Connection {
         protocol_version: Version,
         local_addr: SocketAddr,
         outside_io: OutsideIOSendCallbackArg,
+        inside_io_codec: Option<(PacketEncoderType, PacketDecoderType)>,
         event_cb: EventStreamCallback,
     ) -> Result<Arc<Self>, ConnectionManagerError> {
         tracing::debug!(?local_addr, "New connection");
@@ -71,6 +72,7 @@ impl Connection {
 
         let lw_conn = Mutex::new(
             ctx.start_accept(protocol_version, outside_io)?
+                .with_inside_pkt_codec(inside_io_codec)
                 .with_event_cb(Box::new(event_cb))
                 .accept(state)?,
         );
@@ -174,14 +176,20 @@ impl Connection {
         self.manager.finalize_session_id_rotation(self, old, new)
     }
 
-    pub fn flush_ingress_pkt_accumulator(self: &Arc<Self>) -> ConnectionResult<()> {
+    pub fn send_to_outside(
+        self: &Arc<Self>,
+        mut packet: BytesMut,
+        is_encoded: bool,
+    ) -> ConnectionResult<()> {
         let mut conn = self.lw_conn.lock().unwrap();
 
-        if conn.state() != State::Online {
-            return Ok(());
-        }
+        conn.send_to_outside(&mut packet, is_encoded)
+    }
 
-        conn.flush_pkts_to_outside()
+    pub fn send_to_inside(self: &Arc<Self>, packet: BytesMut) -> ConnectionResult<()> {
+        let mut conn = self.lw_conn.lock().unwrap();
+
+        conn.send_to_inside(packet)
     }
 
     pub fn get_internal_ip(self: &Arc<Self>) -> Option<Ipv4Addr> {

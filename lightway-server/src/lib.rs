@@ -182,7 +182,7 @@ pub struct ServerConfig<SA: for<'a> ServerAuth<AuthState<'a>>> {
     pub udp_buffer_size: ByteSize,
 }
 
-fn handle_inside_io_error(conn: Arc<Connection>, result: ConnectionResult<()>) {
+pub(crate) fn handle_inside_io_error(conn: Arc<Connection>, result: ConnectionResult<()>) {
     match result {
         Ok(()) => {}
         Err(ConnectionError::InvalidState | ConnectionError::Disconnected) => {
@@ -235,7 +235,7 @@ async fn pkt_encoder_flush(
                 None => continue,
             };
 
-            let flush_result = conn.flush_ingress_pkt_accumulator();
+            let flush_result = conn.flush_encoder();
             handle_inside_io_error(conn, flush_result);
         }
     }
@@ -299,12 +299,11 @@ pub async fn server<SA: for<'a> ServerAuth<AuthState<'a>> + Sync + Send + 'stati
     .try_when(config.enable_pqc, |b| b.with_pq_crypto())?
     .with_inside_plugins(config.inside_plugins)
     .with_outside_plugins(config.outside_plugins)
-    .with_inside_pkt_codec(config.inside_pkt_codec)
     .build()?;
 
     let encoders = Arc::new(Mutex::new(InternalIPToEncoderMap::default()));
 
-    let conn_manager = ConnectionManager::new(ctx, encoders.clone());
+    let conn_manager = ConnectionManager::new(ctx, encoders.clone(), config.inside_pkt_codec);
 
     tokio::spawn(statistics::run(conn_manager.clone(), ip_manager.clone()));
 
