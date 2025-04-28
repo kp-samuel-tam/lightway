@@ -29,7 +29,6 @@ use lightway_core::{
     OutsideIOSendCallbackArg, OutsidePacket, ServerContext, SessionId, State, Version,
 };
 
-use crate::codec_list::InternalIPToEncoderMap;
 use crate::handle_inside_io_error;
 
 /// How often to check for connections to expire aged connections
@@ -89,18 +88,13 @@ pub(crate) struct ConnectionManager {
     ctx: ServerContext<ConnectionState>,
     connections: Mutex<ConnectionMap<Connection>>,
     pending_session_id_rotations: Mutex<HashMap<SessionId, Weak<Connection>>>,
-    encoders: Arc<Mutex<InternalIPToEncoderMap>>,
     /// Total number of sessions there have ever been
     total_sessions: AtomicUsize,
     inside_io_codec_factory: Option<PacketCodecFactoryType>,
 }
 
 #[instrument(level = "trace", skip_all)]
-async fn handle_state_change(
-    state: State,
-    conn: &Weak<Connection>,
-    encoders: Arc<Mutex<InternalIPToEncoderMap>>,
-) {
+async fn handle_state_change(state: State, conn: &Weak<Connection>) {
     let Some(conn) = conn.upgrade() else {
         info!("Connection has gone away, stopping");
         return;
@@ -116,23 +110,6 @@ async fn handle_state_change(
         State::Authenticating => {}
         State::Online => {
             metrics::connection_online(&conn);
-
-            // If codec is initialized, add the encoder and decoder to the lists so that
-            // the server can flush the encoder and clean up stale states in the decoder.
-            if let Some(encoder) = conn.get_inside_packet_encoder() {
-                let encoder = Arc::downgrade(&encoder);
-                match conn.get_internal_ip() {
-                    Some(internal_ip) => {
-                        encoders.lock().insert(internal_ip, encoder);
-                        tracing::debug!("{}'s encoder has been added to the list.", internal_ip);
-                    }
-                    None => {
-                        tracing::error!(
-                            "Internal IP not found when trying to add encoder to the list. "
-                        );
-                    }
-                }
-            }
         }
         State::Disconnecting => {}
         State::Disconnected => {}
@@ -170,14 +147,10 @@ fn handle_tls_keys_update_complete() {
 }
 
 #[instrument(level = "trace", skip_all)]
-async fn handle_events(
-    mut stream: EventStream,
-    conn: Weak<Connection>,
-    encoders: Arc<Mutex<InternalIPToEncoderMap>>,
-) {
+async fn handle_events(mut stream: EventStream, conn: Weak<Connection>) {
     while let Some(event) = stream.next().await {
         match event {
-            Event::StateChanged(state) => handle_state_change(state, &conn, encoders.clone()).await,
+            Event::StateChanged(state) => handle_state_change(state, &conn).await,
             Event::KeepaliveReply => {}
             Event::SessionIdRotationAcknowledged { old, new } => {
                 handle_finalize_session_rotation(&conn, old, new);
@@ -244,7 +217,6 @@ fn new_connection(
     protocol_version: Version,
     local_addr: SocketAddr,
     outside_io: OutsideIOSendCallbackArg,
-    encoders: Arc<Mutex<InternalIPToEncoderMap>>,
 ) -> Result<Arc<Connection>, ConnectionManagerError> {
     let (event_cb, event_stream) = EventStreamCallback::new();
 
@@ -275,11 +247,7 @@ fn new_connection(
         warn!(?err, "Failed to create new connection");
     })?;
 
-    tokio::spawn(handle_events(
-        event_stream,
-        Arc::downgrade(&conn),
-        encoders.clone(),
-    ));
+    tokio::spawn(handle_events(event_stream, Arc::downgrade(&conn)));
     tokio::spawn(handle_stale(Arc::downgrade(&conn)));
 
     if let Some((encoded_pkt_receiver, decoded_pkt_receiver)) = pkt_receivers {
@@ -299,7 +267,6 @@ fn new_connection(
 impl ConnectionManager {
     pub(crate) fn new(
         ctx: ServerContext<ConnectionState>,
-        encoders: Arc<Mutex<InternalIPToEncoderMap>>,
         inside_io_codec_factory: Option<PacketCodecFactoryType>,
     ) -> Arc<Self> {
         let conn_manager = Arc::new(Self {
@@ -307,7 +274,6 @@ impl ConnectionManager {
             connections: Mutex::new(Default::default()),
             pending_session_id_rotations: Mutex::new(Default::default()),
             total_sessions: Default::default(),
-            encoders,
             inside_io_codec_factory,
         });
 
@@ -375,7 +341,6 @@ impl ConnectionManager {
             protocol_version,
             socket_addr,
             outside_io,
-            self.encoders.clone(),
         )?;
         // TODO: what if addr was already present?
         self.connections.lock().insert(&conn)?;
@@ -431,7 +396,6 @@ impl ConnectionManager {
                     protocol_version,
                     local_addr,
                     outside_io,
-                    self.encoders.clone(),
                 )?;
                 e.insert(&c)?;
                 Ok((c, false))

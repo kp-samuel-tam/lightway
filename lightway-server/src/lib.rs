@@ -1,4 +1,3 @@
-mod codec_list;
 mod connection;
 mod connection_manager;
 mod io;
@@ -23,7 +22,6 @@ use lightway_core::{
     AuthMethod, BuilderPredicates, ConnectionError, ConnectionResult, IOCallbackResult,
     InsideIpConfig, Secret, ServerContextBuilder, ipv4_update_destination,
 };
-use parking_lot::Mutex;
 use pnet::packet::ipv4::Ipv4Packet;
 use std::{
     collections::HashMap,
@@ -43,8 +41,6 @@ use crate::ip_manager::IpManager;
 
 use connection_manager::ConnectionManager;
 use io::outside::Server;
-
-use codec_list::InternalIPToEncoderMap;
 
 fn debug_fmt_plugin_list(
     list: &PluginFactoryList,
@@ -166,9 +162,6 @@ pub struct ServerConfig<SA: for<'a> ServerAuth<AuthState<'a>>> {
     #[educe(Debug(method(debug_pkt_codec_fac)))]
     pub inside_pkt_codec: Option<PacketCodecFactoryType>,
 
-    /// How often the pkt encoder is flushed
-    pub pkt_encoder_flush_interval: Duration,
-
     /// Address to listen to
     pub bind_address: SocketAddr,
 
@@ -199,44 +192,6 @@ pub(crate) fn handle_inside_io_error(conn: Arc<Connection>, result: ConnectionRe
             if fatal {
                 let _ = conn.disconnect();
             }
-        }
-    }
-}
-
-async fn pkt_encoder_flush(
-    ip_manager: Arc<IpManager>,
-    interval: Duration,
-    encoders: Arc<Mutex<InternalIPToEncoderMap>>,
-) -> Result<()> {
-    loop {
-        tokio::time::sleep(interval).await;
-
-        let mut encoders = encoders.lock();
-
-        for (internal_ip, encoder) in encoders.clone().into_iter() {
-            let encoder = match encoder.upgrade() {
-                Some(encoder) => encoder,
-                None => {
-                    // Encoder has been dropped when the Connection has disconnected.
-                    encoders.remove(&internal_ip);
-                    continue;
-                }
-            };
-
-            if !encoder.should_flush() {
-                // No need to flush now
-                continue;
-            }
-
-            let maybe_conn = ip_manager.find_connection(internal_ip);
-
-            let conn = match maybe_conn {
-                Some(conn) => conn,
-                None => continue,
-            };
-
-            let flush_result = conn.flush_encoder();
-            handle_inside_io_error(conn, flush_result);
         }
     }
 }
@@ -284,8 +239,6 @@ pub async fn server<SA: for<'a> ServerAuth<AuthState<'a>> + Sync + Send + 'stati
         None => Arc::new(io::inside::Tun::new(config.tun_config, iouring).await?),
     };
 
-    let has_inside_pkt_codec = config.inside_pkt_codec.is_some();
-
     let ctx = ServerContextBuilder::new(
         connection_type,
         server_cert,
@@ -301,9 +254,7 @@ pub async fn server<SA: for<'a> ServerAuth<AuthState<'a>> + Sync + Send + 'stati
     .with_outside_plugins(config.outside_plugins)
     .build()?;
 
-    let encoders = Arc::new(Mutex::new(InternalIPToEncoderMap::default()));
-
-    let conn_manager = ConnectionManager::new(ctx, encoders.clone(), config.inside_pkt_codec);
+    let conn_manager = ConnectionManager::new(ctx, config.inside_pkt_codec);
 
     tokio::spawn(statistics::run(conn_manager.clone(), ip_manager.clone()));
 
@@ -327,8 +278,6 @@ pub async fn server<SA: for<'a> ServerAuth<AuthState<'a>> + Sync + Send + 'stati
             .await?,
         ),
     };
-
-    let ip_manager_clone = ip_manager.clone();
 
     let inside_io_loop: JoinHandle<anyhow::Result<()>> = tokio::spawn(async move {
         loop {
@@ -359,14 +308,6 @@ pub async fn server<SA: for<'a> ServerAuth<AuthState<'a>> + Sync + Send + 'stati
             }
         }
     });
-
-    if has_inside_pkt_codec {
-        tokio::spawn(pkt_encoder_flush(
-            ip_manager_clone,
-            config.pkt_encoder_flush_interval,
-            encoders,
-        ));
-    }
 
     let (ctrlc_tx, ctrlc_rx) = tokio::sync::oneshot::channel();
     let mut ctrlc_tx = Some(ctrlc_tx);

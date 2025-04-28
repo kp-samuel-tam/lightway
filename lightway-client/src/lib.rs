@@ -188,12 +188,6 @@ pub struct ClientConfig<'cert, A: 'static + Send + EventCallback> {
 #[derive(educe::Educe)]
 #[educe(Debug)]
 pub struct ClientInsidePacketCodecConfig {
-    /// How often the packet encoder is flushed
-    pub flush_interval: Duration,
-
-    /// How often the packet decoder's states are cleaned up
-    pub clean_up_interval: Duration,
-
     /// Enables inside packet encoding when connection is established.
     pub enable_encoding_at_connect: bool,
 

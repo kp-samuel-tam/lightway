@@ -160,7 +160,6 @@ async fn main() -> Result<()> {
         inside_plugins: Default::default(),
         outside_plugins: Default::default(),
         inside_pkt_codec: None,
-        pkt_encoder_flush_interval: config.pkt_encoder_flush_interval.into(),
         bind_address: config.bind_address,
         bind_attempts: config.bind_attempts,
         proxy_protocol: config.proxy_protocol,

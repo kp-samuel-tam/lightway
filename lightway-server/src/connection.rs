@@ -113,8 +113,6 @@ impl Connection {
 
             pub fn outside_data_received(&self, buf: OutsidePacket) -> ConnectionResult<usize>;
             pub fn inside_data_received(&self, pkt: &mut BytesMut) -> ConnectionResult<()>;
-
-            pub fn get_inside_packet_encoder(&self) -> Option<PacketEncoderType>;
         }
     }
 
@@ -190,10 +188,6 @@ impl Connection {
         let mut conn = self.lw_conn.lock().unwrap();
 
         conn.send_to_inside(packet)
-    }
-
-    pub fn get_internal_ip(self: &Arc<Self>) -> Option<Ipv4Addr> {
-        self.lw_conn.lock().unwrap().app_state().internal_ip
     }
 
     // Use this only during shutdown, after clearing all connections from

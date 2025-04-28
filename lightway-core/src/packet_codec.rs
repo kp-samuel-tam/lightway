@@ -1,4 +1,4 @@
-use std::sync::{Arc, Weak};
+use std::sync::Arc;
 
 use bytes::BytesMut;
 
@@ -10,13 +10,10 @@ pub trait PacketEncoder {
     /// Store one inside packet into the PacketEncoder
     ///
     /// Returns a [`CodecStatus`].
-    /// If the status is [`CodecStatus::ReadyToFlush`], encoded packets are ready to be retrieved.
+    /// If the status is [`CodecStatus::PacketAccepted`], the packet is accepted by the encoder.
     /// If the status is [`CodecStatus::SkipPacket`], the packet is skipped by the encoder and lightway
     /// may send it as a normal wire::Data packet.
     fn store(&self, data: &mut BytesMut) -> PacketCodecResult<CodecStatus>;
-
-    /// Retrieve the encoded packets
-    fn get_encoded_pkts(&self) -> PacketCodecResult<Vec<BytesMut>>;
 
     /// Get the encoding state
     ///
@@ -27,9 +24,6 @@ pub trait PacketEncoder {
     ///
     /// The param indicates whether encoding is enabled or disabled.
     fn set_encoding_state(&self, enabled: bool);
-
-    /// Indicates whether the packets in the encoder should be retrieved.
-    fn should_flush(&self) -> bool;
 }
 
 /// PacketDecoder trait to accumulate encoded packets and turn them to inside packets.
@@ -37,23 +31,16 @@ pub trait PacketDecoder {
     /// Store one encoded packet into the PacketDecoder
     ///
     /// Returns a [`CodecStatus`].
-    /// If the status is [`CodecStatus::ReadyToFlush`], decoded inside packets are ready to be retrieved.
+    /// If the status is [`CodecStatus::PacketAccepted`], the packet is accepted by the encoder.
     /// If the status is [`CodecStatus::SkipPacket`], the packet should not be added to the decoder.
     /// and should be sent directly.
     fn store(&self, data: &mut BytesMut) -> PacketCodecResult<CodecStatus>;
-
-    /// Retrieve the decoded inside packets
-    fn get_decoded_pkts(&self) -> PacketCodecResult<Vec<BytesMut>>;
 }
 
 /// Indicates the status of [`PacketEncoder`] or [`PacketDecoder`] after storing the current packet
 pub enum CodecStatus {
-    /// Ready to flush
-    ReadyToFlush,
-
-    /// Not yet ready to flush
-    #[allow(dead_code)]
-    Pending,
+    /// The codec accepted this packet.
+    PacketAccepted,
 
     /// The codec does not accept this particular packet.
     /// The packet should be sent directly.
@@ -63,10 +50,6 @@ pub enum CodecStatus {
 
 /// Type for [`PacketEncoder`]
 pub type PacketEncoderType = Arc<dyn PacketEncoder + Send + Sync>;
-/// Weak reference for [`PacketEncoder`]
-pub type WeakPacketEncoderType = Weak<dyn PacketEncoder + Send + Sync>;
 
 /// Type for [`PacketDecoder`]
 pub type PacketDecoderType = Arc<dyn PacketDecoder + Send + Sync>;
-/// Weak reference for [`PacketDecoder`]
-pub type WeakPacketDecoderType = Weak<dyn PacketDecoder + Send + Sync>;
