@@ -824,7 +824,7 @@ impl<AppState: Send> Connection<AppState> {
         if let Some(encoder) = &mut self.inside_pkt_encoder {
             let codec_state = encoder.store(pkt);
             match codec_state {
-                Ok(CodecStatus::ReadyToFlush) => self.flush_pkts_to_outside(),
+                Ok(CodecStatus::ReadyToFlush) => self.flush_inside_encoder(),
                 Ok(CodecStatus::Pending) => Ok(()),
                 Ok(CodecStatus::SkipPacket) => {
                     // The encoder does not accept the packet.
@@ -839,9 +839,8 @@ impl<AppState: Send> Connection<AppState> {
         }
     }
 
-    /// Flush the packets in the pkt encoder to outside.
-    /// Called by either inside_io_task or outside of lightway-core.
-    pub fn flush_pkts_to_outside(&mut self) -> ConnectionResult<()> {
+    /// Flush the packets in the PacketEncoder to outside.
+    pub fn flush_inside_encoder(&mut self) -> ConnectionResult<()> {
         if self.state() != State::Online {
             return Err(ConnectionError::InvalidState);
         }
@@ -885,7 +884,16 @@ impl<AppState: Send> Connection<AppState> {
         Ok(())
     }
 
-    fn send_to_outside(&mut self, pkt: &mut BytesMut, is_encoded: bool) -> ConnectionResult<()> {
+    /// Send a packet to the outside
+    pub fn send_to_outside(
+        &mut self,
+        pkt: &mut BytesMut,
+        is_encoded: bool,
+    ) -> ConnectionResult<()> {
+        if !matches!(self.state, State::Online) {
+            return Err(ConnectionError::InvalidState);
+        }
+
         if_chain::if_chain! {
             if let Some(pmtu) = &self.pmtud;
             if let Some((data_mps, frag_mps)) = pmtu.maximum_packet_sizes();
@@ -1441,7 +1449,7 @@ impl<AppState: Send> Connection<AppState> {
         is_encoded: bool,
     ) -> ConnectionResult<()> {
         if !is_encoded {
-            return self.send_to_inside_io(inside_bytes);
+            return self.send_to_inside(inside_bytes);
         }
 
         let decoder = match &mut self.inside_pkt_decoder {
@@ -1455,7 +1463,7 @@ impl<AppState: Send> Connection<AppState> {
         let decoder_state = decoder.store(&mut inside_bytes);
         match decoder_state {
             Ok(CodecStatus::ReadyToFlush) => {
-                for result in self.flush_pkts_to_inside() {
+                for result in self.flush_inside_decoder() {
                     result?
                 }
 
@@ -1465,13 +1473,14 @@ impl<AppState: Send> Connection<AppState> {
             Ok(CodecStatus::SkipPacket) => {
                 // The decoder does not accept the packet.
                 // Packet should be un-encoded. Sending to inside directly.
-                self.send_to_inside_io(inside_bytes)
+                self.send_to_inside(inside_bytes)
             }
             Err(e) => Err(ConnectionError::PacketCodecError(e)),
         }
     }
 
-    fn flush_pkts_to_inside(&mut self) -> Vec<ConnectionResult<()>> {
+    /// Flush the packets in the packet decoder to inside.
+    pub fn flush_inside_decoder(&mut self) -> Vec<ConnectionResult<()>> {
         let decoder = match &mut self.inside_pkt_decoder {
             Some(decoder) => decoder,
             None => return vec![Err(ConnectionError::PacketCodecDoesNotExist)],
@@ -1484,11 +1493,12 @@ impl<AppState: Send> Connection<AppState> {
         };
 
         pkts.into_iter()
-            .map(|pkt| self.send_to_inside_io(pkt))
+            .map(|pkt| self.send_to_inside(pkt))
             .collect()
     }
 
-    fn send_to_inside_io(&mut self, mut inside_pkt: BytesMut) -> ConnectionResult<()> {
+    /// Send a packet to the inside
+    pub fn send_to_inside(&mut self, mut inside_pkt: BytesMut) -> ConnectionResult<()> {
         use ConnectionError::InvalidInsidePacket;
         use InvalidPacketError::InvalidIpv4Packet;
 
