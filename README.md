@@ -105,11 +105,11 @@ or `-5` to pick a different algorithm.
 [`pwhash`]: https://crates.io/crates/pwhash
 
 > [!CAUTION]
-> The widely used but basic `htpasswd(1)` username / password database format 
-> was chosen here to provide an easy-to-setup reference implementation of 
-> Lightway. Users are encouraged to modify this implementation with more advanced 
-> username / password authentication mechanisms and their own choice of password 
-> hashing algorithms to suit their security needs. 
+> The widely used but basic `htpasswd(1)` username / password database format
+> was chosen here to provide an easy-to-setup reference implementation of
+> Lightway. Users are encouraged to modify this implementation with more advanced
+> username / password authentication mechanisms and their own choice of password
+> hashing algorithms to suit their security needs.
 
 Please note that when providing env variables it should be in upper case and using "_" as a word separator,
 while using as cli config, it should be in lower case with "-" as the word separator.
@@ -192,6 +192,10 @@ the `--inside-mtu` option but note that this requires additional privileges, spe
 > password via the configuration file or via `LW_CLIENT_PASSWORD`
 > environment variable.
 
+> [!Note]
+> macOs has restrictions on tunnel name. It will only allow the format `utun[0-9]+`.
+> To avoid guessing the available number, do not provide `tun_name` config and let the
+> system decide the tunnel name.
 ## E2E Testing
 
 To run all e2e tests:

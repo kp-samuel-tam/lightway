@@ -55,7 +55,10 @@ async fn main() -> Result<()> {
     let root_ca_cert = RootCertificate::PemFileOrDirectory(&config.ca_cert);
 
     let mut tun_config = TunConfig::default();
-    tun_config.tun_name(config.tun_name);
+
+    if let Some(tun_name) = config.tun_name {
+        tun_config.tun_name(tun_name);
+    }
     if let Some(inside_mtu) = &config.inside_mtu {
         tun_config.mtu(*inside_mtu);
     }

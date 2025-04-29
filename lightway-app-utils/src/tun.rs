@@ -94,6 +94,12 @@ pub struct TunDirect {
 impl TunDirect {
     /// Create a new `Tun` struct
     pub fn new(config: TunConfig) -> Result<Self> {
+        #[cfg(target_os = "macos")]
+        let mut config = config;
+        #[cfg(target_os = "macos")]
+        config.platform_config(|config| {
+            config.enable_routing(false);
+        });
         let tun = tun::create_as_async(&config)?;
         let fd = tun.as_raw_fd();
         let mtu = tun.mtu()?;

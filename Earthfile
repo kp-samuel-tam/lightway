@@ -49,10 +49,10 @@ build:
     LET target = "x86_64-unknown-linux-gnu"
 
     IF [ "$ARCH" = "arm64" ]
-        SET target = "aarch64-unknown-linux-gnu" 
+        SET target = "aarch64-unknown-linux-gnu"
     END
 
-    DO lib-rust+CARGO --args="build --release --target=$target" --output="$target/release/lightway-(client|server)$"
+    DO lib-rust+CARGO --args="build --release --features io-uring --target=$target" --output="$target/release/lightway-(client|server)$"
 
     SAVE ARTIFACT ./target/$target/release/lightway-client AS LOCAL ./target/$target/release/
     SAVE ARTIFACT ./target/$target/release/lightway-server AS LOCAL ./target/$target/release/
