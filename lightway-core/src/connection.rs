@@ -393,8 +393,7 @@ struct NewConnectionArgs<AppState> {
     outside_plugins: Arc<PluginList>,
     max_fragment_map_entries: NonZeroU16,
     pmtud_timer: Option<dplpmtud::TimerArg<AppState>>,
-    inside_pkt_encoder: Option<PacketEncoderType>,
-    inside_pkt_decoder: Option<PacketDecoderType>,
+    inside_pkt_codec: Option<(PacketEncoderType, PacketDecoderType)>,
 }
 
 impl<AppState: Send> Connection<AppState> {
@@ -402,6 +401,10 @@ impl<AppState: Send> Connection<AppState> {
     fn new(args: NewConnectionArgs<AppState>) -> ConnectionResult<Self> {
         let now = Instant::now();
         let max_fragment_map_entries = args.max_fragment_map_entries;
+        let (inside_pkt_encoder, inside_pkt_decoder) = match args.inside_pkt_codec {
+            Some(e) => (Some(e.0), Some(e.1)),
+            None => (None, None),
+        };
         let mut conn = Connection {
             connection_type: args.connection_type,
             tunnel_protocol_version: args.protocol_version,
@@ -436,8 +439,8 @@ impl<AppState: Send> Connection<AppState> {
             },
             fragment_counter: Wrapping(0),
             is_first_packet_received: false,
-            inside_pkt_encoder: args.inside_pkt_encoder,
-            inside_pkt_decoder: args.inside_pkt_decoder,
+            inside_pkt_encoder,
+            inside_pkt_decoder,
         };
 
         // This will very likely fail since negotiation always needs
@@ -821,8 +824,7 @@ impl<AppState: Send> Connection<AppState> {
         if let Some(encoder) = &mut self.inside_pkt_encoder {
             let codec_state = encoder.store(pkt);
             match codec_state {
-                Ok(CodecStatus::ReadyToFlush) => self.flush_pkts_to_outside(),
-                Ok(CodecStatus::Pending) => Ok(()),
+                Ok(CodecStatus::PacketAccepted) => Ok(()),
                 Ok(CodecStatus::SkipPacket) => {
                     // The encoder does not accept the packet.
                     // Packet should not be encoded. Sending to inside directly.
@@ -836,53 +838,16 @@ impl<AppState: Send> Connection<AppState> {
         }
     }
 
-    /// Flush the packets in the pkt encoder to outside.
-    /// Called by either inside_io_task or outside of lightway-core.
-    pub fn flush_pkts_to_outside(&mut self) -> ConnectionResult<()> {
-        if self.state() != State::Online {
+    /// Send a packet to the outside
+    pub fn send_to_outside(
+        &mut self,
+        pkt: &mut BytesMut,
+        is_encoded: bool,
+    ) -> ConnectionResult<()> {
+        if !matches!(self.state, State::Online) {
             return Err(ConnectionError::InvalidState);
         }
 
-        let encoder = match &mut self.inside_pkt_encoder {
-            Some(encoder) => encoder,
-            None => {
-                // No need to flush if there is no packet encoder
-                return Ok(());
-            }
-        };
-
-        let encoded_pkts = encoder.get_encoded_pkts();
-        let pkts = match encoded_pkts {
-            Ok(pkts) => pkts,
-            Err(e) => return Err(ConnectionError::PacketCodecError(e)),
-        };
-
-        let number_of_pkts = pkts.len();
-        for (index, mut pkt) in pkts.into_iter().enumerate() {
-            match self.send_to_outside(&mut pkt, true) {
-                Ok(()) => {
-                    // Go on
-                }
-                Err(ConnectionError::InvalidState) => {
-                    // Ignore the packet till the connection is online
-                }
-                Err(ConnectionError::InvalidInsidePacket(_)) => {
-                    // Ignore invalid inside packet
-                }
-                Err(err) => {
-                    let inside_pkts_dropped = number_of_pkts - index;
-                    metrics::inside_pkt_dropped_due_to_fatal_err(inside_pkts_dropped as u64);
-
-                    // Propagate fatal error up
-                    return Err(err);
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    fn send_to_outside(&mut self, pkt: &mut BytesMut, is_encoded: bool) -> ConnectionResult<()> {
         if_chain::if_chain! {
             if let Some(pmtu) = &self.pmtud;
             if let Some((data_mps, frag_mps)) = pmtu.maximum_packet_sizes();
@@ -1438,7 +1403,7 @@ impl<AppState: Send> Connection<AppState> {
         is_encoded: bool,
     ) -> ConnectionResult<()> {
         if !is_encoded {
-            return self.send_to_inside_io(inside_bytes);
+            return self.send_to_inside(inside_bytes);
         }
 
         let decoder = match &mut self.inside_pkt_decoder {
@@ -1451,41 +1416,18 @@ impl<AppState: Send> Connection<AppState> {
 
         let decoder_state = decoder.store(&mut inside_bytes);
         match decoder_state {
-            Ok(CodecStatus::ReadyToFlush) => {
-                for result in self.flush_pkts_to_inside() {
-                    result?
-                }
-
-                Ok(())
-            }
-            Ok(CodecStatus::Pending) => Ok(()),
+            Ok(CodecStatus::PacketAccepted) => Ok(()),
             Ok(CodecStatus::SkipPacket) => {
                 // The decoder does not accept the packet.
                 // Packet should be un-encoded. Sending to inside directly.
-                self.send_to_inside_io(inside_bytes)
+                self.send_to_inside(inside_bytes)
             }
             Err(e) => Err(ConnectionError::PacketCodecError(e)),
         }
     }
 
-    fn flush_pkts_to_inside(&mut self) -> Vec<ConnectionResult<()>> {
-        let decoder = match &mut self.inside_pkt_decoder {
-            Some(decoder) => decoder,
-            None => return vec![Err(ConnectionError::PacketCodecDoesNotExist)],
-        };
-
-        let decoded_pkts = decoder.get_decoded_pkts();
-        let pkts = match decoded_pkts {
-            Ok(pkts) => pkts,
-            Err(e) => return vec![Err(ConnectionError::PacketCodecError(e))],
-        };
-
-        pkts.into_iter()
-            .map(|pkt| self.send_to_inside_io(pkt))
-            .collect()
-    }
-
-    fn send_to_inside_io(&mut self, mut inside_pkt: BytesMut) -> ConnectionResult<()> {
+    /// Send a packet to the inside
+    pub fn send_to_inside(&mut self, mut inside_pkt: BytesMut) -> ConnectionResult<()> {
         use ConnectionError::InvalidInsidePacket;
         use InvalidPacketError::InvalidIpv4Packet;
 
@@ -1554,16 +1496,6 @@ impl<AppState: Send> Connection<AppState> {
             FragmentMapResult::Incomplete => Ok(()),
             FragmentMapResult::Err(err) => Err(err.into()),
         }
-    }
-
-    /// Get a weak pointer to the inside packet encoder
-    pub fn get_inside_packet_encoder(&self) -> Option<PacketEncoderType> {
-        self.inside_pkt_encoder.clone()
-    }
-
-    /// Get a weak pointer to the inside packet decoder
-    pub fn get_inside_packet_decoder(&self) -> Option<PacketDecoderType> {
-        self.inside_pkt_decoder.clone()
     }
 
     fn process_encoding_request_pkt(&mut self, er: wire::EncodingRequest) -> ConnectionResult<()> {

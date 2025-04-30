@@ -116,11 +116,6 @@ pub struct Config {
     #[clap(short, long, default_value_t)]
     pub server: String,
 
-    /// How often the pkt encoder is flushed
-    /// Only used if a codec is set
-    #[clap(long, default_value = "100us")]
-    pub pkt_encoder_flush_interval: Duration,
-
     /// Enable inside packet encoding once lightway connects
     /// Only used if a codec is set
     #[clap(short, long, default_value_t)]

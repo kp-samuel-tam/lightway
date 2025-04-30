@@ -32,7 +32,6 @@ Lightway server also supports metrics to monitor. The following are the metrics 
 | conn_alloc_frag_map | core | Counter | A connection has used a fragmented data packet.<br>Therefore the 2M FragmentMap has been allocated |
 | wolfssl_appdata | core | Counter | An AppData result occurred during a WolfSSL operation.<br><br>Given current configuration we do not expect this to be non-zero |
 | session_id_mismatch | core | Counter | Server has received a mismatched session_id in the header after the packet content has been validated <br><br>Should generally be expected to happen rarely|
-| inside_pkt_dropped_due_to_fatal_err | core | Counter | The number of inside packets dropped due to a fatal error when trying to send packets to outside
 | received_encoding_req_non_online | core | Counter | Server received an encoding request when the Connection state is not Online |
 | received_encoding_req_with_tcp | core | Counter | Server received an encoding request when the Connection type is TCP |
 | received_encoding_res_as_server | core | Counter | Server received an encoding response |

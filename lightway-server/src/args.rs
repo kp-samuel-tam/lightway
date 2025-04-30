@@ -117,10 +117,6 @@ pub struct Config {
     #[clap(long, default_value_t = ByteSize::mib(15))]
     pub udp_buffer_size: ByteSize,
 
-    /// How often the pkt encoder is flushed
-    #[clap(long, default_value = "100us")]
-    pub pkt_encoder_flush_interval: Duration,
-
     /// Enable WolfSSL debug logging
     #[cfg(feature = "debug")]
     #[clap(long)]

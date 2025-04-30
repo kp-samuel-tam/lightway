@@ -34,3 +34,6 @@ pub use tun::{Tun, TunConfig, TunDirect};
 mod metrics;
 mod utils;
 pub use utils::{Validate, validate_configuration_file_path};
+
+mod packet_codec;
+pub use packet_codec::{PacketCodec, PacketCodecFactory, PacketCodecFactoryType};
