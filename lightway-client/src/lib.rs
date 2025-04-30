@@ -464,7 +464,7 @@ pub async fn handle_decoded_pkt_send<T: Send + Sync>(
     Ok(())
 }
 
-async fn encoding_request_task<T: Send + Sync>(
+pub async fn encoding_request_task<T: Send + Sync>(
     weak: Weak<Mutex<Connection<ConnectionState<T>>>>,
     mut signal: tokio::sync::mpsc::Receiver<bool>,
 ) {
