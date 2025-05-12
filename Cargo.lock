@@ -2940,7 +2940,7 @@ dependencies = [
 [[package]]
 name = "wolfssl"
 version = "3.0.0"
-source = "git+https://github.com/expressvpn/wolfssl-rs#e0838d377046a9b130d3e6e912d267ab439b50d6"
+source = "git+https://github.com/expressvpn/wolfssl-rs#94371e2d9cd4bad6964a06c13266d7b14b491e6b"
 dependencies = [
  "bytes",
  "log",
@@ -2951,7 +2951,7 @@ dependencies = [
 [[package]]
 name = "wolfssl-sys"
 version = "2.0.0"
-source = "git+https://github.com/expressvpn/wolfssl-rs#e0838d377046a9b130d3e6e912d267ab439b50d6"
+source = "git+https://github.com/expressvpn/wolfssl-rs#94371e2d9cd4bad6964a06c13266d7b14b491e6b"
 dependencies = [
  "autotools",
  "bindgen",
