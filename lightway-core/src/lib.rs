@@ -23,8 +23,7 @@ pub use wolfssl::{IOCallbackResult, ProtocolVersion, RootCertificate, Secret};
 pub use wolfssl;
 
 #[cfg(feature = "debug")]
-pub use wolfssl::Tls13SecretCallbacks;
-
+pub use wolfssl::{Tls13SecretCallbacks, WolfsslLoggingCallback};
 // Reexport our own types
 pub use builder_predicates::BuilderPredicates;
 pub use cipher::Cipher;
@@ -98,6 +97,13 @@ pub const MAX_INSIDE_MTU: usize = 1500;
 #[cfg(feature = "debug")]
 pub fn enable_tls_debug() {
     wolfssl::enable_debugging(true)
+}
+
+/// Enables debug logging from WolfSSL and sets the callback for the logs
+#[cfg(feature = "debug")]
+pub fn set_logging_callback(cb: WolfsslLoggingCallback) {
+    enable_tls_debug();
+    wolfssl::set_logging_callback(cb)
 }
 
 #[cfg(feature = "fuzzing_api")]
