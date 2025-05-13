@@ -12,7 +12,11 @@ use tracing::{error, trace};
 use twelf::Layer;
 
 use args::Config;
+#[cfg(feature = "debug")]
+use lightway_app_utils::wolfssl_tracing_callback;
 use lightway_app_utils::{TunConfig, Validate, validate_configuration_file_path};
+#[cfg(feature = "debug")]
+use lightway_core::set_logging_callback;
 use lightway_server::*;
 
 async fn metrics_debug() {
@@ -100,7 +104,7 @@ async fn main() -> Result<()> {
 
     #[cfg(feature = "debug")]
     if config.tls_debug {
-        enable_tls_debug();
+        set_logging_callback(Some(wolfssl_tracing_callback));
     }
 
     let fmt = tracing_subscriber::fmt().with_max_level(config.log_level);

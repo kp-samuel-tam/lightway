@@ -10,7 +10,7 @@ license.workspace = true
 
 [features]
 default = ["io-uring"]
-debug = ["lightway-core/debug"]
+debug = ["lightway-core/debug","lightway-app-utils/debug"]
 io-uring = ["lightway-app-utils/io-uring"]
 
 [lints]
