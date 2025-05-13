@@ -82,7 +82,9 @@ jobs:
         EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
         echo "comment<<$EOF" >> "$GITHUB_OUTPUT"
 
-        if ! cargo outdated --root-deps-only --exit-code 1 | tee /tmp/workspace-outdated.log ; then
+        # Ignore metric-util for now, until this is fixed:
+        # https://github.com/metrics-rs/metrics/issues/560
+        if ! cargo outdated --ignore metrics-util --root-deps-only --exit-code 1 | tee /tmp/workspace-outdated.log ; then
             echo "Workspace dependencies are out of date"
             failed=true
 
