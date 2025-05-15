@@ -6,6 +6,9 @@ yanked = "deny"
 ignore = [
     # yaml_rust is unmaintained, which is a dependency of twelf. Ignoring until its fixed
     "RUSTSEC-2024-0320",
+    # paste is unmaintained, which is a dependency of fs-mistrust->pwd-grp. Ignoring until its fixed
+    # https://gitlab.torproject.org/tpo/core/rust-pwd-grp/-/issues/5
+    "RUSTSEC-2024-0436",
 ]
 
 [licenses]
