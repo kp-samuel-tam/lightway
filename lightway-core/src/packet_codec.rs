@@ -5,7 +5,7 @@ use bytes::BytesMut;
 /// PacketEncoder and PacketDecoder's trait function's return type
 pub type PacketCodecResult<T> = std::result::Result<T, Box<dyn std::error::Error + Sync + Send>>;
 
-/// PacketEncode trait. Accumulates inside packets and turn them to encoded packets
+/// [`PacketEncoder`] trait. Accumulates inside packets and turn them to encoded packets
 pub trait PacketEncoder {
     /// Store one inside packet into the PacketEncoder
     ///
@@ -26,7 +26,7 @@ pub trait PacketEncoder {
     fn set_encoding_state(&self, enabled: bool);
 }
 
-/// PacketDecoder trait to accumulate encoded packets and turn them to inside packets.
+/// [`PacketDecoder`] trait to accumulate encoded packets and turn them to inside packets.
 pub trait PacketDecoder {
     /// Store one encoded packet into the PacketDecoder
     ///
