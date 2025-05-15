@@ -13,6 +13,7 @@ readme = "README.md"
 default = [ "tokio" ]
 io-uring = [ "dep:io-uring", "dep:tokio", "dep:tokio-eventfd" ]
 tokio = [ "dep:tokio", "dep:tokio-stream" ]
+debug = [ ]
 
 [lints]
 workspace = true

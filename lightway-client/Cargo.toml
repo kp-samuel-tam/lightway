@@ -10,7 +10,7 @@ license.workspace = true
 
 [features]
 default = ["postquantum"]
-debug = ["lightway-core/debug"]
+debug = ["lightway-core/debug","lightway-app-utils/debug"]
 io-uring = ["lightway-app-utils/io-uring"]
 postquantum = ["lightway-core/postquantum"]
 kyber_only = ["postquantum", "lightway-core/kyber_only"]

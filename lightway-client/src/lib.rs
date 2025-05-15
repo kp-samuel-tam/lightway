@@ -28,6 +28,10 @@ pub use lightway_core::{enable_tls_debug, set_logging_callback};
 use pnet::packet::ipv4::Ipv4Packet;
 
 #[cfg(feature = "debug")]
+use crate::debug::WiresharkKeyLogger;
+#[cfg(feature = "debug")]
+use lightway_app_utils::wolfssl_tracing_callback;
+#[cfg(feature = "debug")]
 use std::path::PathBuf;
 use std::{
     net::Ipv4Addr,
@@ -41,9 +45,6 @@ use tokio::{
 };
 use tokio_stream::StreamExt;
 use tracing::info;
-
-#[cfg(feature = "debug")]
-use crate::debug::WiresharkKeyLogger;
 
 /// Connection type
 /// Applications can also attach socket for library to use directly,
@@ -577,7 +578,7 @@ pub async fn client<A: 'static + Send + EventCallback>(
 
     #[cfg(feature = "debug")]
     if config.tls_debug {
-        enable_tls_debug();
+        set_logging_callback(Some(wolfssl_tracing_callback));
     }
 
     let (inside_io_codec, encoded_pkt_receiver, decoded_pkt_receiver) =

@@ -36,4 +36,9 @@ mod utils;
 pub use utils::{Validate, validate_configuration_file_path};
 
 mod packet_codec;
+#[cfg(feature = "debug")]
+mod wolfssl_tracing;
+#[cfg(feature = "debug")]
+pub use wolfssl_tracing::wolfssl_tracing_callback;
+
 pub use packet_codec::{PacketCodec, PacketCodecFactory, PacketCodecFactoryType};
