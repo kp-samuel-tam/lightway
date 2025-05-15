@@ -16,7 +16,7 @@ pub trait PacketCodecFactory {
 /// Type for [`PacketCodecFactory`]
 pub type PacketCodecFactoryType = Box<dyn PacketCodecFactory + Send + Sync>;
 
-/// PacketCodec and its utilities used by a Connection.
+/// Packet codec and its utilities used by a Connection.
 /// Returned by [`PacketCodecFactory::build`]
 pub struct PacketCodec {
     /// Inside Packet Encoder
