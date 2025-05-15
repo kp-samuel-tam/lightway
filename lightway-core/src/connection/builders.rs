@@ -242,8 +242,8 @@ impl<AppState: Send + 'static> ClientConnectionBuilder<AppState> {
             .ok_or(ConnectionBuilderError::AuthRequired)?;
 
         let session = self.ctx.wolfssl.new_session(self.session_config)?;
+        let inside_mtu = self.ctx.inside_mtu;
 
-        let inside_mtu = self.ctx.inside_io.mtu();
         if self.connection_type.is_datagram()
             && self.outside_mtu < dtls_required_outside_mtu(inside_mtu)
             && self.pmtud_timer.is_none()
@@ -403,7 +403,7 @@ impl<'a, AppState: Send + 'static> ServerConnectionBuilder<'a, AppState> {
                 pending_session_id: None,
             },
             outside_mtu: MAX_OUTSIDE_MTU,
-            inside_io: self.ctx.inside_io.clone(),
+            inside_io: Some(self.ctx.inside_io.clone()),
             schedule_tick_cb: self.ctx.schedule_tick_cb,
             event_cb: self.event_cb,
             inside_plugins: self.ctx.inside_plugins.build()?,

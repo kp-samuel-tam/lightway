@@ -14,8 +14,8 @@ use lightway_app_utils::{
 };
 use lightway_core::{
     BuilderPredicates, ClientContextBuilder, ClientIpConfig, Connection, ConnectionError,
-    ConnectionType, Event, EventCallback, IOCallbackResult, InsideIpConfig, OutsidePacket, State,
-    ipv4_update_destination, ipv4_update_source,
+    ConnectionType, Event, EventCallback, IOCallbackResult, InsideIOSendCallbackArg,
+    InsideIpConfig, OutsidePacket, State, ipv4_update_destination, ipv4_update_source,
 };
 use tokio::sync::mpsc::UnboundedReceiver;
 
@@ -87,8 +87,8 @@ pub struct ClientConfig<'cert, A: 'static + Send + EventCallback> {
     /// Outside (wire) MTU
     pub outside_mtu: usize,
 
-    /// Inside (tunnel) MTU (requires `CAP_NET_ADMIN`)
-    pub inside_mtu: Option<u16>,
+    /// Inside (tunnel) MTU
+    pub inside_mtu: usize,
 
     /// Tun device to use
     pub tun_config: TunConfig,
@@ -256,18 +256,20 @@ async fn handle_events<A: 'static + Send + EventCallback>(
     weak: Weak<Mutex<Connection<ConnectionState>>>,
     enable_encoding_when_online: bool,
     event_handler: Option<A>,
+    inside_io: InsideIOSendCallbackArg<ConnectionState>,
 ) {
     while let Some(event) = stream.next().await {
         match &event {
             Event::StateChanged(state) => {
                 if matches!(state, State::Online) {
                     keepalive.online().await;
+                    let Some(conn) = weak.upgrade() else {
+                        break; // Connection disconnected.
+                    };
+
+                    conn.lock().unwrap().inside_io(inside_io.clone());
 
                     if enable_encoding_when_online {
-                        let Some(conn) = weak.upgrade() else {
-                            break; // Connection disconnected.
-                        };
-
                         if let Err(e) = conn.lock().unwrap().set_encoding(true) {
                             tracing::error!(
                                 "Error encoutered when trying to toggle encoding. {}",
@@ -620,7 +622,8 @@ pub async fn client<A: 'static + Send + EventCallback>(
     let conn_builder = ClientContextBuilder::new(
         connection_type,
         config.root_ca_cert,
-        inside_io.clone(),
+        None,
+        config.inside_mtu,
         Arc::new(ClientIpConfigCb),
     )?
     .with_cipher(config.cipher.into())?
@@ -673,6 +676,7 @@ pub async fn client<A: 'static + Send + EventCallback>(
             .as_ref()
             .is_some_and(|x| x.enable_encoding_at_connect),
         event_handler,
+        inside_io.clone(),
     ));
 
     ticker_task.spawn_in(Arc::downgrade(&conn), &mut join_set);
