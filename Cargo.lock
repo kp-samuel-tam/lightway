@@ -225,9 +225,9 @@ dependencies = [
 
 [[package]]
 name = "bitflags"
-version = "2.9.0"
+version = "2.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c8214115b7bf84099f1309324e63141d4c5d7cc26862f97a0a857dbefe165bd"
+checksum = "1b8e56985ec62d17e9c1001dc89c88ecd7dc08e47eba5ec7c29c7b5eeecde967"
 
 [[package]]
 name = "block-buffer"
@@ -3004,7 +3004,7 @@ dependencies = [
 [[package]]
 name = "wolfssl"
 version = "3.0.0"
-source = "git+https://github.com/expressvpn/wolfssl-rs#94371e2d9cd4bad6964a06c13266d7b14b491e6b"
+source = "git+https://github.com/expressvpn/wolfssl-rs#8b7ccc4467a4f71fc14af6353b60909eb7022348"
 dependencies = [
  "bytes",
  "log",
@@ -3015,7 +3015,7 @@ dependencies = [
 [[package]]
 name = "wolfssl-sys"
 version = "2.0.0"
-source = "git+https://github.com/expressvpn/wolfssl-rs#94371e2d9cd4bad6964a06c13266d7b14b491e6b"
+source = "git+https://github.com/expressvpn/wolfssl-rs#8b7ccc4467a4f71fc14af6353b60909eb7022348"
 dependencies = [
  "autotools",
  "bindgen",
