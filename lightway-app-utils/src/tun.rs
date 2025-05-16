@@ -175,10 +175,7 @@ impl TunIoUring {
     pub async fn recv_buf(&self) -> IOCallbackResult<BytesMut> {
         match self.tun_io_uring.recv().await {
             Ok(pkt) => IOCallbackResult::Ok(pkt),
-            Err(e) => {
-                use std::io::{Error, ErrorKind};
-                IOCallbackResult::Err(Error::new(ErrorKind::Other, e))
-            }
+            Err(e) => IOCallbackResult::Err(std::io::Error::other(e)),
         }
     }
 

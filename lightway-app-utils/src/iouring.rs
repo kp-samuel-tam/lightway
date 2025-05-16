@@ -107,10 +107,7 @@ impl<T: AsRawFd> IOUring<T> {
         match try_send_res {
             Ok(()) => IOCallbackResult::Ok(buf_len),
             Err(mpsc::error::TrySendError::Full(_)) => IOCallbackResult::WouldBlock,
-            Err(_) => {
-                use std::io::{Error, ErrorKind};
-                IOCallbackResult::Err(Error::new(ErrorKind::Other, IOUringError::SendError))
-            }
+            Err(_) => IOCallbackResult::Err(std::io::Error::other(IOUringError::SendError)),
         }
     }
 }
