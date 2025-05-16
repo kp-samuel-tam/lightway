@@ -379,8 +379,7 @@ impl Server for UdpServer {
                                     // and we have set IP_PKTINFO
                                     // sockopt this shouldn't happen.
                                     metrics::udp_recv_missing_pktinfo();
-                                    return Err(std::io::Error::new(
-                                        std::io::ErrorKind::Other,
+                                    return Err(std::io::Error::other(
                                         "recvmsg did not return IP_PKTINFO",
                                     ));
                                 };

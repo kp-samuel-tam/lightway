@@ -206,7 +206,7 @@ async fn handle_decoded_pkt_send(conn: Weak<Connection>, mut rx: UnboundedReceiv
         };
 
         if let Err(err) = conn.send_to_inside(decoded_packet) {
-            conn.handle_outside_data_error(&err);
+            let _ = conn.handle_outside_data_error(&err);
         }
     }
 }
