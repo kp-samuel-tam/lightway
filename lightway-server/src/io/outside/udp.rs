@@ -272,7 +272,6 @@ impl UdpServer {
         let _ = send_to_socket(&self.sock, &buf, &peer_addr, reply_pktinfo);
     }
 }
-
 #[async_trait]
 impl Server for UdpServer {
     async fn run(&mut self) -> Result<()> {
@@ -286,109 +285,7 @@ impl Server for UdpServer {
             let (peer_addr, local_addr, reply_pktinfo) = self
                 .sock
                 .async_io(Interest::READABLE, || {
-                    let sock = SockRef::from(self.sock.as_ref());
-                    let mut raw_buf = [MaybeUninitSlice::new(buf.spare_capacity_mut())];
-
-                    #[allow(unsafe_code)]
-                    let mut peer_sock_addr = {
-                        // SAFETY: sockaddr_storage is defined
-                        // (<https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/sys_socket.h.html>)
-                        // as being a suitable size and alignment for
-                        // "all supported protocol-specific address
-                        // structures" in the underlying OS APIs.
-                        //
-                        // All zeros is a valid representation,
-                        // corresponding to the `ss_family` having a
-                        // value of `AF_UNSPEC`.
-                        let addr_storage: libc::sockaddr_storage = unsafe { std::mem::zeroed() };
-                        let len = std::mem::size_of_val(&addr_storage) as libc::socklen_t;
-                        // SAFETY: We initialized above as `AF_UNSPEC`
-                        // so the storage is correct from that
-                        // angle. The `recvmsg` call will change this
-                        // which should be ok since `sockaddr_storage`
-                        // is big enough.
-                        unsafe { SockAddr::new(addr_storage, len) }
-                    };
-
-                    // We only need this control buffer if
-                    // `self.bind_mode.needs_pktinfo()`. However the hit
-                    // on reserving a fairly small on stack buffer
-                    // should be small compared with the conditional
-                    // logic and dynamically sized buffer needed to
-                    // allow omitting it.
-                    const SIZE: usize = cmsg::Message::space::<libc::in_pktinfo>();
-                    let mut control = cmsg::Buffer::<SIZE>::new();
-
-                    let mut msg = MsgHdrMut::new()
-                        .with_addr(&mut peer_sock_addr)
-                        .with_buffers(&mut raw_buf)
-                        .with_control(control.as_mut());
-
-                    let len = sock.recvmsg(&mut msg, 0)?;
-
-                    if msg.flags().is_truncated() {
-                        metrics::udp_recv_truncated();
-                    }
-
-                    let control_len = msg.control_len();
-
-                    // SAFETY: We rely on recv_from giving us the correct size
-                    #[allow(unsafe_code)]
-                    unsafe {
-                        buf.set_len(len)
-                    };
-
-                    let Some(peer_addr) = peer_sock_addr.as_socket() else {
-                        // Since we only bind to IP sockets this shouldn't happen.
-                        metrics::udp_recv_invalid_addr();
-                        return Err(std::io::Error::new(
-                            std::io::ErrorKind::InvalidInput,
-                            "failed to convert local addr to socketaddr",
-                        ));
-                    };
-
-                    #[allow(unsafe_code)]
-                    let (local_addr, reply_pktinfo) = match self.bind_mode {
-                        BindMode::UnspecifiedAddress { local_port } => {
-                            let Some((local_addr, reply_pktinfo)) =
-                                // SAFETY: The call to `recvmsg` above updated
-                                // the control buffer length field.
-                                unsafe { control.iter(control_len) }.find_map(|cmsg| {
-                                    match cmsg {
-                                        cmsg::Message::IpPktinfo(pi) => {
-                                            // From https://pubs.opengroup.org/onlinepubs/009695399/basedefs/netinet/in.h.html
-                                            // the `s_addr` is an `in_addr`
-                                            // which is in network byte order
-                                            // (big endian).
-                                            let ipv4 = u32::from_be(pi.ipi_spec_dst.s_addr);
-                                            let ipv4 = Ipv4Addr::from_bits(ipv4);
-                                            let ip = IpAddr::V4(ipv4);
-
-                                            let reply_pktinfo = libc::in_pktinfo{
-                                                ipi_ifindex: 0,
-                                                ipi_spec_dst: pi.ipi_spec_dst,
-                                                ipi_addr: libc::in_addr { s_addr: 0 },
-                                            };
-
-                                            Some((SocketAddr::new(ip, local_port), reply_pktinfo))
-                                        },
-                                        _ => None,
-                                    }
-                                }) else {
-                                    // Since we have a bound socket
-                                    // and we have set IP_PKTINFO
-                                    // sockopt this shouldn't happen.
-                                    metrics::udp_recv_missing_pktinfo();
-                                    return Err(std::io::Error::other(
-                                        "recvmsg did not return IP_PKTINFO",
-                                    ));
-                                };
-                            (local_addr, Some(reply_pktinfo))
-                        }
-                        BindMode::SpecificAddress { local_addr } => (local_addr, None),
-                    };
-
-                    Ok((peer_addr, local_addr, reply_pktinfo))
+                    read_from_socket(&self.sock, &mut buf, &self.bind_mode)
                 })
                 .await?;
 
@@ -396,4 +293,112 @@ impl Server for UdpServer {
                 .await;
         }
     }
+}
+
+fn read_from_socket(
+    sock: &Arc<tokio::net::UdpSocket>,
+    buf: &mut BytesMut,
+    bind_mode: &BindMode,
+) -> std::io::Result<(SocketAddr, SocketAddr, Option<libc::in_pktinfo>)> {
+    let sock = SockRef::from(sock.as_ref());
+    let mut raw_buf = [MaybeUninitSlice::new(buf.spare_capacity_mut())];
+
+    #[allow(unsafe_code)]
+    let mut peer_sock_addr = {
+        // SAFETY: sockaddr_storage is defined
+        // (<https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/sys_socket.h.html>)
+        // as being a suitable size and alignment for
+        // "all supported protocol-specific address
+        // structures" in the underlying OS APIs.
+        //
+        // All zeros is a valid representation,
+        // corresponding to the `ss_family` having a
+        // value of `AF_UNSPEC`.
+        let addr_storage: libc::sockaddr_storage = unsafe { std::mem::zeroed() };
+        let len = std::mem::size_of_val(&addr_storage) as libc::socklen_t;
+        // SAFETY: We initialized above as `AF_UNSPEC`
+        // so the storage is correct from that
+        // angle. The `recvmsg` call will change this
+        // which should be ok since `sockaddr_storage`
+        // is big enough.
+        unsafe { SockAddr::new(addr_storage, len) }
+    };
+
+    // We only need this control buffer if
+    // `self.bind_mode.needs_pktinfo()`. However the hit
+    // on reserving a fairly small on stack buffer
+    // should be small compared with the conditional
+    // logic and dynamically sized buffer needed to
+    // allow omitting it.
+    const SIZE: usize = cmsg::Message::space::<libc::in_pktinfo>();
+    let mut control = cmsg::Buffer::<SIZE>::new();
+
+    let mut msg = MsgHdrMut::new()
+        .with_addr(&mut peer_sock_addr)
+        .with_buffers(&mut raw_buf)
+        .with_control(control.as_mut());
+
+    let len = sock.recvmsg(&mut msg, 0)?;
+
+    if msg.flags().is_truncated() {
+        metrics::udp_recv_truncated();
+    }
+
+    let control_len = msg.control_len();
+
+    // SAFETY: We rely on recv_from giving us the correct size
+    #[allow(unsafe_code)]
+    unsafe {
+        buf.set_len(len)
+    };
+
+    let Some(peer_addr) = peer_sock_addr.as_socket() else {
+        // Since we only bind to IP sockets this shouldn't happen.
+        metrics::udp_recv_invalid_addr();
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "failed to convert local addr to socketaddr",
+        ));
+    };
+
+    #[allow(unsafe_code)]
+    let (local_addr, reply_pktinfo) = match *bind_mode {
+        BindMode::UnspecifiedAddress { local_port } => {
+            let Some((local_addr, reply_pktinfo)) =
+            // SAFETY: The call to `recvmsg` above updated
+            // the control buffer length field.
+            unsafe { control.iter(control_len) }.find_map(|cmsg| {
+                match cmsg {
+                    cmsg::Message::IpPktinfo(pi) => {
+                        // From https://pubs.opengroup.org/onlinepubs/009695399/basedefs/netinet/in.h.html
+                        // the `s_addr` is an `in_addr`
+                        // which is in network byte order
+                        // (big endian).
+                        let ipv4 = u32::from_be(pi.ipi_spec_dst.s_addr);
+                        let ipv4 = Ipv4Addr::from_bits(ipv4);
+                        let ip = IpAddr::V4(ipv4);
+
+                        let reply_pktinfo = libc::in_pktinfo{
+                            ipi_ifindex: 0,
+                            ipi_spec_dst: pi.ipi_spec_dst,
+                            ipi_addr: libc::in_addr { s_addr: 0 },
+                        };
+
+                        Some((SocketAddr::new(ip, local_port), reply_pktinfo))
+                    },
+                    _ => None,
+                }
+            }) else {
+                // Since we have a bound socket
+                // and we have set IP_PKTINFO
+                // sockopt this shouldn't happen.
+                metrics::udp_recv_missing_pktinfo();
+                return Err(std::io::Error::other( "recvmsg did not return IP_PKTINFO",));
+            };
+            (local_addr, Some(reply_pktinfo))
+        }
+        BindMode::SpecificAddress { local_addr } => (local_addr, None),
+    };
+
+    Ok((peer_addr, local_addr, reply_pktinfo))
 }
