@@ -361,6 +361,7 @@ async fn client<S: TestSock>(
     cipher: Option<Cipher>,
     pqc: PQCrypto,
     server_dn: Option<&str>,
+    enable_codec: bool,
 ) {
     let ca_cert = RootCertificate::Asn1Buffer(CA_CERT);
     let (tun, mut inside_rx) = ChannelTun::new();
@@ -448,7 +449,7 @@ async fn client<S: TestSock>(
     let mut client_test_state = ClientTestState::Initial;
 
     // Inside packet codec is only supported for Lightway UDP
-    let enable_codec = sock.connection_type().is_datagram();
+    let enable_codec = sock.connection_type().is_datagram() && enable_codec;
 
     loop {
         if event_handler_handle.is_finished() {
@@ -614,16 +615,27 @@ impl PQCrypto {
     }
 }
 
-async fn run_test<S: TestSock>(
+async fn run_test_tcp<S: TestSock>(
     cipher: Option<Cipher>,
     pqc: PQCrypto,
     server_sock: Arc<S>,
     client_sock: Arc<S>,
 ) {
+    // Inside packet codec is only supported by Lightway UDP
+    run_test(cipher, pqc, server_sock, client_sock, false).await;
+}
+
+async fn run_test<S: TestSock>(
+    cipher: Option<Cipher>,
+    pqc: PQCrypto,
+    server_sock: Arc<S>,
+    client_sock: Arc<S>,
+    enable_codec: bool,
+) {
     let test = async move {
         tokio::join!(
             server(server_sock, pqc),
-            client(client_sock, cipher, pqc, None)
+            client(client_sock, cipher, pqc, None, enable_codec)
         )
     };
 
@@ -632,20 +644,21 @@ async fn run_test<S: TestSock>(
         .expect("Timed out");
 }
 
-#[test_case(None,                   PQCrypto::Enabled;    "Default cipher + PQC")]
-#[test_case(Some(Cipher::Aes256),   PQCrypto::Enabled;    "aes + PQC")]
-#[test_case(Some(Cipher::Chacha20), PQCrypto::Enabled;    "chacha20 +_PQC")]
-#[test_case(None,                   PQCrypto::Disabled;   "PQC disabled")]
-#[test_case(None,                   PQCrypto::ServerOnly; "PQC server only")]
-#[test_case(None,                   PQCrypto::ClientOnly; "PQC client only")]
+#[test_case(None,                   PQCrypto::Enabled,    false; "Default cipher + PQC")]
+#[test_case(Some(Cipher::Aes256),   PQCrypto::Enabled,    false; "aes + PQC")]
+#[test_case(Some(Cipher::Chacha20), PQCrypto::Enabled,    false; "chacha20 +_PQC")]
+#[test_case(None,                   PQCrypto::Disabled,   false; "PQC disabled")]
+#[test_case(None,                   PQCrypto::ServerOnly, false; "PQC server only")]
+#[test_case(None,                   PQCrypto::ClientOnly, false; "PQC client only")]
+#[test_case(Some(Cipher::Aes256),   PQCrypto::Enabled,     true; "Inside packet codec")]
 #[tokio::test]
-async fn test_datagram_connection(cipher: Option<Cipher>, pqc: PQCrypto) {
+async fn test_datagram_connection(cipher: Option<Cipher>, pqc: PQCrypto, enable_codec: bool) {
     // Communicate over a local datagram socket for simplicity
     let (client_sock, server_sock) = UnixDatagram::pair().expect("UnixDatagram");
     let server_sock = Arc::new(TestDatagramSock(server_sock));
     let client_sock = Arc::new(TestDatagramSock(client_sock));
 
-    run_test(cipher, pqc, server_sock, client_sock).await;
+    run_test(cipher, pqc, server_sock, client_sock, enable_codec).await;
 }
 
 #[test_case(None,                   PQCrypto::Enabled;    "Default cipher + PQC")]
@@ -665,7 +678,7 @@ async fn test_stream_connection(cipher: Option<Cipher>, pqc: PQCrypto) {
     // started, else we'll get a `WouldBlock`.
     let _ = client_sock.writable().await;
 
-    run_test(cipher, pqc, server_sock, client_sock).await;
+    run_test_tcp(cipher, pqc, server_sock, client_sock).await;
 }
 
 #[test_case(None; "No server domain name")]
@@ -685,7 +698,7 @@ async fn test_server_dn(server_dn: Option<&str>) {
     let test = async move {
         tokio::join!(
             server(server_sock, PQCrypto::Enabled),
-            client(client_sock, None, PQCrypto::Enabled, server_dn)
+            client(client_sock, None, PQCrypto::Enabled, server_dn, false)
         )
     };
 
