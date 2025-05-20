@@ -14,8 +14,14 @@ use tokio::{
 };
 use tokio_stream::StreamExt;
 
-use lightway_app_utils::{ConnectionTicker, EventStreamCallback, connection_ticker_cb};
+use lightway_app_utils::{
+    CodecTicker, CodecTickerState, ConnectionTicker, ConnectionTickerState, EventStreamCallback,
+    PacketCodecFactory, codec_ticker_cb, connection_ticker_cb,
+};
 use lightway_core::*;
+
+mod packet_codec;
+use packet_codec::TestPacketCodecFactory;
 
 const CA_CERT: &[u8] = &include!("data/ca_cert_der_2048");
 const SERVER_CERT: &[u8] = &include!("data/server_cert_der_2048");
@@ -180,6 +186,15 @@ async fn server<S: TestSock>(sock: Arc<S>, pqc: PQCrypto) {
     let (tun, mut inside_rx) = ChannelTun::new();
     let mut last_inside_rx = std::time::Instant::now();
 
+    let packet_codec = TestPacketCodecFactory::default().build();
+    let (packet_codec, mut encoded_pkt_receiver, mut decoded_pkt_receiver) = {
+        (
+            Some((packet_codec.encoder, packet_codec.decoder)),
+            packet_codec.encoded_pkt_receiver,
+            packet_codec.decoded_pkt_receiver,
+        )
+    };
+
     let connection_type = sock.connection_type();
     let server_ctx = ServerContextBuilder::<ConnectionTicker>::new(
         connection_type,
@@ -204,6 +219,7 @@ async fn server<S: TestSock>(sock: Arc<S>, pqc: PQCrypto) {
         server_ctx
             .start_accept(Version::MAXIMUM, sock.clone().into_io_send_callback())
             .unwrap()
+            .with_inside_pkt_codec(packet_codec)
             .accept(ticker)
             .unwrap(),
     ));
@@ -237,6 +253,12 @@ async fn server<S: TestSock>(sock: Arc<S>, pqc: PQCrypto) {
                     assert_eq!(curve, pqc.expected_curve());
                 }
             },
+
+            // Encoded packet received (inside -> outside)
+            Some(mut encoded_packet) = encoded_pkt_receiver.recv() => {
+                let mut conn = conn.lock().unwrap();
+                conn.send_to_outside(&mut encoded_packet, true).expect("Reflect data");
+            }
 
             // Outside event loop
             is_readable = sock.readable() => {
@@ -277,6 +299,12 @@ async fn server<S: TestSock>(sock: Arc<S>, pqc: PQCrypto) {
                     Err(err) => panic!("{err}"),
                     Ok(_) => continue,
                 }
+            }
+
+            // Decoded packet received (outside -> inside)
+            Some(decoded_packet) = decoded_pkt_receiver.recv() => {
+                let mut conn = conn.lock().unwrap();
+                conn.send_to_inside(decoded_packet).expect("server decoded pkt outside to inside");
             }
         }
     }
