@@ -46,8 +46,8 @@ impl ChannelTun {
         (Self(tx), rx)
     }
 }
-impl InsideIOSendCallback<ConnectionTicker> for ChannelTun {
-    fn send(&self, buf: BytesMut, _state: &mut ConnectionTicker) -> IOCallbackResult<usize> {
+impl<T> InsideIOSendCallback<T> for ChannelTun {
+    fn send(&self, buf: BytesMut, _state: &mut T) -> IOCallbackResult<usize> {
         let buf_len = buf.len();
         self.0.send(buf.freeze()).expect("Send");
         IOCallbackResult::Ok(buf_len)
@@ -313,9 +313,26 @@ async fn server<S: TestSock>(sock: Arc<S>, pqc: PQCrypto) {
 #[derive(Debug, Copy, Clone)]
 struct Client;
 
-impl ClientIpConfig<ConnectionTicker> for Client {
-    fn ip_config(&self, _state: &mut ConnectionTicker, ip_config: InsideIpConfig) {
+impl ClientIpConfig<ConnectionState> for Client {
+    fn ip_config(&self, _state: &mut ConnectionState, ip_config: InsideIpConfig) {
         println!("Got IP from server: {ip_config:?}");
+    }
+}
+
+struct ConnectionState {
+    pub ticker: ConnectionTicker,
+    pub codec_ticker: CodecTicker,
+}
+
+impl ConnectionTickerState for ConnectionState {
+    fn connection_ticker(&self) -> &ConnectionTicker {
+        &self.ticker
+    }
+}
+
+impl CodecTickerState for ConnectionState {
+    fn ticker(&self) -> Option<&CodecTicker> {
+        Some(&self.codec_ticker)
     }
 }
 
@@ -333,25 +350,44 @@ async fn client<S: TestSock>(
 
     let (event_cb, mut event_stream) = EventStreamCallback::new();
 
+    let packet_codec = TestPacketCodecFactory::default().build();
+    let (packet_codec, mut encoded_pkt_receiver, mut decoded_pkt_receiver) = {
+        (
+            Some((packet_codec.encoder, packet_codec.decoder)),
+            packet_codec.encoded_pkt_receiver,
+            packet_codec.decoded_pkt_receiver,
+        )
+    };
+
     let (ticker, ticker_task) = ConnectionTicker::new();
+    let (codec_ticker, codec_ticker_task) = CodecTicker::new();
+
+    let state = ConnectionState {
+        ticker,
+        codec_ticker,
+    };
+
     let client = ClientContextBuilder::new(sock.connection_type(), ca_cert, Arc::new(tun), client)
         .unwrap()
         .with_schedule_tick_cb(connection_ticker_cb)
+        .with_schedule_codec_tick_cb(Some(codec_ticker_cb))
         .when_some(cipher, |b, cipher| b.with_cipher(cipher).unwrap())
         .build()
         .start_connect(sock.clone().into_io_send_callback(), MAX_OUTSIDE_MTU)
         .unwrap()
         .with_auth_token("LET ME IN")
         .with_event_cb(Box::new(event_cb))
+        .with_inside_pkt_codec(packet_codec)
         .when(pqc.enable_client(), |b| b.with_pq_crypto())
         .when_some(server_dn, |b, sdn| {
             b.with_server_domain_name_validation(sdn.to_string())
         })
-        .connect(ticker)
+        .connect(state)
         .unwrap();
     let client = Arc::new(Mutex::new(client));
 
     ticker_task.spawn_in(Arc::downgrade(&client), &mut join_set);
+    codec_ticker_task.spawn_in(Arc::downgrade(&client), &mut join_set);
 
     let event_client = client.clone();
 
@@ -417,6 +453,12 @@ async fn client<S: TestSock>(
                 return
             },
 
+            // Encoded packet received (inside -> outside)
+            Some(mut encoded_packet) = encoded_pkt_receiver.recv() => {
+                let mut client = client.lock().unwrap();
+                client.send_to_outside(&mut encoded_packet, true).expect("Send my message");
+            }
+
             // Outside event loop
             is_readable = sock.readable() => {
                 is_readable.expect("Server socket to become readable");
@@ -462,6 +504,15 @@ async fn client<S: TestSock>(
                     client.inside_data_received(&mut buf).expect("Send my message");
                     message_sent = true;
                 };
+            }
+
+            // Decoded packet received (outside -> inside)
+            Some(decoded_packet) = decoded_pkt_receiver.recv() => {
+                let mut client = client.lock().unwrap();
+                if let Err(err) = client.send_to_inside(decoded_packet) {
+                    // TODO: fatal vs non-fatal;
+                    panic!("{err}")
+                }
             }
         }
     }
