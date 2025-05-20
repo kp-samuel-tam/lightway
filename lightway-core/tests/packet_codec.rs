@@ -30,6 +30,7 @@ impl PacketCodecFactory for TestPacketCodecFactory {
     }
 }
 
+#[derive(Clone)]
 struct TestPacketEncoder {
     inner: Arc<Mutex<TestPacketEncoderInner>>,
 }

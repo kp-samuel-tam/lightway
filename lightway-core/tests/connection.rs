@@ -336,6 +336,26 @@ impl CodecTickerState for ConnectionState {
     }
 }
 
+// In each test, the client act as a state machine
+// with three states.
+//
+// Note: if inside packet codec is not enabled, the
+// "PendingCodecResponse" state will be skipped.
+enum ClientTestState {
+    // Lightway just changed state to Connected, and
+    // Has not yet send the encoding request or the
+    // message packet from TUN.
+    Initial,
+
+    // Lightway has already sent an encoding request
+    // to the server, and is waiiting for an encoding
+    // response to arrive.
+    PendingCodecResponse,
+
+    // Lightway has already sent the message packet.
+    MessageSent,
+}
+
 async fn client<S: TestSock>(
     sock: Arc<S>,
     cipher: Option<Cipher>,
@@ -351,6 +371,7 @@ async fn client<S: TestSock>(
     let (event_cb, mut event_stream) = EventStreamCallback::new();
 
     let packet_codec = TestPacketCodecFactory::default().build();
+    let encoder = packet_codec.encoder.clone();
     let (packet_codec, mut encoded_pkt_receiver, mut decoded_pkt_receiver) = {
         (
             Some((packet_codec.encoder, packet_codec.decoder)),
@@ -424,7 +445,10 @@ async fn client<S: TestSock>(
         }
     });
 
-    let mut message_sent = false;
+    let mut client_test_state = ClientTestState::Initial;
+
+    // Inside packet codec is only supported for Lightway UDP
+    let enable_codec = sock.connection_type().is_datagram();
 
     loop {
         if event_handler_handle.is_finished() {
@@ -439,7 +463,7 @@ async fn client<S: TestSock>(
             Some(buf) = inside_rx.recv() => {
                 let mut client = client.lock().unwrap();
                 assert!(matches!(client.state(), State::Online));
-                assert!(message_sent);
+                assert!(matches!(client_test_state, ClientTestState::MessageSent));
 
                 assert_eq!(&buf[..], b"\x40Hello World!");
 
@@ -484,26 +508,54 @@ async fn client<S: TestSock>(
                     // TODO: fatal vs non-fatal;
                     panic!("{err}")
                 }
-                println!("Client: {:?}", client.state());
-                if matches!(client.state(), State::Online) && !message_sent {
-                    // Send a ping
-                    eprintln!("Sending keepalive");
-                    client.keepalive().unwrap();
 
-                    // This has to look enough like an ipv4 packet to
-                    // make it through. In practice for now that means
-                    // the version (the first nibble in the packet)
-                    // needs to be ok.
-                    //
-                    // (Note that 'H' is ASCII 0x48 so that happens to
-                    // work as the first byte too, but be more
-                    // explicit to avoid a confusing surprise for some
-                    // future developer).
-                    let mut buf: BytesMut = BytesMut::from(&b"\x40Hello World!"[..]);
-                    eprintln!("Sending message: {buf:?}");
-                    client.inside_data_received(&mut buf).expect("Send my message");
-                    message_sent = true;
-                };
+                println!("Client: {:?}", client.state());
+                if !matches!(client.state(), State::Online) {
+                    continue
+                }
+
+                // This has to look enough like an ipv4 packet to
+                // make it through. In practice for now that means
+                // the version (the first nibble in the packet)
+                // needs to be ok.
+                //
+                // (Note that 'H' is ASCII 0x48 so that happens to
+                // work as the first byte too, but be more
+                // explicit to avoid a confusing surprise for some
+                // future developer).
+                let mut message_packet: BytesMut = BytesMut::from(&b"\x40Hello World!"[..]);
+
+                match client_test_state {
+                    ClientTestState::Initial => {
+                        // Send a ping
+                        eprintln!("Sending keepalive");
+                        client.keepalive().unwrap();
+
+                        if enable_codec {
+                            // Send an encoding request
+                            client.set_encoding(true).expect("client set encoding");
+                            eprintln!("Sending encoding request");
+                            client_test_state = ClientTestState::PendingCodecResponse;
+                        } else {
+                            // Directly send the message
+                            eprintln!("Sending message: {message_packet:?}");
+                            client.inside_data_received(&mut message_packet).expect("Send my message");
+                            client_test_state = ClientTestState::MessageSent;
+                        }
+                    }
+                    ClientTestState::PendingCodecResponse => {
+                        if !encoder.get_encoding_state() {
+                            eprintln!("awaiting encoding response from the server");
+                            // Encoding response not yet received. Keep waiting.
+                            continue
+                        }
+
+                        eprintln!("Sending message: {message_packet:?}");
+                        client.inside_data_received(&mut message_packet).expect("Send my message");
+                        client_test_state = ClientTestState::MessageSent;
+                    }
+                    ClientTestState::MessageSent => {}
+                }
             }
 
             // Decoded packet received (outside -> inside)
