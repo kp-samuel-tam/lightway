@@ -23,8 +23,8 @@ pub use lightway_core::{
     AuthMethod, MAX_INSIDE_MTU, MAX_OUTSIDE_MTU, PluginFactoryError, PluginFactoryList,
     RootCertificate, Version,
 };
-// re-export so client app does not need to depend on lightway-core
 #[cfg(feature = "debug")]
+// re-export so client app does not need to depend on lightway-core
 pub use lightway_core::{enable_tls_debug, set_logging_callback};
 use pnet::packet::ipv4::Ipv4Packet;
 
@@ -566,16 +566,23 @@ pub async fn client<A: 'static + Send + EventCallback>(
         None
     };
 
+    #[cfg(feature = "io-uring")]
     let inside_io = Arc::new(
-        io::inside::Tun::new(
+        io::inside::Tun::new_with_iouring(
             config.tun_config,
             config.tun_local_ip,
             config.tun_dns_ip,
-            #[cfg(feature = "io-uring")]
             iouring,
         )
         .await
         .context("Tun creation")?,
+    );
+
+    #[cfg(not(feature = "io-uring"))]
+    let inside_io = Arc::new(
+        io::inside::Tun::new(config.tun_config, config.tun_local_ip, config.tun_dns_ip)
+            .await
+            .context("Tun creation")?,
     );
 
     let (event_cb, event_stream) = EventStreamCallback::new();
