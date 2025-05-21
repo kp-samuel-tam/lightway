@@ -14,8 +14,14 @@ use tokio::{
 };
 use tokio_stream::StreamExt;
 
-use lightway_app_utils::{ConnectionTicker, EventStreamCallback, connection_ticker_cb};
+use lightway_app_utils::{
+    CodecTicker, CodecTickerState, ConnectionTicker, ConnectionTickerState, EventStreamCallback,
+    PacketCodecFactory, codec_ticker_cb, connection_ticker_cb,
+};
 use lightway_core::*;
+
+mod packet_codec;
+use packet_codec::TestPacketCodecFactory;
 
 const CA_CERT: &[u8] = &include!("data/ca_cert_der_2048");
 const SERVER_CERT: &[u8] = &include!("data/server_cert_der_2048");
@@ -40,8 +46,8 @@ impl ChannelTun {
         (Self(tx), rx)
     }
 }
-impl InsideIOSendCallback<ConnectionTicker> for ChannelTun {
-    fn send(&self, buf: BytesMut, _state: &mut ConnectionTicker) -> IOCallbackResult<usize> {
+impl<T> InsideIOSendCallback<T> for ChannelTun {
+    fn send(&self, buf: BytesMut, _state: &mut T) -> IOCallbackResult<usize> {
         let buf_len = buf.len();
         self.0.send(buf.freeze()).expect("Send");
         IOCallbackResult::Ok(buf_len)
@@ -180,6 +186,15 @@ async fn server<S: TestSock>(sock: Arc<S>, pqc: PQCrypto) {
     let (tun, mut inside_rx) = ChannelTun::new();
     let mut last_inside_rx = std::time::Instant::now();
 
+    let packet_codec = TestPacketCodecFactory::default().build();
+    let (packet_codec, mut encoded_pkt_receiver, mut decoded_pkt_receiver) = {
+        (
+            Some((packet_codec.encoder, packet_codec.decoder)),
+            packet_codec.encoded_pkt_receiver,
+            packet_codec.decoded_pkt_receiver,
+        )
+    };
+
     let connection_type = sock.connection_type();
     let server_ctx = ServerContextBuilder::<ConnectionTicker>::new(
         connection_type,
@@ -204,6 +219,7 @@ async fn server<S: TestSock>(sock: Arc<S>, pqc: PQCrypto) {
         server_ctx
             .start_accept(Version::MAXIMUM, sock.clone().into_io_send_callback())
             .unwrap()
+            .with_inside_pkt_codec(packet_codec)
             .accept(ticker)
             .unwrap(),
     ));
@@ -237,6 +253,12 @@ async fn server<S: TestSock>(sock: Arc<S>, pqc: PQCrypto) {
                     assert_eq!(curve, pqc.expected_curve());
                 }
             },
+
+            // Encoded packet received (inside -> outside)
+            Some(mut encoded_packet) = encoded_pkt_receiver.recv() => {
+                let mut conn = conn.lock().unwrap();
+                conn.send_to_outside(&mut encoded_packet, true).expect("Reflect data");
+            }
 
             // Outside event loop
             is_readable = sock.readable() => {
@@ -278,6 +300,12 @@ async fn server<S: TestSock>(sock: Arc<S>, pqc: PQCrypto) {
                     Ok(_) => continue,
                 }
             }
+
+            // Decoded packet received (outside -> inside)
+            Some(decoded_packet) = decoded_pkt_receiver.recv() => {
+                let mut conn = conn.lock().unwrap();
+                conn.send_to_inside(decoded_packet).expect("server decoded pkt outside to inside");
+            }
         }
     }
 }
@@ -285,10 +313,47 @@ async fn server<S: TestSock>(sock: Arc<S>, pqc: PQCrypto) {
 #[derive(Debug, Copy, Clone)]
 struct Client;
 
-impl ClientIpConfig<ConnectionTicker> for Client {
-    fn ip_config(&self, _state: &mut ConnectionTicker, ip_config: InsideIpConfig) {
+impl ClientIpConfig<ConnectionState> for Client {
+    fn ip_config(&self, _state: &mut ConnectionState, ip_config: InsideIpConfig) {
         println!("Got IP from server: {ip_config:?}");
     }
+}
+
+struct ConnectionState {
+    pub ticker: ConnectionTicker,
+    pub codec_ticker: CodecTicker,
+}
+
+impl ConnectionTickerState for ConnectionState {
+    fn connection_ticker(&self) -> &ConnectionTicker {
+        &self.ticker
+    }
+}
+
+impl CodecTickerState for ConnectionState {
+    fn ticker(&self) -> Option<&CodecTicker> {
+        Some(&self.codec_ticker)
+    }
+}
+
+// In each test, the client act as a state machine
+// with three states.
+//
+// Note: if inside packet codec is not enabled, the
+// "PendingCodecResponse" state will be skipped.
+enum ClientTestState {
+    // Lightway just changed state to Connected, and
+    // Has not yet send the encoding request or the
+    // message packet from TUN.
+    Initial,
+
+    // Lightway has already sent an encoding request
+    // to the server, and is waiiting for an encoding
+    // response to arrive.
+    PendingCodecResponse,
+
+    // Lightway has already sent the message packet.
+    MessageSent,
 }
 
 async fn client<S: TestSock>(
@@ -296,6 +361,7 @@ async fn client<S: TestSock>(
     cipher: Option<Cipher>,
     pqc: PQCrypto,
     server_dn: Option<&str>,
+    enable_codec: bool,
 ) {
     let ca_cert = RootCertificate::Asn1Buffer(CA_CERT);
     let (tun, mut inside_rx) = ChannelTun::new();
@@ -305,25 +371,45 @@ async fn client<S: TestSock>(
 
     let (event_cb, mut event_stream) = EventStreamCallback::new();
 
+    let packet_codec = TestPacketCodecFactory::default().build();
+    let encoder = packet_codec.encoder.clone();
+    let (packet_codec, mut encoded_pkt_receiver, mut decoded_pkt_receiver) = {
+        (
+            Some((packet_codec.encoder, packet_codec.decoder)),
+            packet_codec.encoded_pkt_receiver,
+            packet_codec.decoded_pkt_receiver,
+        )
+    };
+
     let (ticker, ticker_task) = ConnectionTicker::new();
+    let (codec_ticker, codec_ticker_task) = CodecTicker::new();
+
+    let state = ConnectionState {
+        ticker,
+        codec_ticker,
+    };
+
     let client = ClientContextBuilder::new(sock.connection_type(), ca_cert, Arc::new(tun), client)
         .unwrap()
         .with_schedule_tick_cb(connection_ticker_cb)
+        .with_schedule_codec_tick_cb(Some(codec_ticker_cb))
         .when_some(cipher, |b, cipher| b.with_cipher(cipher).unwrap())
         .build()
         .start_connect(sock.clone().into_io_send_callback(), MAX_OUTSIDE_MTU)
         .unwrap()
         .with_auth_token("LET ME IN")
         .with_event_cb(Box::new(event_cb))
+        .with_inside_pkt_codec(packet_codec)
         .when(pqc.enable_client(), |b| b.with_pq_crypto())
         .when_some(server_dn, |b, sdn| {
             b.with_server_domain_name_validation(sdn.to_string())
         })
-        .connect(ticker)
+        .connect(state)
         .unwrap();
     let client = Arc::new(Mutex::new(client));
 
     ticker_task.spawn_in(Arc::downgrade(&client), &mut join_set);
+    codec_ticker_task.spawn_in(Arc::downgrade(&client), &mut join_set);
 
     let event_client = client.clone();
 
@@ -360,7 +446,10 @@ async fn client<S: TestSock>(
         }
     });
 
-    let mut message_sent = false;
+    let mut client_test_state = ClientTestState::Initial;
+
+    // Inside packet codec is only supported for Lightway UDP
+    let enable_codec = sock.connection_type().is_datagram() && enable_codec;
 
     loop {
         if event_handler_handle.is_finished() {
@@ -375,7 +464,7 @@ async fn client<S: TestSock>(
             Some(buf) = inside_rx.recv() => {
                 let mut client = client.lock().unwrap();
                 assert!(matches!(client.state(), State::Online));
-                assert!(message_sent);
+                assert!(matches!(client_test_state, ClientTestState::MessageSent));
 
                 assert_eq!(&buf[..], b"\x40Hello World!");
 
@@ -388,6 +477,12 @@ async fn client<S: TestSock>(
 
                 return
             },
+
+            // Encoded packet received (inside -> outside)
+            Some(mut encoded_packet) = encoded_pkt_receiver.recv() => {
+                let mut client = client.lock().unwrap();
+                client.send_to_outside(&mut encoded_packet, true).expect("Send my message");
+            }
 
             // Outside event loop
             is_readable = sock.readable() => {
@@ -414,26 +509,63 @@ async fn client<S: TestSock>(
                     // TODO: fatal vs non-fatal;
                     panic!("{err}")
                 }
-                println!("Client: {:?}", client.state());
-                if matches!(client.state(), State::Online) && !message_sent {
-                    // Send a ping
-                    eprintln!("Sending keepalive");
-                    client.keepalive().unwrap();
 
-                    // This has to look enough like an ipv4 packet to
-                    // make it through. In practice for now that means
-                    // the version (the first nibble in the packet)
-                    // needs to be ok.
-                    //
-                    // (Note that 'H' is ASCII 0x48 so that happens to
-                    // work as the first byte too, but be more
-                    // explicit to avoid a confusing surprise for some
-                    // future developer).
-                    let mut buf: BytesMut = BytesMut::from(&b"\x40Hello World!"[..]);
-                    eprintln!("Sending message: {buf:?}");
-                    client.inside_data_received(&mut buf).expect("Send my message");
-                    message_sent = true;
-                };
+                println!("Client: {:?}", client.state());
+                if !matches!(client.state(), State::Online) {
+                    continue
+                }
+
+                // This has to look enough like an ipv4 packet to
+                // make it through. In practice for now that means
+                // the version (the first nibble in the packet)
+                // needs to be ok.
+                //
+                // (Note that 'H' is ASCII 0x48 so that happens to
+                // work as the first byte too, but be more
+                // explicit to avoid a confusing surprise for some
+                // future developer).
+                let mut message_packet: BytesMut = BytesMut::from(&b"\x40Hello World!"[..]);
+
+                match client_test_state {
+                    ClientTestState::Initial => {
+                        // Send a ping
+                        eprintln!("Sending keepalive");
+                        client.keepalive().unwrap();
+
+                        if enable_codec {
+                            // Send an encoding request
+                            client.set_encoding(true).expect("client set encoding");
+                            eprintln!("Sending encoding request");
+                            client_test_state = ClientTestState::PendingCodecResponse;
+                        } else {
+                            // Directly send the message
+                            eprintln!("Sending message: {message_packet:?}");
+                            client.inside_data_received(&mut message_packet).expect("Send my message");
+                            client_test_state = ClientTestState::MessageSent;
+                        }
+                    }
+                    ClientTestState::PendingCodecResponse => {
+                        if !encoder.get_encoding_state() {
+                            eprintln!("awaiting encoding response from the server");
+                            // Encoding response not yet received. Keep waiting.
+                            continue
+                        }
+
+                        eprintln!("Sending message: {message_packet:?}");
+                        client.inside_data_received(&mut message_packet).expect("Send my message");
+                        client_test_state = ClientTestState::MessageSent;
+                    }
+                    ClientTestState::MessageSent => {}
+                }
+            }
+
+            // Decoded packet received (outside -> inside)
+            Some(decoded_packet) = decoded_pkt_receiver.recv() => {
+                let mut client = client.lock().unwrap();
+                if let Err(err) = client.send_to_inside(decoded_packet) {
+                    // TODO: fatal vs non-fatal;
+                    panic!("{err}")
+                }
             }
         }
     }
@@ -483,16 +615,27 @@ impl PQCrypto {
     }
 }
 
-async fn run_test<S: TestSock>(
+async fn run_test_tcp<S: TestSock>(
     cipher: Option<Cipher>,
     pqc: PQCrypto,
     server_sock: Arc<S>,
     client_sock: Arc<S>,
 ) {
+    // Inside packet codec is only supported by Lightway UDP
+    run_test(cipher, pqc, server_sock, client_sock, false).await;
+}
+
+async fn run_test<S: TestSock>(
+    cipher: Option<Cipher>,
+    pqc: PQCrypto,
+    server_sock: Arc<S>,
+    client_sock: Arc<S>,
+    enable_codec: bool,
+) {
     let test = async move {
         tokio::join!(
             server(server_sock, pqc),
-            client(client_sock, cipher, pqc, None)
+            client(client_sock, cipher, pqc, None, enable_codec)
         )
     };
 
@@ -501,20 +644,21 @@ async fn run_test<S: TestSock>(
         .expect("Timed out");
 }
 
-#[test_case(None,                   PQCrypto::Enabled;    "Default cipher + PQC")]
-#[test_case(Some(Cipher::Aes256),   PQCrypto::Enabled;    "aes + PQC")]
-#[test_case(Some(Cipher::Chacha20), PQCrypto::Enabled;    "chacha20 +_PQC")]
-#[test_case(None,                   PQCrypto::Disabled;   "PQC disabled")]
-#[test_case(None,                   PQCrypto::ServerOnly; "PQC server only")]
-#[test_case(None,                   PQCrypto::ClientOnly; "PQC client only")]
+#[test_case(None,                   PQCrypto::Enabled,    false; "Default cipher + PQC")]
+#[test_case(Some(Cipher::Aes256),   PQCrypto::Enabled,    false; "aes + PQC")]
+#[test_case(Some(Cipher::Chacha20), PQCrypto::Enabled,    false; "chacha20 +_PQC")]
+#[test_case(None,                   PQCrypto::Disabled,   false; "PQC disabled")]
+#[test_case(None,                   PQCrypto::ServerOnly, false; "PQC server only")]
+#[test_case(None,                   PQCrypto::ClientOnly, false; "PQC client only")]
+#[test_case(Some(Cipher::Aes256),   PQCrypto::Enabled,     true; "Inside packet codec")]
 #[tokio::test]
-async fn test_datagram_connection(cipher: Option<Cipher>, pqc: PQCrypto) {
+async fn test_datagram_connection(cipher: Option<Cipher>, pqc: PQCrypto, enable_codec: bool) {
     // Communicate over a local datagram socket for simplicity
     let (client_sock, server_sock) = UnixDatagram::pair().expect("UnixDatagram");
     let server_sock = Arc::new(TestDatagramSock(server_sock));
     let client_sock = Arc::new(TestDatagramSock(client_sock));
 
-    run_test(cipher, pqc, server_sock, client_sock).await;
+    run_test(cipher, pqc, server_sock, client_sock, enable_codec).await;
 }
 
 #[test_case(None,                   PQCrypto::Enabled;    "Default cipher + PQC")]
@@ -534,7 +678,7 @@ async fn test_stream_connection(cipher: Option<Cipher>, pqc: PQCrypto) {
     // started, else we'll get a `WouldBlock`.
     let _ = client_sock.writable().await;
 
-    run_test(cipher, pqc, server_sock, client_sock).await;
+    run_test_tcp(cipher, pqc, server_sock, client_sock).await;
 }
 
 #[test_case(None; "No server domain name")]
@@ -554,7 +698,7 @@ async fn test_server_dn(server_dn: Option<&str>) {
     let test = async move {
         tokio::join!(
             server(server_sock, PQCrypto::Enabled),
-            client(client_sock, None, PQCrypto::Enabled, server_dn)
+            client(client_sock, None, PQCrypto::Enabled, server_dn, false)
         )
     };
 
