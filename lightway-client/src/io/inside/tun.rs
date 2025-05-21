@@ -22,21 +22,24 @@ pub struct Tun {
 }
 
 impl Tun {
-    pub async fn new(
+    pub async fn new(tun: TunConfig, ip: Ipv4Addr, dns_ip: Ipv4Addr) -> Result<Self> {
+        let tun = AppUtilsTun::direct(tun).await?;
+        Ok(Tun { tun, ip, dns_ip })
+    }
+
+    #[cfg(feature = "io-uring")]
+    pub async fn new_with_iouring(
         tun: TunConfig,
         ip: Ipv4Addr,
         dns_ip: Ipv4Addr,
-        #[cfg(feature = "io-uring")] iouring: Option<(usize, Duration)>,
+        iouring: Option<(usize, Duration)>,
     ) -> Result<Self> {
-        #[cfg(feature = "io-uring")]
         let tun = match iouring {
             Some((ring_size, sqpoll_idle_time)) => {
                 AppUtilsTun::iouring(tun, ring_size, sqpoll_idle_time).await?
             }
             None => AppUtilsTun::direct(tun).await?,
         };
-        #[cfg(not(feature = "io-uring"))]
-        let tun = AppUtilsTun::direct(tun).await?;
         Ok(Tun { tun, ip, dns_ip })
     }
 }
