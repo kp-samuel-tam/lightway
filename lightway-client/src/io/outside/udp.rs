@@ -1,6 +1,9 @@
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
-use std::{net::{Ipv4Addr, SocketAddr}, sync::Arc};
+use std::{
+    net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
+    sync::Arc,
+};
 use tokio::net::UdpSocket;
 
 use super::OutsideIO;
@@ -15,19 +18,26 @@ pub struct Udp {
 
 impl Udp {
     pub async fn new(remote_addr: &str, sock: Option<UdpSocket>) -> Result<Arc<Self>> {
+        let peer_addr = tokio::net::lookup_host(remote_addr)
+            .await?
+            .next()
+            .ok_or(anyhow!("Lookup of {remote_addr} results in no address"))?;
+
+        let unspecified_ip = if peer_addr.ip().is_ipv6() {
+            IpAddr::V6(Ipv6Addr::UNSPECIFIED)
+        } else {
+            IpAddr::V4(Ipv4Addr::UNSPECIFIED)
+        };
+
         let sock = match sock {
             Some(s) => s,
-            None => tokio::net::UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0)).await?,
+            None => tokio::net::UdpSocket::bind((unspecified_ip, 0)).await?,
         };
         let default_ip_pmtudisc = sockopt::get_ip_mtu_discover(&sock)?;
         // Check for the socket's writable ready status, so that it can be used
         // successfuly in WolfSsl's `OutsideIOSendCallback` callback
         sock.writable().await?;
 
-        let peer_addr = tokio::net::lookup_host(remote_addr)
-            .await?
-            .next()
-            .ok_or(anyhow!("Lookup of {remote_addr} results in no address"))?;
         Ok(Arc::new(Self {
             sock,
             peer_addr,
