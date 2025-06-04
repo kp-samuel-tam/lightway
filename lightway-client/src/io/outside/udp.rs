@@ -1,6 +1,6 @@
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
-use std::{net::SocketAddr, sync::Arc};
+use std::{net::{Ipv4Addr, SocketAddr}, sync::Arc};
 use tokio::net::UdpSocket;
 
 use super::OutsideIO;
@@ -17,7 +17,7 @@ impl Udp {
     pub async fn new(remote_addr: &str, sock: Option<UdpSocket>) -> Result<Arc<Self>> {
         let sock = match sock {
             Some(s) => s,
-            None => tokio::net::UdpSocket::bind("0.0.0.0:0").await?,
+            None => tokio::net::UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0)).await?,
         };
         let default_ip_pmtudisc = sockopt::get_ip_mtu_discover(&sock)?;
         // Check for the socket's writable ready status, so that it can be used
