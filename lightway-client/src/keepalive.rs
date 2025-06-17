@@ -64,6 +64,7 @@ pub enum Message {
     OutsideActivity,
     ReplyReceived,
     NetworkChange,
+    Suspend,
 }
 
 pub enum KeepaliveResult {
@@ -128,9 +129,20 @@ impl Keepalive {
         }
     }
 
+    /// Signal that the network has changed.
+    /// In the case we are offline, this will start the keepalives
+    /// Otherwise this will reset our timeouts
     pub async fn network_changed(&self) {
         if let Some(tx) = &self.tx {
             let _ = tx.send(Message::NetworkChange).await;
+        }
+    }
+
+    /// Signal to suspend keepalives.
+    /// Suspends the sleep interval timer if it's active.
+    pub async fn suspend(&self) {
+        if let Some(tx) = &self.tx {
+            let _ = tx.send(Message::Suspend).await;
         }
     }
 }
@@ -203,6 +215,14 @@ async fn keepalive<CONFIG: SleepManager, CONNECTION: Connection>(
                         state = State::Waiting;
                         timeout.as_mut().set(None.into())
                     },
+                    Message::Suspend => {
+                        // Suspend keepalives whenever the timer is active
+                        if matches!(state, State::Waiting | State::Pending) {
+                            tracing::info!("suspending keepalives");
+                            state = State::Inactive;
+                            timeout.as_mut().set(None.into())
+                        }
+                    },
                 }
             }
 
@@ -246,6 +266,7 @@ mod tests {
         OutsideActivity,
         NetworkChange,
         TimeoutExpired,
+        Suspend,
     }
 
     struct FixtureState {
@@ -364,6 +385,7 @@ mod tests {
                     FixtureEvent::OutsideActivity => keepalive.outside_activity().await,
                     FixtureEvent::NetworkChange => keepalive.network_changed().await,
                     FixtureEvent::TimeoutExpired => self.timeout_expired(),
+                    FixtureEvent::Suspend => keepalive.suspend().await,
                     FixtureEvent::Wait => {}
                 }
             }
@@ -448,7 +470,7 @@ mod tests {
     async fn keepalives_are_sent(continuous: bool) {
         use FixtureEvent::*;
         let first_event = if continuous { Online } else { NetworkChange };
-        let fixture = Fixture::new(vec![first_event, IntervalExpired, Wait], true);
+        let fixture = Fixture::new(vec![first_event, IntervalExpired, Wait], continuous);
 
         let (keepalive, task) = fixture.run().await;
 
@@ -585,5 +607,34 @@ mod tests {
         assert!(matches!(task.await.unwrap(), Ok(KeepaliveResult::Timedout)));
 
         assert_eq!(1, fixture.keepalive_count());
+    }
+
+    #[test_case(true; "Continuous uses Online to start keepalives")]
+    #[test_case(false; "Non-Continuous uses NetworkChange to start keepalives")]
+    #[tokio::test]
+    async fn suspend_keepalives_and_enable_again(continuous: bool) {
+        use FixtureEvent::*;
+        let enable_keepalive = if continuous { Online } else { NetworkChange };
+        let fixture = Fixture::new(
+            vec![
+                enable_keepalive,
+                IntervalExpired,
+                Suspend,
+                enable_keepalive,
+                IntervalExpired,
+                Wait,
+            ],
+            continuous,
+        );
+
+        let (keepalive, task) = fixture.run().await;
+
+        drop(keepalive);
+        assert!(matches!(
+            task.await.unwrap(),
+            Ok(KeepaliveResult::Cancelled)
+        ));
+
+        assert_eq!(2, fixture.keepalive_count());
     }
 }
