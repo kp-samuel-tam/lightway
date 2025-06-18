@@ -20,7 +20,6 @@ use thiserror::Error;
 use tracing::{debug, error, info, trace, warn};
 use wolfssl::{ErrorKind, IOCallbackResult, ProtocolVersion};
 
-use crate::max_dtls_mtu;
 use crate::{
     ConnectionType, IPV4_HEADER_SIZE, InsideIOSendCallbackArg, PluginResult, SessionId,
     TCP_HEADER_SIZE, Version,
@@ -34,6 +33,7 @@ use crate::{
     utils::tcp_clamp_mss,
     wire::{self, AuthMethod},
 };
+use crate::{OutsideIOSendCallbackArg, max_dtls_mtu};
 
 use crate::context::ip_pool::{ClientIpConfigArg, ServerIpPoolArg};
 use crate::packet::{OutsidePacket, OutsidePacketError};
@@ -736,6 +736,11 @@ impl<AppState: Send> Connection<AppState> {
         };
 
         Ok(auth_handle.expired())
+    }
+
+    /// Update WolfSSL Session to use the new outside IO Callback
+    pub fn set_outside_io(&mut self, new_io: OutsideIOSendCallbackArg) {
+        self.session.io_cb_mut().io = new_io;
     }
 
     /// Accept some data from outside and run an iteration of the I/O
