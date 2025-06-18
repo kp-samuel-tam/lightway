@@ -59,6 +59,7 @@ skip = [
     { name = "thiserror", version = "1.0.69" },
     { name = "thiserror-impl", version = "1.0.69" },
     { name = "windows-sys", version = "0.52.0" },
+    { name = "windows-sys", version = "0.59.0" },
     { name = "windows-targets", version = "0.52.6" },
     { name = "windows_aarch64_gnullvm", version = "0.52.6" },
     { name = "windows_aarch64_msvc", version = "0.52.6" },
