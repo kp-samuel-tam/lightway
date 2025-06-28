@@ -559,31 +559,25 @@ pub async fn client<A: 'static + Send + EventCallback>(
         outside_io.set_recv_buffer_size(size.as_u64().try_into()?)?;
     }
 
-    #[cfg(feature = "io-uring")]
-    let iouring = if config.enable_tun_iouring {
-        Some((config.iouring_entry_count, config.iouring_sqpoll_idle_time))
-    } else {
-        None
-    };
+    #[cfg(not(feature = "io-uring"))]
+    let inside_io =
+        io::inside::Tun::new(config.tun_config, config.tun_local_ip, config.tun_dns_ip).await;
 
     #[cfg(feature = "io-uring")]
-    let inside_io = Arc::new(
+    let inside_io = if config.enable_tun_iouring {
         io::inside::Tun::new_with_iouring(
             config.tun_config,
             config.tun_local_ip,
             config.tun_dns_ip,
-            iouring,
+            config.iouring_entry_count,
+            config.iouring_sqpoll_idle_time,
         )
         .await
-        .context("Tun creation")?,
-    );
+    } else {
+        io::inside::Tun::new(config.tun_config, config.tun_local_ip, config.tun_dns_ip).await
+    };
 
-    #[cfg(not(feature = "io-uring"))]
-    let inside_io = Arc::new(
-        io::inside::Tun::new(config.tun_config, config.tun_local_ip, config.tun_dns_ip)
-            .await
-            .context("Tun creation")?,
-    );
+    let inside_io = Arc::new(inside_io.context("Tun creation")?);
 
     let (event_cb, event_stream) = EventStreamCallback::new();
 
