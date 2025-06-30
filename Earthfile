@@ -53,7 +53,7 @@ build:
 
     IF [ "$ARCH" = "arm64" ]
         SET target = "aarch64-unknown-linux-gnu"
-    ELSE IF [ "$ARCH" = "riscv64gc" ]
+    ELSE IF [ "$ARCH" = "riscv64" ]
         SET target = "riscv64gc-unknown-linux-gnu"
     END
 
@@ -67,7 +67,7 @@ build-arm64:
     BUILD +build --ARCH="arm64"
 
 build-riscv64:
-    BUILD +build --ARCH="riscv64gc"
+    BUILD +build --ARCH="riscv64"
 
 build-kyber-client:
     FROM +source
@@ -76,7 +76,7 @@ build-kyber-client:
 
     IF [ "$ARCH" = "arm64" ]
         SET target = "aarch64-unknown-linux-gnu" 
-    ELSE IF [ "$ARCH" = "riscv64gc" ]
+    ELSE IF [ "$ARCH" = "riscv64" ]
         SET target = "riscv64gc-unknown-linux-gnu"
     END
 
@@ -91,7 +91,7 @@ test:
 
     IF [ "$ARCH" = "arm64" ]
         SET target = "aarch64-unknown-linux-gnu" 
-    ELSE IF [ "$ARCH" = "riscv64gc" ]
+    ELSE IF [ "$ARCH" = "riscv64" ]
         SET target = "riscv64gc-unknown-linux-gnu"
     END
 
@@ -111,9 +111,9 @@ test-miri:
 test-arm64:
     BUILD +test --ARCH="arm64"
 
-# test-riscv64 executes all unit and integration tests via Cargo for riscv64gc. Support running from an amd64 or arm64 host
+# test-riscv64 executes all unit and integration tests via Cargo for riscv64. Support running from an amd64 or arm64 host
 test-riscv64:
-    BUILD +test --ARCH="riscv64gc"
+    BUILD +test --ARCH="riscv64"
 
 # e2e runs all end-to-end tests, must be run with `--allow-privileged`
 e2e:
