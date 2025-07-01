@@ -23,7 +23,6 @@ workspace = true
 [dependencies]
 bytes.workspace = true
 delegate.workspace = true
-if_chain = "1.0.2"
 lru = "0.14.0"
 metrics.workspace = true
 more-asserts.workspace = true
