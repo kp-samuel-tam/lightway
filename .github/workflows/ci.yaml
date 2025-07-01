@@ -157,5 +157,13 @@ jobs:
       - name: Install dependencies
         run: |
           brew install autoconf automake libtool
+
+      - name: Update Rust to pinned version
+        run: |
+          RUST_VERSION=$(grep "FROM rust" Earthfile | awk -F'[:\\-]' '{print $2}')
+          echo ${RUST_VERSION}
+          rustup install ${RUST_VERSION}
+          rustup override set ${RUST_VERSION}
+
       - name: Build lightway client on mac
         run: cargo build --release -p lightway-client
