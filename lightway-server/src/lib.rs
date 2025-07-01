@@ -138,12 +138,15 @@ pub struct ServerConfig<SA: for<'a> ServerAuth<AuthState<'a>>> {
     /// Enable Post Quantum Crypto
     pub enable_pqc: bool,
 
+    #[cfg(feature = "io-uring")]
     /// Enable IO-uring interface for Tunnel
     pub enable_tun_iouring: bool,
 
+    #[cfg(feature = "io-uring")]
     /// IO-uring submission queue count
     pub iouring_entry_count: usize,
 
+    #[cfg(feature = "io-uring")]
     /// IO-uring sqpoll idle time.
     pub iouring_sqpoll_idle_time: Duration,
 
@@ -229,14 +232,28 @@ pub async fn server<SA: for<'a> ServerAuth<AuthState<'a>> + Sync + Send + 'stati
     let connection_type = config.connection_type;
     let auth = Arc::new(AuthAdapter(config.auth));
 
-    let iouring = if config.enable_tun_iouring {
-        Some((config.iouring_entry_count, config.iouring_sqpoll_idle_time))
-    } else {
-        None
-    };
     let inside_io: Arc<dyn InsideIO> = match config.inside_io.take() {
         Some(io) => io,
-        None => Arc::new(io::inside::Tun::new(config.tun_config, iouring).await?),
+        None => {
+            use io::inside::Tun;
+            #[cfg(not(feature = "io-uring"))]
+            let tun = Tun::new(config.tun_config).await;
+            #[cfg(feature = "io-uring")]
+            let tun = if config.enable_tun_iouring {
+                Tun::new_with_iouring(
+                    config.tun_config,
+                    config.iouring_entry_count,
+                    config.iouring_sqpoll_idle_time,
+                )
+                .await
+            } else {
+                Tun::new(config.tun_config).await
+            };
+
+            let tun = tun.context("Tun creation")?;
+
+            Arc::new(tun)
+        }
     };
 
     let ctx = ServerContextBuilder::new(
