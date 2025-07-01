@@ -257,7 +257,7 @@ mod tests {
     impl FragmentedPacket {
         fn debug_string(&self) -> String {
             let total_bytes: usize = self.fragments.iter().map(|f| f.size).sum();
-            let mut s = format!("{}: {{ ", total_bytes);
+            let mut s = format!("{total_bytes}: {{ ");
             let frags: String = itertools::intersperse(
                 self.fragments.iter().map(Fragment::debug_string),
                 ", ".to_string(),

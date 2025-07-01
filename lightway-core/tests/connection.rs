@@ -417,7 +417,7 @@ async fn client<S: TestSock>(
     let event_handler_handle = tokio::spawn(async move {
         let client = event_client;
         while let Some(event) = event_stream.next().await {
-            println!("Client state changed to {:?}", event);
+            println!("Client state changed to {event:?}");
             match event {
                 Event::StateChanged(State::Online) => {
                     let mut client = client.lock().unwrap();
@@ -455,7 +455,7 @@ async fn client<S: TestSock>(
         if event_handler_handle.is_finished() {
             // Event handler returning early. Fatal error.
             let result = event_handler_handle.await;
-            panic!("Event handler returning early. Fatal error. {:?}", result);
+            panic!("Event handler returning early. Fatal error. {result:?}");
         }
 
         tokio::select! {

@@ -70,7 +70,7 @@ async fn build_tun(name: String) -> Result<Tun> {
 }
 
 async fn build_udp(port: u16, _peer: SocketAddr) -> Result<UdpSocket> {
-    let sockaddr = format!("0.0.0.0:{}", port);
+    let sockaddr = format!("0.0.0.0:{port}");
     let sockaddr = sockaddr.parse::<SocketAddr>()?;
     let sock = UdpSocket::bind(sockaddr).await?;
     // Connected UDP socket makes app not receiving udp messages in some cases
@@ -123,7 +123,7 @@ trait TunAdapter: Sync + Send {
 async fn main() -> Result<()> {
     let args = Arguments::parse();
 
-    println!("Starting with {:?}", args);
+    println!("Starting with {args:?}");
 
     let sock = build_udp(args.port, args.remote).await?;
     let tun = build_tun(args.tun_name).await?;
