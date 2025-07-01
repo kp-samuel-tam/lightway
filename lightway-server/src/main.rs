@@ -141,7 +141,9 @@ async fn main() -> Result<()> {
     )?;
 
     let mut tun_config = TunConfig::default();
-    tun_config.tun_name(config.tun_name);
+    if let Some(tun_name) = config.tun_name {
+        tun_config.tun_name(tun_name);
+    }
 
     let config = ServerConfig {
         connection_type: config.mode.into(),
