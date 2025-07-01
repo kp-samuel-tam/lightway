@@ -79,17 +79,21 @@ impl<'a, const N: usize> Iterator for Iter<'a, N> {
             // `CMSG_NXTHDR`.
             self.cursor = unsafe { libc::CMSG_NXTHDR(&self.msghdr, self.cursor) };
 
-            Some(match (item.cmsg_level, item.cmsg_type) {
-                (libc::SOL_IP, libc::IP_PKTINFO) => {
-                    // SAFETY: `item` is a valid `cmsghdr` from a
-                    // prior call to `CMSG_FIRSTHDR` or `CMSG_NXTHDR`.
-                    let data = unsafe { libc::CMSG_DATA(item) as *const libc::in_pktinfo };
-                    // SAFETY: we constructed `data` above
-                    let pi = unsafe { &*data };
-                    Message::IpPktinfo(pi)
-                }
-                (_, _) => Message::Unknown(item),
-            })
+            #[cfg(target_vendor = "apple")]
+            let (cmsg_level, cmsg_type) = (libc::IPPROTO_IP, libc::IP_PKTINFO);
+            #[cfg(not(target_vendor = "apple"))]
+            let (cmsg_level, cmsg_type) = (libc::SOL_IP, libc::IP_PKTINFO);
+
+            if item.cmsg_level == cmsg_level && item.cmsg_type == cmsg_type {
+                // SAFETY: `item` is a valid `cmsghdr` from a
+                // prior call to `CMSG_FIRSTHDR` or `CMSG_NXTHDR`.
+                let data = unsafe { libc::CMSG_DATA(item) as *const libc::in_pktinfo };
+                // SAFETY: we constructed `data` above
+                let pi = unsafe { &*data };
+                Some(Message::IpPktinfo(pi))
+            } else {
+                Some(Message::Unknown(item))
+            }
         }
     }
 }

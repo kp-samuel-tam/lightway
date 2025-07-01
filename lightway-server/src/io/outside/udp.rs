@@ -63,7 +63,12 @@ fn send_to_socket(
 
         let msghdr = if let Some(pktinfo) = pktinfo {
             let mut builder = cmsg.builder();
-            builder.fill_next(libc::SOL_IP, libc::IP_PKTINFO, pktinfo)?;
+            #[cfg(target_vendor = "apple")]
+            let (cmsg_level, cmsg_type) = (libc::IPPROTO_IP, libc::IP_PKTINFO);
+            #[cfg(not(target_vendor = "apple"))]
+            let (cmsg_level, cmsg_type) = (libc::SOL_IP, libc::IP_PKTINFO);
+
+            builder.fill_next(cmsg_level, cmsg_type, pktinfo)?;
 
             msghdr.with_control(cmsg.as_ref())
         } else {
