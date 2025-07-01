@@ -876,15 +876,13 @@ impl<AppState: Send> Connection<AppState> {
             return Err(ConnectionError::InvalidState);
         }
 
-        if_chain::if_chain! {
-            if let Some(pmtu) = &self.pmtud;
-            if let Some((data_mps, frag_mps)) = pmtu.maximum_packet_sizes();
-            if pkt.len() > data_mps;
-            then {
-                self.send_fragmented_outside_data(pkt.clone().freeze(), frag_mps, is_encoded)
-            } else {
-                self.send_outside_data(pkt, is_encoded)
-            }
+        if let Some(pmtu) = &self.pmtud
+            && let Some((data_mps, frag_mps)) = pmtu.maximum_packet_sizes()
+            && pkt.len() > data_mps
+        {
+            self.send_fragmented_outside_data(pkt.clone().freeze(), frag_mps, is_encoded)
+        } else {
+            self.send_outside_data(pkt, is_encoded)
         }
     }
 
