@@ -2,7 +2,7 @@
   description = "Lightway flake";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
     flake-parts.url = "github:hercules-ci/flake-parts";
     rust-overlay.url = "github:oxalica/rust-overlay";
   };
@@ -62,6 +62,7 @@
                 buildInputs = runtimeDeps;
                 nativeBuildInputs = buildDeps;
                 cargoBuildFlags = "-p ${package}";
+                # Some tests rely on debug_assert! and fail in release.
                 checkType = "debug";
                 cargoLock.outputHashes = {
                   "wolfssl-3.0.0" = "sha256-ToCpJ8moKMT2rMiBmMQLnPNAme3F2VVzHQ0jVXx3kTs=";
@@ -83,7 +84,7 @@
         {
           _module.args.pkgs = import inputs.nixpkgs {
             inherit system;
-            overlays = [ (import inputs.rust-overlay) ];
+            overlays = [ inputs.rust-overlay.overlays.default ];
           };
 
           packages.default = self'.packages.lightway-client;
