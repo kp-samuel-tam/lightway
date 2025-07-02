@@ -28,19 +28,15 @@
         let
           runtimeDeps = with pkgs; [ ];
           buildDeps = with pkgs; [
-            pkg-config
-            rustPlatform.bindgenHook
-            openssl
-            gnumake
             autoconf
             automake
             libtool
-            libevent
-            cargo-nextest
-            cargo-deny
-            cargo-outdated
+            rustPlatform.bindgenHook
           ];
           devDeps = with pkgs; [
+            cargo-deny
+            cargo-nextest
+            cargo-outdated
             rust-analyzer
           ];
 
