@@ -1,6 +1,12 @@
 //! Encapsulates the control message apis used with `recvmsg(2)`.
 #![allow(unsafe_code)]
 
+#[cfg(target_vendor = "apple")]
+pub(crate) type LibcControlLen = libc::socklen_t;
+
+#[cfg(not(target_vendor = "apple"))]
+pub(crate) type LibcControlLen = libc::size_t;
+
 pub(crate) struct Buffer<const N: usize>([std::mem::MaybeUninit<u8>; N]);
 
 impl<const N: usize> Buffer<N> {
@@ -16,7 +22,7 @@ impl<const N: usize> Buffer<N> {
     ///
     /// `control_len` must have been set to the number of bytes of the
     /// buffer which have been initialized.
-    pub(crate) unsafe fn iter(&self, control_len: usize) -> Iter<N> {
+    pub(crate) unsafe fn iter(&self, control_len: LibcControlLen) -> Iter<N> {
         // Build a `msghdr` so we can use the `CMSG_*` functionality in
         // libc. We will only use the `CMSG_*` macros which only use
         // the `msg_control*` fields.
@@ -79,17 +85,21 @@ impl<'a, const N: usize> Iterator for Iter<'a, N> {
             // `CMSG_NXTHDR`.
             self.cursor = unsafe { libc::CMSG_NXTHDR(&self.msghdr, self.cursor) };
 
-            Some(match (item.cmsg_level, item.cmsg_type) {
-                (libc::SOL_IP, libc::IP_PKTINFO) => {
-                    // SAFETY: `item` is a valid `cmsghdr` from a
-                    // prior call to `CMSG_FIRSTHDR` or `CMSG_NXTHDR`.
-                    let data = unsafe { libc::CMSG_DATA(item) as *const libc::in_pktinfo };
-                    // SAFETY: we constructed `data` above
-                    let pi = unsafe { &*data };
-                    Message::IpPktinfo(pi)
-                }
-                (_, _) => Message::Unknown(item),
-            })
+            #[cfg(target_vendor = "apple")]
+            let (cmsg_level, cmsg_type) = (libc::IPPROTO_IP, libc::IP_PKTINFO);
+            #[cfg(not(target_vendor = "apple"))]
+            let (cmsg_level, cmsg_type) = (libc::SOL_IP, libc::IP_PKTINFO);
+
+            if item.cmsg_level == cmsg_level && item.cmsg_type == cmsg_type {
+                // SAFETY: `item` is a valid `cmsghdr` from a
+                // prior call to `CMSG_FIRSTHDR` or `CMSG_NXTHDR`.
+                let data = unsafe { libc::CMSG_DATA(item) as *const libc::in_pktinfo };
+                // SAFETY: we constructed `data` above
+                let pi = unsafe { &*data };
+                Some(Message::IpPktinfo(pi))
+            } else {
+                Some(Message::Unknown(item))
+            }
         }
     }
 }
@@ -123,7 +133,7 @@ impl<const N: usize> BufferMut<N> {
             msg_iov: std::ptr::null_mut(),
             msg_iovlen: 0,
             msg_control: self.0.as_mut_ptr() as *mut _,
-            msg_controllen: self.0.len(),
+            msg_controllen: self.0.len() as LibcControlLen,
             msg_flags: 0,
         };
         // SAFETY: We constructed a sufficiently valid `msghdr` above.
@@ -179,7 +189,7 @@ impl<const N: usize> BufferBuilder<'_, N> {
         let data_size = std::mem::size_of::<T>();
 
         // SAFETY: `CMSG_LEN` is always safe
-        let cmsg_len = unsafe { libc::CMSG_LEN(data_size as libc::c_uint) as libc::size_t };
+        let cmsg_len = unsafe { libc::CMSG_LEN(data_size as libc::c_uint) as LibcControlLen };
         // SAFETY:
         //
         // The pointer is valid. It was produced by a previous call to
@@ -208,9 +218,11 @@ impl<const N: usize> BufferBuilder<'_, N> {
         // above.
         let cmsg_data = unsafe { libc::CMSG_DATA(self.cmsghdr) };
 
+        // This type case is necessary for macOS build
+        #[allow(clippy::unnecessary_cast)]
         // Check that we have sufficient space remaining. `CMSG_DATA`
         // does not do this.
-        let max = self.msghdr.msg_control as usize + self.msghdr.msg_controllen;
+        let max = self.msghdr.msg_control as usize + self.msghdr.msg_controllen as usize;
         let end = cmsg_data as usize + data_size;
 
         if end > max {

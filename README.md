@@ -22,8 +22,8 @@ Protocol and design documentation can be found in the
 
 ## Supported platforms
 
-Lightway Rust implementation currently supports Linux OS. Both x86_64 and arm64 platforms are
-supported and built as part of CI.
+Lightway Rust implementation currently supports Linux OS and macOS.
+Both x86_64 and arm64 platforms are supported and built as part of CI.
 
 Support for other platforms will be added soon.
 
@@ -222,6 +222,23 @@ docker compose -f tests/e2e/docker-compose.yml exec client bash
 ```
 
 To run things within the containers
+
+## Nix flake
+
+Lightway can also be built and tested using nix commands:
+
+```
+nix build .#lightway-server
+nix build .#lightway-client
+```
+
+To run server or client,
+```
+nix run .#lightway-server -- -c config.yaml
+nix run .#lightway-client -- -c config.yaml
+```
+
+Linux or mac machines are supported
 
 ## Contributing
 

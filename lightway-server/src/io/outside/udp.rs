@@ -63,7 +63,12 @@ fn send_to_socket(
 
         let msghdr = if let Some(pktinfo) = pktinfo {
             let mut builder = cmsg.builder();
-            builder.fill_next(libc::SOL_IP, libc::IP_PKTINFO, pktinfo)?;
+            #[cfg(target_vendor = "apple")]
+            let (cmsg_level, cmsg_type) = (libc::IPPROTO_IP, libc::IP_PKTINFO);
+            #[cfg(not(target_vendor = "apple"))]
+            let (cmsg_level, cmsg_type) = (libc::SOL_IP, libc::IP_PKTINFO);
+
+            builder.fill_next(cmsg_level, cmsg_type, pktinfo)?;
 
             msghdr.with_control(cmsg.as_ref())
         } else {
@@ -344,7 +349,7 @@ fn read_from_socket(
         metrics::udp_recv_truncated();
     }
 
-    let control_len = msg.control_len();
+    let control_len = msg.control_len() as self::cmsg::LibcControlLen;
 
     // SAFETY: We rely on recv_from giving us the correct size
     #[allow(unsafe_code)]

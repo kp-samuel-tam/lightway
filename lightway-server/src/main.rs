@@ -141,7 +141,9 @@ async fn main() -> Result<()> {
     )?;
 
     let mut tun_config = TunConfig::default();
-    tun_config.tun_name(config.tun_name);
+    if let Some(tun_name) = config.tun_name {
+        tun_config.tun_name(tun_name);
+    }
 
     let config = ServerConfig {
         connection_type: config.mode.into(),
@@ -157,8 +159,11 @@ async fn main() -> Result<()> {
         lightway_client_ip: config.lightway_client_ip,
         lightway_dns_ip: config.lightway_dns_ip,
         enable_pqc: config.enable_pqc,
+        #[cfg(feature = "io-uring")]
         enable_tun_iouring: config.enable_tun_iouring,
+        #[cfg(feature = "io-uring")]
         iouring_entry_count: config.iouring_entry_count,
+        #[cfg(feature = "io-uring")]
         iouring_sqpoll_idle_time: config.iouring_sqpoll_idle_time.into(),
         key_update_interval: config.key_update_interval.into(),
         inside_plugins: Default::default(),

@@ -10,7 +10,7 @@ concurrency:
 
 jobs:
   ci:
-    needs: [earthly, e2e, coverage, macos]
+    needs: [earthly, e2e, coverage, nix-build]
     runs-on: ubuntu-latest
     if: always()
     steps:
@@ -150,20 +150,22 @@ jobs:
         if: steps.coverage-check.outputs.failed == 'true'
         run: exit 1
 
-  macos:
-    runs-on: macos-latest
+  nix-build:
+    name: Nix (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
     steps:
       - uses: actions/checkout@v4
-      - name: Install dependencies
-        run: |
-          brew install autoconf automake libtool
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - run: nix flake check
 
-      - name: Update Rust to pinned version
-        run: |
-          RUST_VERSION=$(grep "FROM rust" Earthfile | awk -F'[:\\-]' '{print $2}')
-          echo ${RUST_VERSION}
-          rustup install ${RUST_VERSION}
-          rustup override set ${RUST_VERSION}
+      - name: Build lightway client
+        run: nix build .#lightway-client
 
-      - name: Build lightway client on mac
-        run: cargo build --release -p lightway-client
+      - name: Build lightway server
+        run: nix build .#lightway-server
