@@ -120,8 +120,13 @@ impl UdpServer {
         conn_manager: Arc<ConnectionManager>,
         bind_address: SocketAddr,
         udp_buffer_size: ByteSize,
+        sock: Option<tokio::net::UdpSocket>,
     ) -> Result<UdpServer> {
-        let sock = tokio::net::UdpSocket::bind(bind_address).await?;
+        let sock = match sock {
+            Some(s) => s,
+            None => tokio::net::UdpSocket::bind(bind_address).await?,
+        };
+
         // Check for the socket's writable ready status, so that it can be used
         // successfuly in WolfSsl's `OutsideIOSendCallback` callback
         sock.writable().await?;

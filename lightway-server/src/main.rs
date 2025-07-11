@@ -144,9 +144,13 @@ async fn main() -> Result<()> {
     if let Some(tun_name) = config.tun_name {
         tun_config.tun_name(tun_name);
     }
+    let mode = match config.mode {
+        lightway_app_utils::args::ConnectionType::Udp => ServerConnectionMode::Datagram(None),
+        lightway_app_utils::args::ConnectionType::Tcp => ServerConnectionMode::Stream(None),
+    };
 
     let config = ServerConfig {
-        connection_type: config.mode.into(),
+        mode,
         auth,
         server_cert: config.server_cert,
         server_key: config.server_key,

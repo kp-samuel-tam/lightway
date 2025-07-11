@@ -194,8 +194,12 @@ impl TcpServer {
         conn_manager: Arc<ConnectionManager>,
         bind_address: SocketAddr,
         proxy_protocol: bool,
+        sock: Option<tokio::net::TcpListener>,
     ) -> Result<TcpServer> {
-        let sock = tokio::net::TcpListener::bind(bind_address).await?;
+        let sock = match sock {
+            Some(s) => s,
+            None => tokio::net::TcpListener::bind(bind_address).await?,
+        };
         let sock = Arc::new(sock);
 
         Ok(Self {

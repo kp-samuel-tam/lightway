@@ -50,12 +50,12 @@ use tracing::info;
 /// Connection type
 /// Applications can also attach socket for library to use directly,
 /// if there is any customisations needed
-pub enum ClientConnectionType {
+pub enum ClientConnectionMode {
     Stream(Option<TcpStream>),
     Datagram(Option<UdpSocket>),
 }
 
-impl std::fmt::Debug for ClientConnectionType {
+impl std::fmt::Debug for ClientConnectionMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Stream(_) => f.debug_tuple("Stream").finish(),
@@ -74,7 +74,7 @@ pub enum ClientResult {
 #[educe(Debug)]
 pub struct ClientConfig<'cert, A: 'static + Send + EventCallback> {
     /// Connection mode
-    pub mode: ClientConnectionType,
+    pub mode: ClientConnectionMode,
 
     /// Auth parameters to use for connection
     #[educe(Debug(ignore))]
@@ -514,7 +514,7 @@ fn validate_client_config<A: 'static + Send + EventCallback>(
 
     if let Some(inside_pkt_codec_config) = &config.inside_pkt_codec_config {
         if inside_pkt_codec_config.enable_encoding_at_connect
-            && matches!(config.mode, ClientConnectionType::Stream(_))
+            && matches!(config.mode, ClientConnectionMode::Stream(_))
         {
             return Err(anyhow!(
                 "inside pkt encoding should not be enabled with TCP"
@@ -536,14 +536,14 @@ pub async fn client<A: 'static + Send + EventCallback>(
 
     let (connection_type, outside_io): (ConnectionType, Arc<dyn io::outside::OutsideIO>) =
         match config.mode {
-            ClientConnectionType::Datagram(maybe_sock) => {
+            ClientConnectionMode::Datagram(maybe_sock) => {
                 let sock = io::outside::Udp::new(&config.server, maybe_sock)
                     .await
                     .context("Outside IO UDP")?;
 
                 (ConnectionType::Datagram, sock)
             }
-            ClientConnectionType::Stream(maybe_sock) => {
+            ClientConnectionMode::Stream(maybe_sock) => {
                 let sock = io::outside::Tcp::new(&config.server, maybe_sock)
                     .await
                     .context("Outside IO TCP")?;
