@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, num::NonZeroUsize, sync::Arc, time::Duration};
+use std::{net::SocketAddr, sync::Arc, time::Duration};
 
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
@@ -193,27 +193,9 @@ impl TcpServer {
     pub(crate) async fn new(
         conn_manager: Arc<ConnectionManager>,
         bind_address: SocketAddr,
-        bind_attempts: NonZeroUsize,
         proxy_protocol: bool,
     ) -> Result<TcpServer> {
-        let bind_attempts = bind_attempts.get();
-        let mut attempts = 0;
-        let sock = loop {
-            match tokio::net::TcpListener::bind(bind_address).await {
-                Ok(sock) => break sock,
-                Err(e) if matches!(e.kind(), std::io::ErrorKind::AddrInUse) => {
-                    attempts += 1;
-                    warn!("Bind failed, attempt: {}", attempts);
-                    if attempts >= bind_attempts {
-                        return Err(e.into());
-                    }
-                    tokio::time::sleep(Duration::from_secs(1)).await;
-                }
-                Err(e) => {
-                    return Err(e.into());
-                }
-            }
-        };
+        let sock = tokio::net::TcpListener::bind(bind_address).await?;
         let sock = Arc::new(sock);
 
         Ok(Self {

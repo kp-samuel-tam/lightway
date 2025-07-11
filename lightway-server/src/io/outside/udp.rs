@@ -2,9 +2,7 @@ mod cmsg;
 
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
-    num::NonZeroUsize,
     sync::{Arc, RwLock},
-    time::Duration,
 };
 
 use anyhow::Result;
@@ -121,27 +119,9 @@ impl UdpServer {
     pub(crate) async fn new(
         conn_manager: Arc<ConnectionManager>,
         bind_address: SocketAddr,
-        bind_attempts: NonZeroUsize,
         udp_buffer_size: ByteSize,
     ) -> Result<UdpServer> {
-        let bind_attempts = bind_attempts.get();
-        let mut attempts = 0;
-        let sock = loop {
-            match tokio::net::UdpSocket::bind(bind_address).await {
-                Ok(sock) => break sock,
-                Err(e) if matches!(e.kind(), std::io::ErrorKind::AddrInUse) => {
-                    attempts += 1;
-                    warn!("Bind failed, attempt: {}", attempts);
-                    if attempts >= bind_attempts {
-                        return Err(e.into());
-                    }
-                    tokio::time::sleep(Duration::from_secs(1)).await;
-                }
-                Err(e) => {
-                    return Err(e.into());
-                }
-            }
-        };
+        let sock = tokio::net::UdpSocket::bind(bind_address).await?;
         // Check for the socket's writable ready status, so that it can be used
         // successfuly in WolfSsl's `OutsideIOSendCallback` callback
         sock.writable().await?;

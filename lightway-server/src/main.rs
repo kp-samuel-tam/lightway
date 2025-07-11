@@ -171,7 +171,6 @@ async fn main() -> Result<()> {
         outside_plugins: Default::default(),
         inside_pkt_codec: None,
         bind_address: config.bind_address,
-        bind_attempts: config.bind_attempts,
         proxy_protocol: config.proxy_protocol,
         udp_buffer_size: config.udp_buffer_size,
     };
