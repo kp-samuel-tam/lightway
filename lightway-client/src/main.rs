@@ -23,7 +23,7 @@ impl EventCallback for EventHandler {
     }
 }
 
-#[tokio::main]
+#[tokio::main(worker_threads = 1)]
 async fn main() -> Result<()> {
     let matches = Config::command().get_matches();
 
