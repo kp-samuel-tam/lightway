@@ -135,6 +135,10 @@ pub struct ServerConfig<SA: for<'a> ServerAuth<AuthState<'a>>> {
     /// DNS IP to send in network_config message
     pub lightway_dns_ip: Ipv4Addr,
 
+    /// Boolean flag to select actual client ip assigned or above static ip
+    /// in network_config message
+    pub use_dynamic_client_ip: bool,
+
     /// Enable Post Quantum Crypto
     pub enable_pqc: bool,
 
@@ -226,6 +230,7 @@ pub async fn server<SA: for<'a> ServerAuth<AuthState<'a>> + Sync + Send + 'stati
         config.ip_map,
         reserved_ips,
         inside_ip_config,
+        config.use_dynamic_client_ip,
     );
     let ip_manager = Arc::new(ip_manager);
 

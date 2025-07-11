@@ -32,6 +32,8 @@ struct IpManagerInner<T> {
     ip_pool: IpPool,
     /// Static inside ip config which should be sent to clients in case of IP translation
     static_ip_config: InsideIpConfig,
+    /// Use static IP or actual assigned IP address
+    use_dynamic_client_ip: bool,
 }
 
 impl ServerIpPool<ConnectionState> for IpManager {
@@ -69,6 +71,7 @@ impl<T> IpManager<T> {
         ip_map: HashMap<IpAddr, Ipv4Net>,
         reserved_ips: impl IntoIterator<Item = Ipv4Addr>,
         static_ip_config: InsideIpConfig,
+        use_dynamic_client_ip: bool,
     ) -> Self {
         let mut ip_pool = IpPool::new(ip_pool, reserved_ips);
 
@@ -83,6 +86,7 @@ impl<T> IpManager<T> {
                 ip_map,
                 ip_pool,
                 static_ip_config,
+                use_dynamic_client_ip,
             }),
         }
     }
@@ -144,8 +148,16 @@ impl<T: Clone> IpManager<T> {
 }
 
 impl<T> IpManagerInner<T> {
-    fn config_for_ip(&self, _ip: Ipv4Addr) -> InsideIpConfig {
-        self.static_ip_config
+    fn config_for_ip(&self, client_ip: Ipv4Addr) -> InsideIpConfig {
+        let client_ip = if self.use_dynamic_client_ip {
+            client_ip
+        } else {
+            self.static_ip_config.client_ip
+        };
+        InsideIpConfig {
+            client_ip,
+            ..self.static_ip_config
+        }
     }
 }
 
@@ -177,7 +189,7 @@ mod tests {
         }
     }
 
-    fn get_ip_manager_with_test_connection() -> IpManager<TestConnection> {
+    fn get_ip_manager(use_dynamic_client_ip: bool) -> IpManager<TestConnection> {
         let ip_pool: Ipv4Net = "10.125.0.0/16".parse().unwrap();
         let local_ip: Ipv4Addr = "10.125.0.1".parse().unwrap();
         let dns_ip: Ipv4Addr = "10.125.0.2".parse().unwrap();
@@ -190,7 +202,16 @@ mod tests {
             .into(),
             [local_ip, dns_ip],
             get_static_ip_config(),
+            use_dynamic_client_ip,
         )
+    }
+
+    fn get_ip_manager_with_test_connection() -> IpManager<TestConnection> {
+        get_ip_manager(false)
+    }
+
+    fn get_ip_manager_using_dynamic_client_ip() -> IpManager<TestConnection> {
+        get_ip_manager(true)
     }
 
     #[test]
@@ -225,6 +246,22 @@ mod tests {
         assert!(inner.ip_to_conn_map.contains_key(&local_ip1));
         assert!(inner.ip_to_conn_map.contains_key(&local_ip2));
         assert_eq!(inner.ip_to_conn_map.len(), 2);
+    }
+
+    #[test]
+    fn alloc_ip_using_dynamic_client_ip() {
+        let ip_manager = get_ip_manager_using_dynamic_client_ip();
+        let conn1 = TestConnection::new(1);
+        let subnet: Ipv4Net = "10.125.2.0/28".parse().unwrap();
+
+        let (local_ip1, ip_config) = ip_manager
+            .alloc(conn1, "192.168.23.54".parse().unwrap())
+            .unwrap();
+        assert!(!subnet.contains(&local_ip1));
+        assert_eq!(
+            local_ip1, ip_config.client_ip,
+            "Client IP config should be the actual assigned dynamic ip"
+        );
     }
 
     #[test]
@@ -356,6 +393,7 @@ mod tests {
             Default::default(),
             [local_ip, dns_ip, reserved_ip1, reserved_ip2],
             get_static_ip_config(),
+            false,
         );
         // Allocate every possible IP and check we never get a reserved one
         let mut count = 0;
