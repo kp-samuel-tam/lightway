@@ -33,7 +33,7 @@ use crate::{
     utils::tcp_clamp_mss,
     wire::{self, AuthMethod},
 };
-use crate::{OutsideIOSendCallbackArg, max_dtls_mtu};
+use crate::{OutsideIOSendCallbackArg, dtls_required_outside_mtu, max_dtls_mtu};
 
 use crate::context::ip_pool::{ClientIpConfigArg, ServerIpPoolArg};
 use crate::packet::{OutsidePacket, OutsidePacketError};
@@ -168,6 +168,17 @@ pub enum ConnectionError {
     #[error("Invalid inside packet: {0}")]
     InvalidInsidePacket(InvalidPacketError),
 
+    /// Invalid Outside MTU
+    #[error(
+        "PMTUD required: inside MTU {inside_mtu} needs at least {required_outside_mtu} outside MTU"
+    )]
+    PathMtuDiscoveryRequired {
+        /// The inside MTU
+        inside_mtu: usize,
+        /// The required outside MTU to support the inside MTU without PMTUD
+        required_outside_mtu: usize,
+    },
+
     /// Plugin returns a reply packet
     #[error("Plugin dropped with a reply packet")]
     PluginDropWithReply(BytesMut),
@@ -230,6 +241,7 @@ impl ConnectionError {
                     PacketCodecError(_) => true,
                     Disconnected => true,
                     EncodingReqRetransmitCbDoesNotExist => true,
+                    PathMtuDiscoveryRequired { .. } => true,
                     WolfSSL(wolfssl::Error::Fatal(ErrorKind::DomainNameMismatch)) => true,
                     WolfSSL(wolfssl::Error::Fatal(ErrorKind::DuplicateMessage)) => true,
                     WolfSSL(wolfssl::Error::Fatal(ErrorKind::PeerClosed)) => true,
@@ -1426,6 +1438,17 @@ impl<AppState: Send> Connection<AppState> {
         // Ignore the message if client is already online
         if matches!(self.state, State::Online) {
             return Ok(());
+        }
+
+        if let Ok(inside_mtu) = cfg.mtu.parse()
+            && self.connection_type.is_datagram()
+            && self.outside_mtu < dtls_required_outside_mtu(inside_mtu)
+            && self.pmtud.is_some()
+        {
+            return Err(ConnectionError::PathMtuDiscoveryRequired {
+                inside_mtu,
+                required_outside_mtu: dtls_required_outside_mtu(inside_mtu),
+            });
         }
 
         if let ConnectionMode::Client { ip_config_cb, .. } = &self.mode {

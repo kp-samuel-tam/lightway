@@ -87,9 +87,6 @@ pub struct ClientConfig<'cert, A: 'static + Send + EventCallback> {
     /// Outside (wire) MTU
     pub outside_mtu: usize,
 
-    /// Inside (tunnel) MTU
-    pub inside_mtu: usize,
-
     /// Tun device to use
     pub tun_config: TunConfig,
 
@@ -623,7 +620,6 @@ pub async fn client<A: 'static + Send + EventCallback>(
         connection_type,
         config.root_ca_cert,
         None,
-        config.inside_mtu,
         Arc::new(ClientIpConfigCb),
     )?
     .with_cipher(config.cipher.into())?

@@ -13,7 +13,7 @@ use crate::{
     ServerIpPoolArg, Version,
     connection::{EventCallbackArg, dplpmtud, fragment_map::FragmentMap, key_update},
     context::ServerAuthArg,
-    dtls_required_outside_mtu, max_dtls_outside_mtu,
+    max_dtls_outside_mtu,
     plugin::PluginFactoryError,
     wire::SessionId,
 };
@@ -33,16 +33,6 @@ pub enum ConnectionBuilderError {
     /// Invalid Outside MTU
     #[error("Unsupported Outside MTU: {0}")]
     UnsupportedOutsideMtu(usize),
-    /// Invalid Outside MTU
-    #[error(
-        "PMTUD required: inside MTU {inside_mtu} needs at least {required_outside_mtu} outside MTU"
-    )]
-    PathMtuDiscoveryRequired {
-        /// The inside MTU
-        inside_mtu: usize,
-        /// The required outside MTU to support the inside MTU without PMTUD
-        required_outside_mtu: usize,
-    },
     /// Failed to create a new Session
     #[error("WolfSSL Error: {0}")]
     FailedNew(#[from] wolfssl::NewSessionError),
@@ -242,19 +232,8 @@ impl<AppState: Send + 'static> ClientConnectionBuilder<AppState> {
             .ok_or(ConnectionBuilderError::AuthRequired)?;
 
         let session = self.ctx.wolfssl.new_session(self.session_config)?;
-        let inside_mtu = self.ctx.inside_mtu;
 
-        if self.connection_type.is_datagram()
-            && self.outside_mtu < dtls_required_outside_mtu(inside_mtu)
-            && self.pmtud_timer.is_none()
-        {
-            return Err(ConnectionBuilderError::PathMtuDiscoveryRequired {
-                inside_mtu,
-                required_outside_mtu: dtls_required_outside_mtu(inside_mtu),
-            });
-        }
-
-        tracing::info!(inside_mtu, "New Connection");
+        tracing::info!("New Connection");
 
         Ok(Connection::new(NewConnectionArgs {
             app_state,

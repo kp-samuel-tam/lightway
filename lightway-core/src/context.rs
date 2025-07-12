@@ -7,9 +7,8 @@ use thiserror::Error;
 
 use crate::{
     BuilderPredicates, Cipher, ClientConnectionBuilder, ConnectionBuilderError,
-    InsideIOSendCallbackArg, MAX_INSIDE_MTU, MIN_INSIDE_MTU, OutsideIOSendCallbackArg,
-    OutsidePacket, PluginResult, RootCertificate, Secret, ServerConnectionBuilder, ServerIpPoolArg,
-    Version,
+    InsideIOSendCallbackArg, OutsideIOSendCallbackArg, OutsidePacket, PluginResult,
+    RootCertificate, Secret, ServerConnectionBuilder, ServerIpPoolArg, Version,
     context::ip_pool::ClientIpConfigArg,
     packet::OutsidePacketError,
     plugin::{PluginFactoryError, PluginFactoryList, PluginList},
@@ -114,7 +113,6 @@ pub struct ClientContext<AppState> {
     pub(crate) wolfssl: wolfssl::Context,
     pub(crate) connection_type: ConnectionType,
     pub(crate) inside_io: Option<InsideIOSendCallbackArg<AppState>>,
-    pub(crate) inside_mtu: usize,
     pub(crate) schedule_tick_cb: Option<ScheduleTickCb<AppState>>,
     pub(crate) ip_config: ClientIpConfigArg<AppState>,
     pub(crate) inside_plugins: Arc<PluginFactoryList>,
@@ -139,7 +137,6 @@ pub struct ClientContextBuilder<AppState> {
     wolfssl: wolfssl::ContextBuilder,
     connection_type: ConnectionType,
     inside_io: Option<InsideIOSendCallbackArg<AppState>>,
-    inside_mtu: usize,
     schedule_tick_cb: Option<ScheduleTickCb<AppState>>,
     ip_config: ClientIpConfigArg<AppState>,
     inside_plugins: Arc<PluginFactoryList>,
@@ -153,13 +150,8 @@ impl<AppState> ClientContextBuilder<AppState> {
         connection_type: ConnectionType,
         root_ca: RootCertificate,
         inside_io: Option<InsideIOSendCallbackArg<AppState>>,
-        inside_mtu: usize,
         ip_config: ClientIpConfigArg<AppState>,
     ) -> ContextBuilderResult<Self> {
-        if !(MIN_INSIDE_MTU..=MAX_INSIDE_MTU).contains(&inside_mtu) {
-            return Err(ContextBuilderError::InvalidInsideMtu(inside_mtu));
-        }
-
         let protocol = match connection_type {
             ConnectionType::Stream => wolfssl::Method::TlsClientV1_3,
             ConnectionType::Datagram => wolfssl::Method::DtlsClientV1_3,
@@ -173,7 +165,6 @@ impl<AppState> ClientContextBuilder<AppState> {
             wolfssl,
             connection_type,
             inside_io,
-            inside_mtu,
             schedule_tick_cb: None,
             ip_config,
             inside_plugins: Arc::new(PluginFactoryList::default()),
@@ -238,7 +229,6 @@ impl<AppState> ClientContextBuilder<AppState> {
             connection_type: self.connection_type,
             inside_io: self.inside_io,
             schedule_tick_cb: self.schedule_tick_cb,
-            inside_mtu: self.inside_mtu,
             ip_config: self.ip_config,
             inside_plugins: self.inside_plugins,
             outside_plugins: self.outside_plugins,

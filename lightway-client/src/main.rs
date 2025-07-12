@@ -76,7 +76,6 @@ async fn main() -> Result<()> {
         auth,
         root_ca_cert,
         outside_mtu: config.outside_mtu,
-        inside_mtu: config.inside_mtu.unwrap_or(1350) as usize,
         tun_config,
         tun_local_ip: config.tun_local_ip,
         tun_peer_ip: config.tun_peer_ip,
