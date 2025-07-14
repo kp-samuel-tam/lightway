@@ -33,7 +33,7 @@ use crate::{
     utils::tcp_clamp_mss,
     wire::{self, AuthMethod},
 };
-use crate::{OutsideIOSendCallbackArg, max_dtls_mtu};
+use crate::{OutsideIOSendCallbackArg, dtls_required_outside_mtu, max_dtls_mtu};
 
 use crate::context::ip_pool::{ClientIpConfigArg, ServerIpPoolArg};
 use crate::packet::{OutsidePacket, OutsidePacketError};
@@ -136,6 +136,10 @@ pub enum ConnectionError {
     #[error("Invalid Connection Type")]
     InvalidConnectionType,
 
+    /// Inside io is not configured
+    #[error("Invalid Inside Io")]
+    InvalidInsideIo,
+
     /// Message contained a rejected session id
     #[error("Rejected Session ID")]
     RejectedSessionID,
@@ -163,6 +167,17 @@ pub enum ConnectionError {
     /// Inside packet is either not IPv4 or length greater than MAX_MTU
     #[error("Invalid inside packet: {0}")]
     InvalidInsidePacket(InvalidPacketError),
+
+    /// Invalid Outside MTU
+    #[error(
+        "PMTUD required: inside MTU {inside_mtu} needs at least {required_outside_mtu} outside MTU"
+    )]
+    PathMtuDiscoveryRequired {
+        /// The inside MTU
+        inside_mtu: usize,
+        /// The required outside MTU to support the inside MTU without PMTUD
+        required_outside_mtu: usize,
+    },
 
     /// Plugin returns a reply packet
     #[error("Plugin dropped with a reply packet")]
@@ -226,6 +241,7 @@ impl ConnectionError {
                     PacketCodecError(_) => true,
                     Disconnected => true,
                     EncodingReqRetransmitCbDoesNotExist => true,
+                    PathMtuDiscoveryRequired { .. } => true,
                     WolfSSL(wolfssl::Error::Fatal(ErrorKind::DomainNameMismatch)) => true,
                     WolfSSL(wolfssl::Error::Fatal(ErrorKind::DuplicateMessage)) => true,
                     WolfSSL(wolfssl::Error::Fatal(ErrorKind::PeerClosed)) => true,
@@ -234,6 +250,7 @@ impl ConnectionError {
                     WireError(_) => true,
 
                     InvalidState => false, // Can be due to out of order or repeated messages
+                    InvalidInsideIo => false, // Can be used for test only test control plane
                     UnknownSessionID => false,
                     InvalidInsidePacket(_) => false,
                     RejectedSessionID => false,
@@ -339,7 +356,7 @@ pub struct Connection<AppState: Send = ()> {
     receive_buf: BytesMut,
 
     /// Application provided trait to deliver the inside packet
-    inside_io: InsideIOSendCallbackArg<AppState>,
+    inside_io: Option<InsideIOSendCallbackArg<AppState>>,
 
     /// Application provided callback to schedule a tick
     schedule_tick_cb: Option<ScheduleTickCb<AppState>>,
@@ -403,7 +420,7 @@ struct NewConnectionArgs<AppState> {
     session_id: SessionId,
     mode: ConnectionMode<AppState>,
     outside_mtu: usize,
-    inside_io: InsideIOSendCallbackArg<AppState>,
+    inside_io: Option<InsideIOSendCallbackArg<AppState>>,
     schedule_tick_cb: Option<ScheduleTickCb<AppState>>,
     event_cb: Option<EventCallbackArg>,
     inside_plugins: PluginList,
@@ -488,6 +505,11 @@ impl<AppState: Send> Connection<AppState> {
     /// Gets mutable application state for this [`Connection`].
     pub fn app_state_mut(&mut self) -> &mut AppState {
         &mut self.app_state
+    }
+
+    /// Sets inside_io
+    pub fn inside_io(&mut self, inside_io: InsideIOSendCallbackArg<AppState>) {
+        self.inside_io = Some(inside_io)
     }
 
     /// Get the [`ConnectionType`] of this [`Connection`]
@@ -817,8 +839,12 @@ impl<AppState: Send> Connection<AppState> {
         if !matches!(self.state, State::Online) {
             return Err(ConnectionError::InvalidState);
         }
+
+        let Some(inside_io) = &self.inside_io else {
+            return Err(ConnectionError::InvalidState);
+        };
         // Should not be larger than inside MTU.
-        if pkt.len() > self.inside_io.mtu() {
+        if pkt.len() > inside_io.mtu() {
             return Err(InvalidInsidePacket(InvalidPacketSize));
         }
         // If not ipv4 packet, return error
@@ -1368,6 +1394,11 @@ impl<AppState: Send> Connection<AppState> {
             return Err(ConnectionError::NoAvailableClientIp);
         };
 
+        let Some(inside_io) = self.inside_io.as_ref() else {
+            self.send_auth_failure();
+            return Err(ConnectionError::InvalidInsideIo);
+        };
+
         match auth.authorize(&auth_request.auth_method, &mut self.app_state) {
             ServerAuthResult::Granted {
                 tunnel_protocol_version,
@@ -1379,7 +1410,7 @@ impl<AppState: Send> Connection<AppState> {
                     local_ip: ip_config.client_ip.to_string(),
                     peer_ip: ip_config.server_ip.to_string(),
                     dns_ip: ip_config.dns_ip.to_string(),
-                    mtu: format!("{}", self.inside_io.mtu()),
+                    mtu: format!("{}", inside_io.mtu()),
                     session: self.session_id,
                 });
 
@@ -1407,6 +1438,17 @@ impl<AppState: Send> Connection<AppState> {
         // Ignore the message if client is already online
         if matches!(self.state, State::Online) {
             return Ok(());
+        }
+
+        if let Ok(inside_mtu) = cfg.mtu.parse()
+            && self.connection_type.is_datagram()
+            && self.outside_mtu < dtls_required_outside_mtu(inside_mtu)
+            && self.pmtud.is_some()
+        {
+            return Err(ConnectionError::PathMtuDiscoveryRequired {
+                inside_mtu,
+                required_outside_mtu: dtls_required_outside_mtu(inside_mtu),
+            });
         }
 
         if let ConnectionMode::Client { ip_config_cb, .. } = &self.mode {
@@ -1465,6 +1507,10 @@ impl<AppState: Send> Connection<AppState> {
             return Err(InvalidInsidePacket(InvalidIpv4Packet));
         }
 
+        let Some(inside_io) = &self.inside_io else {
+            return Err(InvalidInsidePacket(InvalidIpv4Packet));
+        };
+
         match self.inside_plugins.do_egress(&mut inside_pkt) {
             PluginResult::Accept => {}
             PluginResult::Drop => {
@@ -1479,7 +1525,7 @@ impl<AppState: Send> Connection<AppState> {
         }
 
         self.activity.last_data_traffic_from_peer = Instant::now();
-        match self.inside_io.send(inside_pkt, &mut self.app_state) {
+        match inside_io.send(inside_pkt, &mut self.app_state) {
             IOCallbackResult::Ok(_nr) => {}
             IOCallbackResult::Err(err) => {
                 metrics::inside_io_send_failed(err);

@@ -26,12 +26,14 @@ use pnet::packet::ipv4::Ipv4Packet;
 use std::{
     collections::HashMap,
     net::{IpAddr, Ipv4Addr, SocketAddr},
-    num::NonZeroUsize,
     path::PathBuf,
     sync::Arc,
     time::Duration,
 };
-use tokio::task::JoinHandle;
+use tokio::{
+    net::{TcpListener, UdpSocket},
+    task::JoinHandle,
+};
 use tracing::{info, warn};
 
 pub use crate::connection::ConnectionState;
@@ -89,11 +91,39 @@ impl<SA: for<'a> ServerAuth<AuthState<'a>>> ServerAuth<connection::ConnectionSta
     }
 }
 
+/// Connection mode
+///
+/// Application can also attach server socket for library to use directly,
+/// instead of library creating socket and binding.
+/// If socket is sent from application, it must be already binded to proper address
+pub enum ServerConnectionMode {
+    Stream(Option<TcpListener>),
+    Datagram(Option<UdpSocket>),
+}
+
+impl std::fmt::Debug for ServerConnectionMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Stream(_) => f.debug_tuple("Stream").finish(),
+            Self::Datagram(_) => f.debug_tuple("Datagram").finish(),
+        }
+    }
+}
+
+impl From<&ServerConnectionMode> for ConnectionType {
+    fn from(value: &ServerConnectionMode) -> Self {
+        match value {
+            ServerConnectionMode::Stream(_) => ConnectionType::Stream,
+            ServerConnectionMode::Datagram(_) => ConnectionType::Datagram,
+        }
+    }
+}
+
 #[derive(educe::Educe)]
 #[educe(Debug)]
 pub struct ServerConfig<SA: for<'a> ServerAuth<AuthState<'a>>> {
     /// Connection mode
-    pub connection_type: ConnectionType,
+    pub mode: ServerConnectionMode,
 
     /// Authentication manager
     #[educe(Debug(ignore))]
@@ -135,6 +165,10 @@ pub struct ServerConfig<SA: for<'a> ServerAuth<AuthState<'a>>> {
     /// DNS IP to send in network_config message
     pub lightway_dns_ip: Ipv4Addr,
 
+    /// Boolean flag to select actual client ip assigned or above static ip
+    /// in network_config message
+    pub use_dynamic_client_ip: bool,
+
     /// Enable Post Quantum Crypto
     pub enable_pqc: bool,
 
@@ -167,9 +201,6 @@ pub struct ServerConfig<SA: for<'a> ServerAuth<AuthState<'a>>> {
 
     /// Address to listen to
     pub bind_address: SocketAddr,
-
-    /// Number of bind attempts, in case of AddrInUse failure
-    pub bind_attempts: NonZeroUsize,
 
     /// Enable PROXY protocol support (TCP only)
     pub proxy_protocol: bool,
@@ -226,10 +257,11 @@ pub async fn server<SA: for<'a> ServerAuth<AuthState<'a>> + Sync + Send + 'stati
         config.ip_map,
         reserved_ips,
         inside_ip_config,
+        config.use_dynamic_client_ip,
     );
     let ip_manager = Arc::new(ip_manager);
 
-    let connection_type = config.connection_type;
+    let connection_type = config.mode;
     let auth = Arc::new(AuthAdapter(config.auth));
 
     let inside_io: Arc<dyn InsideIO> = match config.inside_io.take() {
@@ -257,7 +289,7 @@ pub async fn server<SA: for<'a> ServerAuth<AuthState<'a>> + Sync + Send + 'stati
     };
 
     let ctx = ServerContextBuilder::new(
-        connection_type,
+        (&connection_type).into(),
         server_cert,
         server_key,
         auth,
@@ -276,21 +308,21 @@ pub async fn server<SA: for<'a> ServerAuth<AuthState<'a>> + Sync + Send + 'stati
     tokio::spawn(statistics::run(conn_manager.clone(), ip_manager.clone()));
 
     let mut server: Box<dyn Server> = match connection_type {
-        ConnectionType::Datagram => Box::new(
+        ServerConnectionMode::Datagram(may_be_sock) => Box::new(
             io::outside::UdpServer::new(
                 conn_manager.clone(),
                 config.bind_address,
-                config.bind_attempts,
                 config.udp_buffer_size,
+                may_be_sock,
             )
             .await?,
         ),
-        ConnectionType::Stream => Box::new(
+        ServerConnectionMode::Stream(may_be_sock) => Box::new(
             io::outside::TcpServer::new(
                 conn_manager.clone(),
                 config.bind_address,
-                config.bind_attempts,
                 config.proxy_protocol,
+                may_be_sock,
             )
             .await?,
         ),

@@ -74,7 +74,7 @@ async fn metrics_debug() {
     }
 }
 
-#[tokio::main]
+#[tokio::main(worker_threads = 1)]
 async fn main() -> Result<()> {
     let matches = Config::command().get_matches();
 
@@ -144,9 +144,13 @@ async fn main() -> Result<()> {
     if let Some(tun_name) = config.tun_name {
         tun_config.tun_name(tun_name);
     }
+    let mode = match config.mode {
+        lightway_app_utils::args::ConnectionType::Udp => ServerConnectionMode::Datagram(None),
+        lightway_app_utils::args::ConnectionType::Tcp => ServerConnectionMode::Stream(None),
+    };
 
     let config = ServerConfig {
-        connection_type: config.mode.into(),
+        mode,
         auth,
         server_cert: config.server_cert,
         server_key: config.server_key,
@@ -158,6 +162,7 @@ async fn main() -> Result<()> {
         lightway_server_ip: config.lightway_server_ip,
         lightway_client_ip: config.lightway_client_ip,
         lightway_dns_ip: config.lightway_dns_ip,
+        use_dynamic_client_ip: false,
         enable_pqc: config.enable_pqc,
         #[cfg(feature = "io-uring")]
         enable_tun_iouring: config.enable_tun_iouring,
@@ -170,7 +175,6 @@ async fn main() -> Result<()> {
         outside_plugins: Default::default(),
         inside_pkt_codec: None,
         bind_address: config.bind_address,
-        bind_attempts: config.bind_attempts,
         proxy_protocol: config.proxy_protocol,
         udp_buffer_size: config.udp_buffer_size,
     };

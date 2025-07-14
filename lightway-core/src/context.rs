@@ -7,9 +7,8 @@ use thiserror::Error;
 
 use crate::{
     BuilderPredicates, Cipher, ClientConnectionBuilder, ConnectionBuilderError,
-    InsideIOSendCallbackArg, MAX_INSIDE_MTU, MIN_INSIDE_MTU, OutsideIOSendCallbackArg,
-    OutsidePacket, PluginResult, RootCertificate, Secret, ServerConnectionBuilder, ServerIpPoolArg,
-    Version,
+    InsideIOSendCallbackArg, OutsideIOSendCallbackArg, OutsidePacket, PluginResult,
+    RootCertificate, Secret, ServerConnectionBuilder, ServerIpPoolArg, Version,
     context::ip_pool::ClientIpConfigArg,
     packet::OutsidePacketError,
     plugin::{PluginFactoryError, PluginFactoryList, PluginList},
@@ -113,7 +112,7 @@ pub type ScheduleCodecTickCb<AppState> =
 pub struct ClientContext<AppState> {
     pub(crate) wolfssl: wolfssl::Context,
     pub(crate) connection_type: ConnectionType,
-    pub(crate) inside_io: InsideIOSendCallbackArg<AppState>,
+    pub(crate) inside_io: Option<InsideIOSendCallbackArg<AppState>>,
     pub(crate) schedule_tick_cb: Option<ScheduleTickCb<AppState>>,
     pub(crate) ip_config: ClientIpConfigArg<AppState>,
     pub(crate) inside_plugins: Arc<PluginFactoryList>,
@@ -137,7 +136,7 @@ impl<AppState: Send + 'static> ClientContext<AppState> {
 pub struct ClientContextBuilder<AppState> {
     wolfssl: wolfssl::ContextBuilder,
     connection_type: ConnectionType,
-    inside_io: InsideIOSendCallbackArg<AppState>,
+    inside_io: Option<InsideIOSendCallbackArg<AppState>>,
     schedule_tick_cb: Option<ScheduleTickCb<AppState>>,
     ip_config: ClientIpConfigArg<AppState>,
     inside_plugins: Arc<PluginFactoryList>,
@@ -150,14 +149,9 @@ impl<AppState> ClientContextBuilder<AppState> {
     pub fn new(
         connection_type: ConnectionType,
         root_ca: RootCertificate,
-        inside_io: InsideIOSendCallbackArg<AppState>,
+        inside_io: Option<InsideIOSendCallbackArg<AppState>>,
         ip_config: ClientIpConfigArg<AppState>,
     ) -> ContextBuilderResult<Self> {
-        let inside_mtu = inside_io.mtu();
-        if !(MIN_INSIDE_MTU..=MAX_INSIDE_MTU).contains(&inside_mtu) {
-            return Err(ContextBuilderError::InvalidInsideMtu(inside_mtu));
-        }
-
         let protocol = match connection_type {
             ConnectionType::Stream => wolfssl::Method::TlsClientV1_3,
             ConnectionType::Datagram => wolfssl::Method::DtlsClientV1_3,

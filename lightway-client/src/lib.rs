@@ -14,8 +14,8 @@ use lightway_app_utils::{
 };
 use lightway_core::{
     BuilderPredicates, ClientContextBuilder, ClientIpConfig, Connection, ConnectionError,
-    ConnectionType, Event, EventCallback, IOCallbackResult, InsideIpConfig, OutsidePacket, State,
-    ipv4_update_destination, ipv4_update_source,
+    ConnectionType, Event, EventCallback, IOCallbackResult, InsideIOSendCallbackArg,
+    InsideIpConfig, OutsidePacket, State, ipv4_update_destination, ipv4_update_source,
 };
 use tokio::sync::mpsc::UnboundedReceiver;
 
@@ -50,12 +50,12 @@ use tracing::info;
 /// Connection type
 /// Applications can also attach socket for library to use directly,
 /// if there is any customisations needed
-pub enum ClientConnectionType {
+pub enum ClientConnectionMode {
     Stream(Option<TcpStream>),
     Datagram(Option<UdpSocket>),
 }
 
-impl std::fmt::Debug for ClientConnectionType {
+impl std::fmt::Debug for ClientConnectionMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Stream(_) => f.debug_tuple("Stream").finish(),
@@ -74,7 +74,7 @@ pub enum ClientResult {
 #[educe(Debug)]
 pub struct ClientConfig<'cert, A: 'static + Send + EventCallback> {
     /// Connection mode
-    pub mode: ClientConnectionType,
+    pub mode: ClientConnectionMode,
 
     /// Auth parameters to use for connection
     #[educe(Debug(ignore))]
@@ -86,9 +86,6 @@ pub struct ClientConfig<'cert, A: 'static + Send + EventCallback> {
 
     /// Outside (wire) MTU
     pub outside_mtu: usize,
-
-    /// Inside (tunnel) MTU (requires `CAP_NET_ADMIN`)
-    pub inside_mtu: Option<u16>,
 
     /// Tun device to use
     pub tun_config: TunConfig,
@@ -256,18 +253,20 @@ async fn handle_events<A: 'static + Send + EventCallback>(
     weak: Weak<Mutex<Connection<ConnectionState>>>,
     enable_encoding_when_online: bool,
     event_handler: Option<A>,
+    inside_io: InsideIOSendCallbackArg<ConnectionState>,
 ) {
     while let Some(event) = stream.next().await {
         match &event {
             Event::StateChanged(state) => {
                 if matches!(state, State::Online) {
                     keepalive.online().await;
+                    let Some(conn) = weak.upgrade() else {
+                        break; // Connection disconnected.
+                    };
+
+                    conn.lock().unwrap().inside_io(inside_io.clone());
 
                     if enable_encoding_when_online {
-                        let Some(conn) = weak.upgrade() else {
-                            break; // Connection disconnected.
-                        };
-
                         if let Err(e) = conn.lock().unwrap().set_encoding(true) {
                             tracing::error!(
                                 "Error encoutered when trying to toggle encoding. {}",
@@ -514,7 +513,7 @@ fn validate_client_config<A: 'static + Send + EventCallback>(
 
     if let Some(inside_pkt_codec_config) = &config.inside_pkt_codec_config {
         if inside_pkt_codec_config.enable_encoding_at_connect
-            && matches!(config.mode, ClientConnectionType::Stream(_))
+            && matches!(config.mode, ClientConnectionMode::Stream(_))
         {
             return Err(anyhow!(
                 "inside pkt encoding should not be enabled with TCP"
@@ -536,14 +535,14 @@ pub async fn client<A: 'static + Send + EventCallback>(
 
     let (connection_type, outside_io): (ConnectionType, Arc<dyn io::outside::OutsideIO>) =
         match config.mode {
-            ClientConnectionType::Datagram(maybe_sock) => {
+            ClientConnectionMode::Datagram(maybe_sock) => {
                 let sock = io::outside::Udp::new(&config.server, maybe_sock)
                     .await
                     .context("Outside IO UDP")?;
 
                 (ConnectionType::Datagram, sock)
             }
-            ClientConnectionType::Stream(maybe_sock) => {
+            ClientConnectionMode::Stream(maybe_sock) => {
                 let sock = io::outside::Tcp::new(&config.server, maybe_sock)
                     .await
                     .context("Outside IO TCP")?;
@@ -620,7 +619,7 @@ pub async fn client<A: 'static + Send + EventCallback>(
     let conn_builder = ClientContextBuilder::new(
         connection_type,
         config.root_ca_cert,
-        inside_io.clone(),
+        None,
         Arc::new(ClientIpConfigCb),
     )?
     .with_cipher(config.cipher.into())?
@@ -673,6 +672,7 @@ pub async fn client<A: 'static + Send + EventCallback>(
             .as_ref()
             .is_some_and(|x| x.enable_encoding_at_connect),
         event_handler,
+        inside_io.clone(),
     ));
 
     ticker_task.spawn_in(Arc::downgrade(&conn), &mut join_set);

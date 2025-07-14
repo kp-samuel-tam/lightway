@@ -23,7 +23,7 @@ impl EventCallback for EventHandler {
     }
 }
 
-#[tokio::main]
+#[tokio::main(worker_threads = 1)]
 async fn main() -> Result<()> {
     let matches = Config::command().get_matches();
 
@@ -48,8 +48,8 @@ async fn main() -> Result<()> {
     let auth = config.take_auth()?;
 
     let mode = match config.mode {
-        ConnectionType::Tcp => ClientConnectionType::Stream(None),
-        ConnectionType::Udp => ClientConnectionType::Datagram(None),
+        ConnectionType::Tcp => ClientConnectionMode::Stream(None),
+        ConnectionType::Udp => ClientConnectionMode::Datagram(None),
     };
 
     let root_ca_cert = RootCertificate::PemFileOrDirectory(&config.ca_cert);
@@ -76,7 +76,6 @@ async fn main() -> Result<()> {
         auth,
         root_ca_cert,
         outside_mtu: config.outside_mtu,
-        inside_mtu: config.inside_mtu,
         tun_config,
         tun_local_ip: config.tun_local_ip,
         tun_peer_ip: config.tun_peer_ip,
