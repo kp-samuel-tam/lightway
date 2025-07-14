@@ -8,6 +8,7 @@ mod cipher;
 mod connection;
 mod context;
 mod encoding_request_states;
+mod features;
 mod io;
 mod metrics;
 mod packet;
@@ -39,6 +40,7 @@ pub use context::{
     ServerContextBuilder,
     ip_pool::{ClientIpConfig, ClientIpConfigArg, InsideIpConfig, ServerIpPool, ServerIpPoolArg},
 };
+pub use features::LightwayFeature;
 pub use io::{
     InsideIOSendCallback, InsideIOSendCallbackArg, OutsideIOSendCallback, OutsideIOSendCallbackArg,
 };

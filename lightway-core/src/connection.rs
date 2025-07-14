@@ -33,7 +33,7 @@ use crate::{
     utils::tcp_clamp_mss,
     wire::{self, AuthMethod},
 };
-use crate::{OutsideIOSendCallbackArg, dtls_required_outside_mtu, max_dtls_mtu};
+use crate::{LightwayFeature, OutsideIOSendCallbackArg, dtls_required_outside_mtu, max_dtls_mtu};
 
 use crate::context::ip_pool::{ClientIpConfigArg, ServerIpPoolArg};
 use crate::packet::{OutsidePacket, OutsidePacketError};
@@ -406,6 +406,9 @@ pub struct Connection<AppState: Send = ()> {
     // Inside packet decoder
     inside_pkt_decoder: Option<PacketDecoderType>,
 
+    // Whether the server will accept inside packet encoding requests
+    can_use_inside_pkt_encoding: bool,
+
     // States for encoding request
     encoding_request_states: EncodingRequestStates,
 }
@@ -480,6 +483,7 @@ impl<AppState: Send> Connection<AppState> {
             is_first_packet_received: false,
             inside_pkt_encoder,
             inside_pkt_decoder,
+            can_use_inside_pkt_encoding: false,
             encoding_request_states: EncodingRequestStates::default(),
         };
 
@@ -1414,6 +1418,11 @@ impl<AppState: Send> Connection<AppState> {
                     session: self.session_id,
                 });
 
+                if let Some(ref handle) = handle {
+                    self.can_use_inside_pkt_encoding =
+                        handle.features().contains(&LightwayFeature::InsidePktCodec);
+                }
+
                 *auth_handle = handle;
 
                 self.send_frame_or_drop(msg)?;
@@ -1570,6 +1579,7 @@ impl<AppState: Send> Connection<AppState> {
         }
     }
 
+    /// Process an EncodingRequest packet (Server only)
     fn process_encoding_request_pkt(&mut self, er: wire::EncodingRequest) -> ConnectionResult<()> {
         let encoder = match self.inside_pkt_encoder.clone() {
             Some(encoder) => encoder,
@@ -1578,6 +1588,18 @@ impl<AppState: Send> Connection<AppState> {
                 return Ok(()); // No encoder. Ignoring the request.
             }
         };
+
+        if !self.can_use_inside_pkt_encoding {
+            warn!(
+                "Received EncodingRequest packet while connection has no authorization to use inside packet encoding"
+            );
+            metrics::received_encoding_req_no_authorization();
+            let msg = wire::Frame::EncodingResponse(wire::EncodingResponse {
+                id: er.id,
+                enable: false,
+            });
+            return self.send_frame_or_drop(msg);
+        }
 
         if !matches!(self.state, State::Online) {
             warn!("Received EncodingRequest packet before state is Online");
@@ -1625,6 +1647,7 @@ impl<AppState: Send> Connection<AppState> {
         self.send_frame_or_drop(msg)
     }
 
+    /// Process an EncodingResponse packet (Client only)
     fn process_encoding_response_pkt(
         &mut self,
         te: wire::EncodingResponse,

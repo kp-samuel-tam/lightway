@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fs::File,
     io::{BufRead as _, BufReader, Read},
     path::Path,
@@ -7,9 +7,10 @@ use std::{
 
 use anyhow::{Context, Result, anyhow};
 use jsonwebtoken::{Algorithm, DecodingKey, Validation};
+use lightway_core::LightwayFeature;
 use pwhash::unix;
 
-use lightway_server::{ServerAuth, ServerAuthResult};
+use lightway_server::{ServerAuth, ServerAuthHandle, ServerAuthResult};
 
 pub struct Auth {
     user_db: Option<HashMap<String, String>>,
@@ -83,6 +84,19 @@ impl Auth {
     }
 }
 
+#[derive(Debug)]
+struct AuthHandle;
+
+impl ServerAuthHandle for AuthHandle {
+    fn expired(&self) -> bool {
+        false
+    }
+
+    fn features(&self) -> HashSet<LightwayFeature> {
+        HashSet::from([LightwayFeature::InsidePktCodec])
+    }
+}
+
 impl<AS> ServerAuth<AS> for Auth {
     fn authorize_user_password(
         &self,
@@ -101,7 +115,7 @@ impl<AS> ServerAuth<AS> for Auth {
 
         if unix::verify(password, hash) {
             ServerAuthResult::Granted {
-                handle: None,
+                handle: Some(Box::new(AuthHandle)),
                 tunnel_protocol_version: None,
             }
         } else {
@@ -117,7 +131,7 @@ impl<AS> ServerAuth<AS> for Auth {
 
         match jsonwebtoken::decode::<serde_json::Value>(token, decoding_key, token_validation) {
             Ok(_) => ServerAuthResult::Granted {
-                handle: None,
+                handle: Some(Box::new(AuthHandle)),
                 tunnel_protocol_version: None,
             },
             Err(err) => {
@@ -135,6 +149,7 @@ mod tests {
         ops::{Add, Sub},
     };
 
+    use lightway_core::LightwayFeature;
     use serde_json::json;
     use test_case::test_case;
 
@@ -178,6 +193,22 @@ apachemd5_user:$apr1$dzIISjZV$itIp3R9OU32h.vQ0tm9rm/";
             token: None,
         };
         auth.authorize_user_password(user, pass, &mut ())
+    }
+
+    #[test_case("bcrypt_user", "bcrypt_password")]
+    fn user_pass_auth_can_use_inside_pkt_encoding(user: &str, pass: &str) {
+        let db = user_db_from_reader(Cursor::new(LWPASSWD)).unwrap();
+        assert_eq!(db.len(), 5);
+        let auth = Auth {
+            user_db: Some(db),
+            token: None,
+        };
+        let r = auth.authorize_user_password(user, pass, &mut ());
+        assert!(
+            matches!(r, ServerAuthResult::Granted { handle: Some(ref handle), .. } if handle
+                .features()
+                .contains(&LightwayFeature::InsidePktCodec))
+        );
     }
 
     #[test]
@@ -278,6 +309,21 @@ wwIDAQAB
             token: Some(token_from_reader(Cursor::new(pubkey)).unwrap()),
         };
         auth.authorize_token(token, &mut ())
+    }
+
+    #[test]
+    fn token_auth_can_use_inside_pkt_encoding() {
+        let auth = Auth {
+            user_db: None,
+            token: Some(token_from_reader(Cursor::new(RSA_PUB)).unwrap()),
+        };
+        let token = &make_token(Algorithm::RS256, json!({"exp": future_timestamp()}));
+        let r = auth.authorize_token(token, &mut ());
+        assert!(
+            matches!(r, ServerAuthResult::Granted { handle: Some(ref handle), .. } if handle
+                .features()
+                .contains(&LightwayFeature::InsidePktCodec))
+        );
     }
 
     #[test]
