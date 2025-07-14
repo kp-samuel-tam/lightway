@@ -24,7 +24,6 @@ jobs:
         target: [test, test-miri, test-arm64, test-riscv64, build, build-arm64, build-riscv64, fmt, lint, check-dependencies]
     runs-on: ubuntu-latest
     env:
-      EARTHLY_TOKEN: "${{ secrets.EARTHLY_TOKEN }}"
       FORCE_COLOR: 1
     steps:
       - uses: earthly/actions-setup@v1
@@ -32,12 +31,11 @@ jobs:
           version: ~v0.8
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/checkout@v4
-      - name: Run +${{ matrix.target }} on Earthly satellite
-        run: earthly --ci --org expressvpn --satellite lightway +${{ matrix.target }}
+      - name: Run +${{ matrix.target }} on Earthly
+        run: earthly --ci +${{ matrix.target }}
   e2e:
     runs-on: ubuntu-latest
     env:
-      EARTHLY_TOKEN: "${{ secrets.EARTHLY_TOKEN }}"
       FORCE_COLOR: 1
     strategy:
       fail-fast: false
@@ -49,12 +47,11 @@ jobs:
           version: ~v0.8
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/checkout@v4
-      - name: Run +e2e on Earthly satellite
-        run: earthly --ci --org expressvpn --satellite lightway --allow-privileged +e2e --debian ${{ matrix.distro }}
+      - name: Run +e2e on Earthly
+        run: earthly --ci --allow-privileged +e2e --debian ${{ matrix.distro }}
   coverage:
     runs-on: ubuntu-latest
     env:
-      EARTHLY_TOKEN: "${{ secrets.EARTHLY_TOKEN }}"
       FORCE_COLOR: 1
     steps:
       - uses: earthly/actions-setup@v1
@@ -62,10 +59,10 @@ jobs:
           version: ~v0.8
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/checkout@v4
-      - name: Run +coverage on Earthly satellite
+      - name: Run +coverage on Earthly
         id: coverage
         run: |
-          earthly --ci --org expressvpn --satellite lightway --artifact +coverage/* output/
+          earthly --ci --artifact +coverage/* output/
 
           cat output/summary.txt
 
