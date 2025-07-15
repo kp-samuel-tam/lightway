@@ -40,10 +40,6 @@ pub struct Config {
     #[clap(long, default_value_t = MAX_OUTSIDE_MTU)]
     pub outside_mtu: usize,
 
-    /// Inside (tunnel) MTU (requires `CAP_NET_ADMIN`)
-    #[clap(long)]
-    pub inside_mtu: Option<u16>,
-
     /// Tun device name to use
     #[clap(short, long, default_value = None)]
     pub tun_name: Option<String>,

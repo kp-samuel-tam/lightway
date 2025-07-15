@@ -4,6 +4,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use bytes::{BufMut, Bytes, BytesMut};
 use more_asserts::*;
@@ -69,6 +70,10 @@ impl<T> InsideIOSendCallback<T> for ChannelTun {
 
     fn mtu(&self) -> usize {
         1350
+    }
+
+    fn if_index(&self) -> Result<i32> {
+        Err(anyhow!("Not Implemented"))
     }
 }
 

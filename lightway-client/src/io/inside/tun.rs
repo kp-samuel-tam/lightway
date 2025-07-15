@@ -38,6 +38,10 @@ impl Tun {
         let tun = AppUtilsTun::iouring(tun, iouring_ring_size, iouring_sqpoll_idle_time).await?;
         Ok(Tun { tun, ip, dns_ip })
     }
+
+    pub fn if_index(&self) -> Result<i32> {
+        self.tun.if_index()
+    }
 }
 
 #[async_trait]
@@ -91,5 +95,9 @@ impl<T: Send + Sync> InsideIOSendCallback<ConnectionState<T>> for Tun {
 
     fn mtu(&self) -> usize {
         self.tun.mtu()
+    }
+
+    fn if_index(&self) -> Result<i32> {
+        self.if_index()
     }
 }

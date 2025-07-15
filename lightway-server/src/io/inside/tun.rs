@@ -74,6 +74,10 @@ impl InsideIOSendCallback<ConnectionState> for Tun {
     fn mtu(&self) -> usize {
         self.0.mtu()
     }
+
+    fn if_index(&self) -> Result<i32> {
+        self.0.if_index()
+    }
 }
 
 impl InsideIO for Tun {}

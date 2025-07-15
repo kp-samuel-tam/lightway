@@ -43,3 +43,5 @@ twelf.workspace = true
 [dev-dependencies]
 more-asserts.workspace = true
 test-case.workspace = true
+tun.workspace = true
+serial_test = "3.2.0"
