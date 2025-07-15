@@ -1,4 +1,4 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{net::SocketAddr, path::PathBuf, sync::Arc};
 
 use anyhow::{Context, Result, anyhow};
 use clap::CommandFactory;
@@ -9,7 +9,6 @@ use lightway_app_utils::{
     TunConfig, Validate, args::ConnectionType, validate_configuration_file_path,
 };
 use lightway_client::{io::inside::InsideIO, *};
-
 mod args;
 use args::Config;
 
@@ -77,6 +76,11 @@ async fn main() -> Result<()> {
 
     let inside_io: Option<Arc<dyn InsideIO<()>>> = None;
 
+    let server_addr: SocketAddr = config
+        .server
+        .parse()
+        .with_context(|| format!("Invalid server address: {}", config.server))?;
+
     let config = ClientConfig {
         mode,
         auth,
@@ -95,6 +99,7 @@ async fn main() -> Result<()> {
         continuous_keepalive: true,
         sndbuf: config.sndbuf,
         rcvbuf: config.rcvbuf,
+        route_mode: config.route_mode,
         enable_pmtud: config.enable_pmtud,
         pmtud_base_mtu: config.pmtud_base_mtu,
         #[cfg(feature = "io-uring")]
@@ -104,7 +109,7 @@ async fn main() -> Result<()> {
         #[cfg(feature = "io-uring")]
         iouring_sqpoll_idle_time: config.iouring_sqpoll_idle_time.into(),
         server_dn: config.server_dn,
-        server: config.server,
+        server: server_addr,
         inside_plugins: Default::default(),
         outside_plugins: Default::default(),
         inside_pkt_codec: None,

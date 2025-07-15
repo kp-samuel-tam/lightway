@@ -17,7 +17,7 @@ pub struct Udp {
 }
 
 impl Udp {
-    pub async fn new(remote_addr: &str, sock: Option<UdpSocket>) -> Result<Arc<Self>> {
+    pub async fn new(remote_addr: SocketAddr, sock: Option<UdpSocket>) -> Result<Arc<Self>> {
         let peer_addr = tokio::net::lookup_host(remote_addr)
             .await?
             .next()
