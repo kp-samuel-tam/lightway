@@ -1,15 +1,17 @@
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
 use bytes::Bytes;
 use tracing::info;
 
-use crate::{Version, wire};
+use crate::{LightwayFeature, Version, wire};
 
 /// A handle onto a successful auth result.
 pub trait ServerAuthHandle: std::fmt::Debug {
     /// Validate if this authentication is still valid, returns
     /// true if it has expired.
     fn expired(&self) -> bool;
+    /// All features available to this connection.
+    fn features(&self) -> HashSet<LightwayFeature>;
 }
 
 /// Result of [`ServerAuth`] `authorize_*` methods.

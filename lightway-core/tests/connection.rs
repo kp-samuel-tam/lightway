@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     net::SocketAddr,
     sync::{Arc, Mutex},
 };
@@ -32,9 +33,22 @@ struct TestAuth;
 impl ServerAuth<ConnectionTicker> for TestAuth {
     fn authorize_token(&self, _token: &str, _app_state: &mut ConnectionTicker) -> ServerAuthResult {
         ServerAuthResult::Granted {
-            handle: None,
+            handle: Some(Box::new(TestAuthHandle)),
             tunnel_protocol_version: None,
         }
+    }
+}
+
+#[derive(Debug)]
+struct TestAuthHandle;
+
+impl ServerAuthHandle for TestAuthHandle {
+    fn expired(&self) -> bool {
+        false
+    }
+
+    fn features(&self) -> HashSet<LightwayFeature> {
+        HashSet::from([LightwayFeature::InsidePktCodec])
     }
 }
 
