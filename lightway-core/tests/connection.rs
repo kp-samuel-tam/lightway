@@ -630,6 +630,12 @@ impl PQCrypto {
     }
 }
 
+fn get_test_timeout() -> u64 {
+    #[cfg(target_arch = "riscv64")]
+    return 5000;
+    2000
+}
+
 async fn run_test_tcp<S: TestSock>(
     cipher: Option<Cipher>,
     pqc: PQCrypto,
@@ -654,7 +660,7 @@ async fn run_test<S: TestSock>(
         )
     };
 
-    tokio::time::timeout(std::time::Duration::from_millis(2000), test)
+    tokio::time::timeout(std::time::Duration::from_millis(get_test_timeout()), test)
         .await
         .expect("Timed out");
 }
@@ -722,7 +728,7 @@ async fn test_server_dn(server_dn: Option<&str>) {
         )
     };
 
-    tokio::time::timeout(std::time::Duration::from_millis(2000), test)
+    tokio::time::timeout(std::time::Duration::from_millis(get_test_timeout()), test)
         .await
         .expect("Timed out");
 }
