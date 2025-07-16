@@ -587,6 +587,17 @@ pub async fn client<A: 'static + Send + EventCallback, T: Send + Sync>(
         ),
     };
 
+    let tun_index: u32 = inside_io.if_index()?.try_into()?;
+    let mut route_table = RoutingTable::new(config.route_mode)?;
+    route_table
+        .initialize_routing_table(
+            &config.server.ip(),
+            tun_index,
+            &config.tun_peer_ip.into(),
+            &config.tun_dns_ip.into(),
+        )
+        .await?;
+
     let (event_cb, event_stream) = EventStreamCallback::new();
 
     let has_inside_pkt_codec = config.inside_pkt_codec.is_some();

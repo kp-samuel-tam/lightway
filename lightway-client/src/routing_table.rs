@@ -1,8 +1,9 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use route_manager::{AsyncRouteManager, Route, RouteManager};
 use serde::{Deserialize, Serialize};
 use std::net::{IpAddr, Ipv4Addr};
 use thiserror::Error;
+use tracing::warn;
 
 // LAN networks for RouteMode::Lan
 const LAN_NETWORKS: [(IpAddr, u8); 5] = [
@@ -61,6 +62,12 @@ pub enum RoutingTableError {
     AsyncRoutingManagerError(std::io::Error),
     #[error("Failed to Add Route {0}")]
     AddRouteError(std::io::Error),
+    #[error("Default interface not found: {0}")]
+    DefaultInterfaceNotFound(std::io::Error),
+    #[error("Interface index not found")]
+    InterfaceIndexNotFound,
+    #[error("Interface gateway not found")]
+    InterfaceGatewayNotFound,
     #[error(
         "Insufficient permissions to modify routing table. Run with administrator/root privileges."
     )]
@@ -101,6 +108,31 @@ impl RoutingTable {
         self.cleanup_server_routes().await;
     }
 
+    /// Identifies route used to reach a particular ip
+    fn find_route(&mut self, server_ip: &IpAddr) -> Result<Route, RoutingTableError> {
+        Ok(self
+            .route_manager
+            .find_route(server_ip)
+            .map_err(RoutingTableError::DefaultInterfaceNotFound)?
+            .unwrap())
+    }
+
+    /// Identifies default interface by finding the route to be used to access server_ip
+    /// Returns the interface index and optional gateway. Gateway is None for direct routes
+    /// (common in Docker containers and direct network connections).
+    fn find_default_interface_index_and_gateway(
+        &mut self,
+        server_ip: &IpAddr,
+    ) -> Result<(u32, Option<IpAddr>), RoutingTableError> {
+        let default_route = self.find_route(server_ip)?;
+        let default_interface_index = default_route
+            .if_index()
+            .ok_or(RoutingTableError::InterfaceIndexNotFound)?;
+        // Gateway is optional - None for direct routes (e.g., in containers)
+        let default_interface_gateway = default_route.gateway();
+        Ok((default_interface_index, default_interface_gateway))
+    }
+
     /// Adds Route
     async fn add_route(&mut self, route: &Route) -> Result<(), RoutingTableError> {
         self.route_manager_async.add(route).await.map_err(|e| {
@@ -134,6 +166,39 @@ impl RoutingTable {
     pub async fn add_route_lan(&mut self, route: Route) -> Result<(), RoutingTableError> {
         self.add_route(&route).await?;
         self.lan_routes.push(route);
+        Ok(())
+    }
+
+    /// Adds standard LAN routes (RFC 1918 private networks + link-local + multicast)
+    /// with optional gateway. Gateway is None for direct routes (e.g., in Docker containers)
+    pub async fn add_standard_lan_routes(
+        &mut self,
+        interface_index: u32,
+        gateway: Option<IpAddr>,
+    ) -> Result<(), RoutingTableError> {
+        for (network, prefix) in LAN_NETWORKS {
+            let mut lan_route = Route::new(network, prefix).with_if_index(interface_index);
+            if let Some(gw) = gateway {
+                lan_route = lan_route.with_gateway(gw);
+            }
+            self.add_route_lan(lan_route).await?;
+        }
+        Ok(())
+    }
+
+    /// Adds standard tunnel routes (high priority default routing)
+    pub async fn add_standard_tunnel_routes(
+        &mut self,
+        interface_index: u32,
+        gateway: IpAddr,
+    ) -> Result<(), RoutingTableError> {
+        for (network, prefix) in TUNNEL_ROUTES {
+            let tunnel_route = Route::new(network, prefix)
+                .with_gateway(gateway)
+                .with_if_index(interface_index);
+
+            self.add_route_vpn(tunnel_route).await?;
+        }
         Ok(())
     }
 
@@ -203,6 +268,48 @@ impl RoutingTable {
             }
         }
     }
+    pub async fn initialize_routing_table(
+        &mut self,
+        server_ip: &IpAddr,
+        tun_index: u32,
+        tun_peer_ip: &IpAddr,
+        tun_dns_ip: &IpAddr,
+    ) -> Result<()> {
+        if self.routing_mode == RouteMode::NoExec {
+            return Ok(());
+        }
+
+        // Setting up VPN Server Routes
+        let (default_interface_index, default_interface_gateway) =
+            self.find_default_interface_index_and_gateway(server_ip)?;
+
+        // Create server route with optional gateway - handles both direct routes (containers)
+        // and routed networks (host systems with gateways)
+        let server_route = Route::new(*server_ip, 32).with_if_index(default_interface_index);
+        let server_route = match default_interface_gateway {
+            Some(gateway) => server_route.with_gateway(gateway),
+            None => server_route,
+        };
+
+        self.add_route_server(server_route).await?;
+
+        if self.routing_mode == RouteMode::Lan {
+            self.add_standard_lan_routes(default_interface_index, default_interface_gateway)
+                .await?;
+        }
+
+        // Add standard tunnel routes (high priority default routing)
+        self.add_standard_tunnel_routes(tun_index, *tun_peer_ip)
+            .await?;
+
+        // Add DNS route separately since it's not a constant
+        let dns_route = Route::new(*tun_dns_ip, 32)
+            .with_gateway(*tun_peer_ip)
+            .with_if_index(tun_index);
+
+        self.add_route_vpn(dns_route).await?;
+        Ok(())
+    }
 }
 
 impl Drop for RoutingTable {
@@ -226,6 +333,11 @@ mod tests {
     const TEST_TARGET_IP1: IpAddr = IpAddr::V4(Ipv4Addr::new(192, 168, 100, 1));
     const TEST_TARGET_IP2: IpAddr = IpAddr::V4(Ipv4Addr::new(192, 168, 100, 2));
     const TEST_TARGET_IP3: IpAddr = IpAddr::V4(Ipv4Addr::new(192, 168, 100, 3));
+    const TUN_LOCAL_IP: IpAddr = IpAddr::V4(Ipv4Addr::new(10, 49, 0, 1));
+    const TUN_PEER_IP: IpAddr = IpAddr::V4(Ipv4Addr::new(10, 49, 0, 2));
+    const TUN_DNS_IP: IpAddr = IpAddr::V4(Ipv4Addr::new(8, 8, 4, 4));
+    const ROUTE_TEST_IP1: IpAddr = IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1));
+    const ROUTE_TEST_IP2: IpAddr = IpAddr::V4(Ipv4Addr::new(200, 1, 1, 1));
 
     /// Helper to create test routes with gateway lookup
     fn create_test_routes_with_gateway(
@@ -474,5 +586,127 @@ mod tests {
             .any(|r| r.destination() == route1.destination() && r.gateway() == route1.gateway());
 
         assert!(route_found);
+    }
+
+    #[test_case(RouteMode::NoExec, 0, 0, false, 0)]
+    #[test_case(RouteMode::Default, TUNNEL_ROUTES.len() + DNS_ROUTES_COUNT, 0, true, SERVER_ROUTES_COUNT + TUNNEL_ROUTES.len() + DNS_ROUTES_COUNT)]
+    #[test_case(RouteMode::Lan, TUNNEL_ROUTES.len() + DNS_ROUTES_COUNT, LAN_NETWORKS.len(), true, SERVER_ROUTES_COUNT + TUNNEL_ROUTES.len() + DNS_ROUTES_COUNT + LAN_NETWORKS.len())]
+    #[tokio::test]
+    #[serial_test::serial(routing_table)]
+    async fn test_initialize_routing_table(
+        route_mode: RouteMode,
+        expected_vpn_routes: usize,
+        expected_lan_routes: usize,
+        should_have_server_route: bool,
+        expected_routes_added: usize,
+    ) {
+        let (_restorer, mut routing_table) = create_test_setup(route_mode);
+
+        // Create a TUN device for testing using shared fixtures
+        let (_tun_device, tun_index) = create_test_tun(TUN_LOCAL_IP).await.unwrap();
+
+        // Get initial system state AFTER TUN device creation
+        let initial_count = routing_table.route_manager.list().unwrap().len();
+
+        // Test initialize_routing_table using shared fixtures
+        routing_table
+            .initialize_routing_table(&EXTERNAL_IP, tun_index, &TUN_PEER_IP, &TUN_DNS_IP)
+            .await
+            .unwrap();
+        // Verify state after initialization
+        let routes_after_init = routing_table.route_manager.list().unwrap().len();
+        let routes_added = routes_after_init - initial_count;
+
+        // Verify basic route counts using test case parameters
+        assert_eq!(routing_table.vpn_routes.len(), expected_vpn_routes);
+        assert_eq!(routing_table.lan_routes.len(), expected_lan_routes);
+        assert_eq!(
+            routing_table.server_route.is_some(),
+            should_have_server_route
+        );
+
+        // Verify exact number of routes added to system
+        assert_eq!(routes_added, expected_routes_added);
+
+        // Verify server route details (for modes that have server routes)
+        if should_have_server_route {
+            let server_route = routing_table.server_route.as_ref().unwrap();
+            assert_eq!(server_route.destination(), EXTERNAL_IP);
+            assert_eq!(server_route.prefix(), 32);
+        }
+
+        // Verify tunnel routes in vpn_routes (for modes that have VPN routes)
+        if expected_vpn_routes > 0 {
+            for (network, prefix) in TUNNEL_ROUTES {
+                let route_found = routing_table.vpn_routes.iter().any(|r| {
+                    r.destination() == network
+                        && r.prefix() == prefix
+                        && r.gateway() == Some(TUN_PEER_IP)
+                        && r.if_index() == Some(tun_index)
+                });
+                assert!(route_found);
+            }
+
+            // Verify DNS route
+            let dns_route_found = routing_table.vpn_routes.iter().any(|r| {
+                r.destination() == TUN_DNS_IP
+                    && r.prefix() == 32
+                    && r.gateway() == Some(TUN_PEER_IP)
+                    && r.if_index() == Some(tun_index)
+            });
+            assert!(dns_route_found);
+        }
+
+        // Verify LAN routes (for Lan mode)
+        if expected_lan_routes > 0 {
+            let (_, default_gateway) = routing_table
+                .find_default_interface_index_and_gateway(&EXTERNAL_IP)
+                .unwrap();
+
+            for (network, prefix) in LAN_NETWORKS {
+                let lan_route_found = routing_table.lan_routes.iter().any(|r| {
+                    r.destination() == network
+                        && r.prefix() == prefix
+                        && r.gateway() == default_gateway
+                });
+                assert!(lan_route_found);
+            }
+        }
+    }
+
+    #[test_case(RouteMode::Lan)]
+    #[test_case(RouteMode::Default)]
+    #[test_case(RouteMode::NoExec)]
+    #[tokio::test]
+    #[serial_test::serial(routing_table)]
+    async fn test_find_server_route(route_mode: RouteMode) {
+        let (_restorer, mut routing_table) = create_test_setup(route_mode);
+
+        // Create a TUN device for testing using different IP to avoid conflicts
+        let (_tun_device, tun_index) = create_test_tun(TUN_LOCAL_IP).await.unwrap();
+
+        // Create test routes using tunnel route constants
+        let route1 = Route::new(TUNNEL_ROUTES[0].0, TUNNEL_ROUTES[0].1)
+            .with_gateway(TUN_PEER_IP)
+            .with_if_index(tun_index);
+        let route2 = Route::new(TUNNEL_ROUTES[1].0, TUNNEL_ROUTES[1].1)
+            .with_gateway(TUN_PEER_IP)
+            .with_if_index(tun_index);
+
+        // Add routes (assuming add_route works based on previous test)
+        routing_table.add_route_vpn(route1.clone()).await.unwrap();
+
+        // Test find_server_route for test_ip1 using shared fixtures
+        let found_route1 = routing_table.find_route(&ROUTE_TEST_IP1).unwrap();
+        assert_eq!(found_route1.gateway(), route1.gateway());
+
+        routing_table.add_route_vpn(route2.clone()).await.unwrap();
+
+        // Test find_server_route for test_ip1 after adding route2
+        let found_route1 = routing_table.find_route(&ROUTE_TEST_IP1).unwrap();
+        assert_eq!(found_route1.gateway(), route1.gateway());
+
+        let found_route2 = routing_table.find_route(&ROUTE_TEST_IP2).unwrap();
+        assert_eq!(found_route2.gateway(), route2.gateway());
     }
 }
