@@ -158,7 +158,7 @@ impl UdpServer {
         })
     }
 
-    async fn data_received(
+    fn data_received(
         &mut self,
         peer_addr: SocketAddr,
         local_addr: SocketAddr,
@@ -208,7 +208,7 @@ impl UdpServer {
                 match conn_result {
                     Ok(conn) => conn,
                     Err(_e) => {
-                        self.send_reject(peer_addr.into(), reply_pktinfo).await;
+                        self.send_reject(peer_addr.into(), reply_pktinfo);
                         return;
                     }
                 }
@@ -247,7 +247,7 @@ impl UdpServer {
         }
     }
 
-    async fn send_reject(&self, peer_addr: SockAddr, reply_pktinfo: Option<libc::in_pktinfo>) {
+    fn send_reject(&self, peer_addr: SockAddr, reply_pktinfo: Option<libc::in_pktinfo>) {
         metrics::udp_rejected_session();
         let msg = Header {
             version: Version::MINIMUM,
@@ -262,6 +262,7 @@ impl UdpServer {
         let _ = send_to_socket(&self.sock, &buf, &peer_addr, reply_pktinfo);
     }
 }
+
 #[async_trait]
 impl Server for UdpServer {
     async fn run(&mut self) -> Result<()> {
@@ -279,8 +280,7 @@ impl Server for UdpServer {
                 })
                 .await?;
 
-            self.data_received(peer_addr, local_addr, reply_pktinfo, &mut buf)
-                .await;
+            self.data_received(peer_addr, local_addr, reply_pktinfo, &mut buf);
         }
     }
 }

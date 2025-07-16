@@ -6,6 +6,7 @@ use anyhow::{Context, Result, anyhow};
 use bytes::BytesMut;
 use bytesize::ByteSize;
 use futures::future::OptionFuture;
+pub use io::inside::{InsideIO, InsideIORecv};
 use keepalive::Keepalive;
 use lightway_app_utils::{
     CodecTicker, CodecTickerState, ConnectionTicker, ConnectionTickerState, DplpmtudTimer,
@@ -14,8 +15,9 @@ use lightway_app_utils::{
 };
 use lightway_core::{
     BuilderPredicates, ClientContextBuilder, ClientIpConfig, Connection, ConnectionError,
-    ConnectionType, Event, EventCallback, IOCallbackResult, InsideIOSendCallbackArg,
-    InsideIpConfig, OutsidePacket, State, ipv4_update_destination, ipv4_update_source,
+    ConnectionType, Event, EventCallback, IOCallbackResult, InsideIOSendCallback,
+    InsideIOSendCallbackArg, InsideIpConfig, OutsidePacket, State, ipv4_update_destination,
+    ipv4_update_source,
 };
 use tokio::sync::mpsc::UnboundedReceiver;
 
@@ -72,7 +74,7 @@ pub enum ClientResult {
 
 #[derive(educe::Educe)]
 #[educe(Debug)]
-pub struct ClientConfig<'cert, A: 'static + Send + EventCallback> {
+pub struct ClientConfig<'cert, A: 'static + Send + EventCallback, T: Send + Sync> {
     /// Connection mode
     pub mode: ClientConnectionMode,
 
@@ -86,6 +88,11 @@ pub struct ClientConfig<'cert, A: 'static + Send + EventCallback> {
 
     /// Outside (wire) MTU
     pub outside_mtu: usize,
+
+    /// Alternate Inside IO to use
+    /// When this is supplied, tun_config will not be used for creating tun interface
+    #[educe(Debug(ignore))]
+    pub inside_io: Option<Arc<dyn InsideIO<T>>>,
 
     /// Tun device to use
     pub tun_config: TunConfig,
@@ -253,7 +260,7 @@ async fn handle_events<A: 'static + Send + EventCallback>(
     weak: Weak<Mutex<Connection<ConnectionState>>>,
     enable_encoding_when_online: bool,
     event_handler: Option<A>,
-    inside_io: InsideIOSendCallbackArg<ConnectionState>,
+    inside_io: Arc<dyn InsideIOSendCallback<ConnectionState> + Send + Sync>,
 ) {
     while let Some(event) = stream.next().await {
         match &event {
@@ -333,7 +340,7 @@ pub async fn outside_io_task<T: Send + Sync>(
 
 pub async fn inside_io_task<T: Send + Sync>(
     conn: Arc<Mutex<Connection<ConnectionState<T>>>>,
-    inside_io: Arc<dyn io::inside::InsideIO>,
+    inside_io: Arc<dyn io::inside::InsideIORecv>,
     tun_dns_ip: Ipv4Addr,
 ) -> Result<()> {
     loop {
@@ -496,8 +503,8 @@ pub async fn encoding_request_task<T: Send + Sync>(
     tracing::info!("toggle encode task has finished");
 }
 
-fn validate_client_config<A: 'static + Send + EventCallback>(
-    config: &ClientConfig<'_, A>,
+fn validate_client_config<A: 'static + Send + EventCallback, T: Send + Sync>(
+    config: &ClientConfig<'_, A, T>,
 ) -> Result<()> {
     if config.network_change_signal.is_some() && config.keepalive_interval.is_zero() {
         return Err(anyhow!(
@@ -524,8 +531,8 @@ fn validate_client_config<A: 'static + Send + EventCallback>(
     Ok(())
 }
 
-pub async fn client<A: 'static + Send + EventCallback>(
-    mut config: ClientConfig<'_, A>,
+pub async fn client<A: 'static + Send + EventCallback, T: Send + Sync>(
+    mut config: ClientConfig<'_, A, T>,
 ) -> Result<ClientResult> {
     println!("Client starting with config:\n{:#?}", &config);
 
@@ -558,25 +565,23 @@ pub async fn client<A: 'static + Send + EventCallback>(
         outside_io.set_recv_buffer_size(size.as_u64().try_into()?)?;
     }
 
-    #[cfg(not(feature = "io-uring"))]
-    let inside_io =
-        io::inside::Tun::new(config.tun_config, config.tun_local_ip, config.tun_dns_ip).await;
-
-    #[cfg(feature = "io-uring")]
-    let inside_io = if config.enable_tun_iouring {
-        io::inside::Tun::new_with_iouring(
-            config.tun_config,
-            config.tun_local_ip,
-            config.tun_dns_ip,
-            config.iouring_entry_count,
-            config.iouring_sqpoll_idle_time,
-        )
-        .await
-    } else {
-        io::inside::Tun::new(config.tun_config, config.tun_local_ip, config.tun_dns_ip).await
+    let inside_io = match config.inside_io {
+        Some(io) => io,
+        #[cfg(feature = "io-uring")]
+        None if config.enable_tun_iouring => Arc::new(
+            io::inside::Tun::new_with_iouring(
+                config.tun_config,
+                config.tun_local_ip,
+                config.tun_dns_ip,
+                config.iouring_entry_count,
+                config.iouring_sqpoll_idle_time,
+            )
+            .await?,
+        ),
+        None => Arc::new(
+            io::inside::Tun::new(config.tun_config, config.tun_local_ip, config.tun_dns_ip).await?,
+        ),
     };
-
-    let inside_io = Arc::new(inside_io.context("Tun creation")?);
 
     let (event_cb, event_stream) = EventStreamCallback::new();
 
@@ -663,6 +668,8 @@ pub async fn client<A: 'static + Send + EventCallback>(
     );
 
     let event_handler = config.event_handler.take();
+    let event_inside_io: InsideIOSendCallbackArg<ConnectionState> =
+        inside_io.clone().into_io_send_callback();
     join_set.spawn(handle_events(
         event_stream,
         keepalive.clone(),
@@ -672,7 +679,7 @@ pub async fn client<A: 'static + Send + EventCallback>(
             .as_ref()
             .is_some_and(|x| x.enable_encoding_at_connect),
         event_handler,
-        inside_io.clone(),
+        event_inside_io,
     ));
 
     ticker_task.spawn_in(Arc::downgrade(&conn), &mut join_set);
