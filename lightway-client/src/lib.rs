@@ -333,7 +333,7 @@ pub async fn outside_io_task<T: Send + Sync>(
 
 pub async fn inside_io_task<T: Send + Sync>(
     conn: Arc<Mutex<Connection<ConnectionState<T>>>>,
-    inside_io: Arc<dyn io::inside::InsideIO>,
+    inside_io: Arc<dyn io::inside::InsideIORecv>,
     tun_dns_ip: Ipv4Addr,
 ) -> Result<()> {
     loop {

@@ -13,7 +13,7 @@ use lightway_core::{
     ipv4_update_source,
 };
 
-use crate::{ConnectionState, io::inside::InsideIO};
+use crate::{ConnectionState, io::inside::InsideIORecv};
 
 pub struct Tun {
     tun: AppUtilsTun,
@@ -41,7 +41,7 @@ impl Tun {
 }
 
 #[async_trait]
-impl InsideIO for Tun {
+impl InsideIORecv for Tun {
     async fn recv_buf(&self) -> IOCallbackResult<BytesMut> {
         self.tun.recv_buf().await
     }
