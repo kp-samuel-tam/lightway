@@ -14,8 +14,9 @@ use lightway_app_utils::{
 };
 use lightway_core::{
     BuilderPredicates, ClientContextBuilder, ClientIpConfig, Connection, ConnectionError,
-    ConnectionType, Event, EventCallback, IOCallbackResult, InsideIOSendCallbackArg,
-    InsideIpConfig, OutsidePacket, State, ipv4_update_destination, ipv4_update_source,
+    ConnectionType, Event, EventCallback, IOCallbackResult, InsideIOSendCallback,
+    InsideIOSendCallbackArg, InsideIpConfig, OutsidePacket, State, ipv4_update_destination,
+    ipv4_update_source,
 };
 use tokio::sync::mpsc::UnboundedReceiver;
 
@@ -30,6 +31,7 @@ use pnet::packet::ipv4::Ipv4Packet;
 
 #[cfg(feature = "debug")]
 use crate::debug::WiresharkKeyLogger;
+use crate::io::inside::InsideIO;
 #[cfg(feature = "debug")]
 use lightway_app_utils::wolfssl_tracing_callback;
 #[cfg(feature = "debug")]
@@ -253,7 +255,7 @@ async fn handle_events<A: 'static + Send + EventCallback>(
     weak: Weak<Mutex<Connection<ConnectionState>>>,
     enable_encoding_when_online: bool,
     event_handler: Option<A>,
-    inside_io: InsideIOSendCallbackArg<ConnectionState>,
+    inside_io: Arc<dyn InsideIOSendCallback<ConnectionState> + Send + Sync>,
 ) {
     while let Some(event) = stream.next().await {
         match &event {
@@ -576,7 +578,7 @@ pub async fn client<A: 'static + Send + EventCallback>(
         io::inside::Tun::new(config.tun_config, config.tun_local_ip, config.tun_dns_ip).await
     };
 
-    let inside_io = Arc::new(inside_io.context("Tun creation")?);
+    let inside_io: Arc<dyn InsideIO<()>> = Arc::new(inside_io.context("Tun creation")?);
 
     let (event_cb, event_stream) = EventStreamCallback::new();
 
@@ -663,6 +665,8 @@ pub async fn client<A: 'static + Send + EventCallback>(
     );
 
     let event_handler = config.event_handler.take();
+    let event_inside_io: InsideIOSendCallbackArg<ConnectionState> =
+        inside_io.clone().into_io_send_callback();
     join_set.spawn(handle_events(
         event_stream,
         keepalive.clone(),
@@ -672,7 +676,7 @@ pub async fn client<A: 'static + Send + EventCallback>(
             .as_ref()
             .is_some_and(|x| x.enable_encoding_at_connect),
         event_handler,
-        inside_io.clone(),
+        event_inside_io,
     ));
 
     ticker_task.spawn_in(Arc::downgrade(&conn), &mut join_set);

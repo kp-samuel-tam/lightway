@@ -1,6 +1,6 @@
-use std::net::Ipv4Addr;
 #[cfg(feature = "io-uring")]
 use std::time::Duration;
+use std::{net::Ipv4Addr, sync::Arc};
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -9,8 +9,8 @@ use pnet::packet::ipv4::Ipv4Packet;
 
 use lightway_app_utils::{Tun as AppUtilsTun, TunConfig};
 use lightway_core::{
-    IOCallbackResult, InsideIOSendCallback, InsideIpConfig, ipv4_update_destination,
-    ipv4_update_source,
+    IOCallbackResult, InsideIOSendCallback, InsideIOSendCallbackArg, InsideIpConfig,
+    ipv4_update_destination, ipv4_update_source,
 };
 
 use crate::{ConnectionState, io::inside::InsideIORecv};
@@ -64,6 +64,10 @@ impl InsideIORecv for Tun {
 
         self.tun.try_send(pkt);
         Ok(pkt_len)
+    }
+
+    fn into_io_send_callback(self: Arc<Self>) -> InsideIOSendCallbackArg<ConnectionState<()>> {
+        self
     }
 }
 
