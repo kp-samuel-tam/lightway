@@ -361,14 +361,6 @@ TCPv4 as usual.
 
 [PROXY protocol]: https://www.haproxy.org/download/1.8/doc/proxy-protocol.txt
 
-## Speeding up development with Earthly Satellites
-
-Please refer to [official documentation for Earthly Satellites](https://docs.earthly.dev/earthly-cloud/satellites).
-
-If you are a member of ExpressVPN, you can get access to the same Earthly organization used in our CI. The organization is named `expressvpn`, inside which contains a satellite named `lightway`.
-
-If you are not a member of ExpressVPN, you may set up your own Earthly satellite according the official instructions above.
-
 ## Debugging
 
 ### Decrypting TLS1.3 data packets
