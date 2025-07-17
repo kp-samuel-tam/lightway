@@ -95,12 +95,12 @@ test:
         SET target = "riscv64gc-unknown-linux-gnu"
     END
 
-    # Run all tests except routing_table tests (which need sudo)
-    DO lib-rust+CARGO --args="test --target=$target -- --skip routing_table"
-    DO lib-rust+CARGO --args="test --features kyber_only --target=$target -- --skip routing_table"
+    # Run all tests except privileged tests
+    DO lib-rust+CARGO --args="test --target=$target -- --skip test_privileged"
+    DO lib-rust+CARGO --args="test --features kyber_only --target=$target -- --skip test_privileged"
     
-    # Run routing_table tests with sudo permissions
-    RUN --privileged cargo test --package lightway-client --target=$target routing_table
+    # Run only privileged tests with sudo permissions
+    RUN --privileged cargo test --package lightway-client --target=$target test_privileged
 
 # test-miri runs tests for modules which make use of `unsafe` under Miri.
 test-miri:
@@ -129,11 +129,11 @@ coverage:
     RUN mkdir /tmp/coverage
     DO lib-rust+SET_CACHE_MOUNTS_ENV
     RUN --mount=$EARTHLY_RUST_CARGO_HOME_CACHE --mount=$EARTHLY_RUST_TARGET_CACHE \
-        cargo llvm-cov test --no-report -- --skip routing_table
+        cargo llvm-cov test --no-report -- --skip test_privileged
     
-    # Run routing_table tests with sudo for coverage
+    # Run privileged tests with sudo for coverage
     RUN --privileged --mount=$EARTHLY_RUST_CARGO_HOME_CACHE --mount=$EARTHLY_RUST_TARGET_CACHE \
-        cargo llvm-cov test --package lightway-client routing_table --no-report
+        cargo llvm-cov test --package lightway-client test_privileged --no-report
     
     # Generate final coverage report including all tests
     RUN --mount=$EARTHLY_RUST_CARGO_HOME_CACHE --mount=$EARTHLY_RUST_TARGET_CACHE \
