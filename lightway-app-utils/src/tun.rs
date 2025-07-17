@@ -74,7 +74,7 @@ impl Tun {
     }
 
     /// Interface index of 'Tun' interface
-    pub fn if_index(&self) -> std::io::Result<i32> {
+    pub fn if_index(&self) -> std::io::Result<u32> {
         match self {
             Tun::Direct(t) => t.if_index(),
             #[cfg(feature = "io-uring")]
@@ -146,8 +146,11 @@ impl TunDirect {
     }
 
     /// Interface index of Tun
-    pub fn if_index(&self) -> std::io::Result<i32> {
-        Ok(self.tun.tun_index()?)
+    pub fn if_index(&self) -> std::io::Result<u32> {
+        #[cfg(any(target_os = "linux", target_os = "macos"))]
+        return self.tun.if_index();
+        #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+        return Err(std::io::Error::from(std::io::ErrorKind::Unsupported));
     }
 }
 
@@ -198,7 +201,7 @@ impl TunIoUring {
     }
 
     /// Interface index of tun
-    pub fn if_index(&self) -> std::io::Result<i32> {
+    pub fn if_index(&self) -> std::io::Result<u32> {
         self.tun_io_uring.owned_fd().if_index()
     }
 }

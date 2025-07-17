@@ -555,7 +555,7 @@ impl<ExtAppState: Send + Sync> ClientConnection<ExtAppState> {
         tun_peer_ip: IpAddr,
         tun_dns_ip: IpAddr,
     ) -> Result<()> {
-        let tun_index = self.inside_io.if_index().map(|i| i as u32)?;
+        let tun_index = self.inside_io.if_index()?;
 
         let mut route_table = RoutingTable::new(route_mode)?;
         tracing::trace!(
