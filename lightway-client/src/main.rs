@@ -87,7 +87,7 @@ async fn main() -> Result<()> {
     // TODO: Fix in future PR
     tun_config
         .mtu(1350)
-        .address(config.tun_local_ip)
+        .address(config.tun_local_ip.into())
         .destination(config.tun_peer_ip)
         .up();
 
