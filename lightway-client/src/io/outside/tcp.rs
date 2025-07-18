@@ -9,7 +9,7 @@ use lightway_core::{IOCallbackResult, OutsideIOSendCallback, OutsideIOSendCallba
 pub struct Tcp(tokio::net::TcpStream, SocketAddr);
 
 impl Tcp {
-    pub async fn new(remote_addr: &str, maybe_sock: Option<TcpStream>) -> Result<Arc<Self>> {
+    pub async fn new(remote_addr: SocketAddr, maybe_sock: Option<TcpStream>) -> Result<Arc<Self>> {
         let sock = match maybe_sock {
             Some(s) => s,
             None => tokio::net::TcpStream::connect(remote_addr).await?,

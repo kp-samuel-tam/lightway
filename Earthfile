@@ -95,8 +95,12 @@ test:
         SET target = "riscv64gc-unknown-linux-gnu"
     END
 
-    DO lib-rust+CARGO --args="test --target=$target"
-    DO lib-rust+CARGO --args="test --features kyber_only --target=$target"
+    # Run all tests except privileged tests
+    DO lib-rust+CARGO --args="test --target=$target -- --skip test_privileged"
+    DO lib-rust+CARGO --args="test --features kyber_only --target=$target -- --skip test_privileged"
+    
+    # Run only privileged tests with sudo permissions
+    RUN --privileged cargo test --package lightway-client --target=$target test_privileged
 
 # test-miri runs tests for modules which make use of `unsafe` under Miri.
 test-miri:
@@ -125,7 +129,14 @@ coverage:
     RUN mkdir /tmp/coverage
     DO lib-rust+SET_CACHE_MOUNTS_ENV
     RUN --mount=$EARTHLY_RUST_CARGO_HOME_CACHE --mount=$EARTHLY_RUST_TARGET_CACHE \
-        cargo llvm-cov test && \
+        cargo llvm-cov test --no-report -- --skip test_privileged
+    
+    # Run privileged tests with sudo for coverage
+    RUN --privileged --mount=$EARTHLY_RUST_CARGO_HOME_CACHE --mount=$EARTHLY_RUST_TARGET_CACHE \
+        cargo llvm-cov test --package lightway-client test_privileged --no-report
+    
+    # Generate final coverage report including all tests
+    RUN --mount=$EARTHLY_RUST_CARGO_HOME_CACHE --mount=$EARTHLY_RUST_TARGET_CACHE \
         cargo llvm-cov report --summary-only --output-path /tmp/coverage/summary.txt && \
         cargo llvm-cov report --json --output-path /tmp/coverage/coverage.json && \
         cargo llvm-cov report --html --output-dir /tmp/coverage/

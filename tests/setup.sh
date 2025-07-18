@@ -88,7 +88,6 @@ setup_client() {
     ns=$1
     serverip=$2
     ip netns exec "${ns}" sysctl -q net.ipv4.conf.all.promote_secondaries=1
-    ip netns exec "${ns}" ip route add default dev lightway
     touch /etc/netns/"${ns}"/hosts
     echo '127.0.0.1   localhost' | tee -a /etc/netns/"${ns}"/hosts > /dev/null
     echo "$serverip   server" | tee -a /etc/netns/"${ns}"/hosts > /dev/null
@@ -120,7 +119,7 @@ create_setup() {
     ip netns exec lightway-server ip route add 192.168.0.0/16 via 172.16.0.2
 
     # Setup lightway-client and create bridge interface to middle
-    setup_ns lightway-client lightway 100.64.0.6 100.64.0.5
+    setup_ns lightway-client '' 100.64.0.6 100.64.0.5
     setup_bridge_interface veth-c2m lightway-middle 192.168.0.1/30 lightway-client 192.168.0.2/30
     ip netns exec lightway-client ip route add 172.16.0.0/12 via 192.168.0.1
     setup_client lightway-client 172.16.0.1
@@ -132,7 +131,8 @@ create_setup() {
         y=$(( n % 64 << 2 )) # + 0 == network address, +1 == server, + 2 == client, + 3 = broadcast address
         server_ip="192.168.${x}.$(( y + 1 ))"
         client_ip="192.168.${x}.$(( y + 2 ))"
-        setup_ns "lightway-client${n}" lightway 100.64.0.6 100.64.0.5
+        echo "Addl client :${n} ip: ${client_ip} server_ip: ${server_ip}"
+        setup_ns "lightway-client${n}" '' 100.64.0.6 100.64.0.5
         setup_bridge_interface "veth${n}" lightway-server "${server_ip}/30" "lightway-client${n}" "${client_ip}/30"
         setup_client "lightway-client${n}" "${server_ip}"
         setup_ip_forward "lightway-client${n}" 0

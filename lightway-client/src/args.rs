@@ -1,3 +1,4 @@
+use super::routing_table::RouteMode;
 use anyhow::{Result, anyhow};
 use bytesize::ByteSize;
 use clap::Parser;
@@ -40,10 +41,6 @@ pub struct Config {
     #[clap(long, default_value_t = MAX_OUTSIDE_MTU)]
     pub outside_mtu: usize,
 
-    /// Inside (tunnel) MTU (requires `CAP_NET_ADMIN`)
-    #[clap(long)]
-    pub inside_mtu: Option<u16>,
-
     /// Tun device name to use
     #[clap(short, long, default_value = None)]
     pub tun_name: Option<String>,
@@ -83,6 +80,14 @@ pub struct Config {
     /// Socket receive buffer size
     #[clap(long)]
     pub rcvbuf: Option<ByteSize>,
+
+    /// Setup of route table
+    /// Modes:
+    ///     default: Sets up routes as specified in server, tun_local_ip, tun_peer_ip, tun_dns_ip
+    ///     noexec : Does not setup any routes
+    ///     lan    : Sets up default + additional lan routes
+    #[clap(long, value_enum, default_value_t = RouteMode::Default)]
+    pub route_mode: RouteMode,
 
     /// Log level to use
     #[clap(long, value_enum, default_value_t = LogLevel::Info)]

@@ -289,7 +289,7 @@ cargo build --bin lightway-server && sudo -E ip netns exec lightway-server ./tar
 
 Start client using this command,
 ```bash
-cargo build --bin lightway-client && sudo -E ip netns exec lightway-client ./target/debug/lightway-client --config-file './tests/client/client_config.yaml' --server server:27690
+cargo build --bin lightway-client && sudo -E ip netns exec lightway-client ./target/debug/lightway-client --config-file './tests/client/client_config.yaml'
 ```
 
 Then enter into `lightway-client` namespace and trying pinging google.com
