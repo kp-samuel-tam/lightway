@@ -87,6 +87,13 @@ pub struct Config {
     ///     noexec : Does not setup any routes
     ///     lan    : Sets up default + additional lan routes
     #[clap(long, value_enum, default_value_t = RouteMode::Default)]
+    #[cfg(any(
+        target_os = "freebsd",
+        target_os = "linux",
+        target_os = "macos",
+        target_os = "openbsd",
+        target_os = "windows"
+    ))]
     pub route_mode: RouteMode,
 
     /// Log level to use

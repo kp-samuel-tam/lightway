@@ -1,6 +1,13 @@
 mod debug;
 pub mod io;
 pub mod keepalive;
+#[cfg(any(
+    target_os = "freebsd",
+    target_os = "linux",
+    target_os = "macos",
+    target_os = "openbsd",
+    target_os = "windows"
+))]
 pub mod routing_table;
 
 use anyhow::{Context, Result, anyhow};
@@ -24,6 +31,13 @@ use tokio::sync::mpsc::UnboundedReceiver;
 
 #[cfg(feature = "debug")]
 use crate::debug::WiresharkKeyLogger;
+#[cfg(any(
+    target_os = "freebsd",
+    target_os = "linux",
+    target_os = "macos",
+    target_os = "openbsd",
+    target_os = "windows"
+))]
 use crate::routing_table::{RouteMode, RoutingTable};
 #[cfg(feature = "debug")]
 use lightway_app_utils::wolfssl_tracing_callback;
@@ -130,6 +144,13 @@ pub struct ClientConfig<'cert, A: 'static + Send + EventCallback, T: Send + Sync
     pub rcvbuf: Option<ByteSize>,
 
     /// Route Mode
+    #[cfg(any(
+        target_os = "freebsd",
+        target_os = "linux",
+        target_os = "macos",
+        target_os = "openbsd",
+        target_os = "windows"
+    ))]
     pub route_mode: RouteMode,
 
     /// Enable PMTU discovery for Udp connections
@@ -588,7 +609,21 @@ pub async fn client<A: 'static + Send + EventCallback, T: Send + Sync>(
     };
 
     let tun_index: u32 = inside_io.if_index()?.try_into()?;
+    #[cfg(any(
+        target_os = "freebsd",
+        target_os = "linux",
+        target_os = "macos",
+        target_os = "openbsd",
+        target_os = "windows"
+    ))]
     let mut route_table = RoutingTable::new(config.route_mode)?;
+    #[cfg(any(
+        target_os = "freebsd",
+        target_os = "linux",
+        target_os = "macos",
+        target_os = "openbsd",
+        target_os = "windows"
+    ))]
     route_table
         .initialize_routing_table(
             &config.server.ip(),
