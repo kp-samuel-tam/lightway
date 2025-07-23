@@ -450,6 +450,7 @@ mod tests {
     #[test_case(RouteMode::Default)]
     #[test_case(RouteMode::Lan)]
     #[test_case(RouteMode::NoExec)]
+    #[ignore = "May falsely fail during development due to local route settings"]
     fn test_privileged_new_routing_table(route_mode: RouteMode) {
         let (_restorer, routing_table) = create_test_setup(route_mode);
         assert_eq!(routing_table.routing_mode, route_mode);
@@ -460,6 +461,7 @@ mod tests {
 
     #[tokio::test]
     #[serial_test::serial(routing_table)]
+    #[ignore = "May falsely fail during development due to local route settings"]
     async fn test_privileged_cleanup_empty_routes() {
         let (_restorer, mut routing_table) = create_test_setup(RouteMode::Default);
 
@@ -483,6 +485,7 @@ mod tests {
     #[test_case(RouteMode::Lan)]
     #[test_case(RouteMode::NoExec)]
     #[serial_test::serial(routing_table)]
+    #[ignore = "May falsely fail during development due to local route settings"]
     fn test_privileged_cleanup_sync(route_mode: RouteMode) {
         let (_restorer, mut routing_table) = create_test_setup(route_mode);
 
@@ -532,6 +535,7 @@ mod tests {
     #[test_case(RouteAddMethod::Lan, 0, 0, 1)]
     #[tokio::test]
     #[serial_test::serial(routing_table)]
+    #[ignore = "May falsely fail during development due to local route settings"]
     async fn test_privileged_add_single_route(
         add_method: RouteAddMethod,
         expected_vpn: usize,
@@ -593,6 +597,7 @@ mod tests {
     #[test_case(RouteMode::Lan, TUNNEL_ROUTES.len() + DNS_ROUTES_COUNT, LAN_NETWORKS.len(), true, SERVER_ROUTES_COUNT + TUNNEL_ROUTES.len() + DNS_ROUTES_COUNT + LAN_NETWORKS.len())]
     #[tokio::test]
     #[serial_test::serial(routing_table)]
+    #[ignore = "May falsely fail during development due to local route settings"]
     async fn test_privileged_initialize_routing_table(
         route_mode: RouteMode,
         expected_vpn_routes: usize,
@@ -679,6 +684,7 @@ mod tests {
     #[test_case(RouteMode::NoExec)]
     #[tokio::test]
     #[serial_test::serial(routing_table)]
+    #[ignore = "May falsely fail during development due to local route settings"]
     async fn test_privileged_find_server_route(route_mode: RouteMode) {
         let (_restorer, mut routing_table) = create_test_setup(route_mode);
 

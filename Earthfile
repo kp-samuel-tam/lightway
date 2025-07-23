@@ -100,7 +100,7 @@ test:
     DO lib-rust+CARGO --args="test --features kyber_only --target=$target -- --skip test_privileged"
     
     # Run only privileged tests with sudo permissions
-    RUN --privileged cargo test --package lightway-client --target=$target test_privileged
+    RUN --privileged cargo test --package lightway-client --target=$target test_privileged -- --ignored
 
 # test-miri runs tests for modules which make use of `unsafe` under Miri.
 test-miri:
@@ -133,7 +133,7 @@ coverage:
     
     # Run privileged tests with sudo for coverage
     RUN --privileged --mount=$EARTHLY_RUST_CARGO_HOME_CACHE --mount=$EARTHLY_RUST_TARGET_CACHE \
-        cargo llvm-cov test --package lightway-client test_privileged --no-report
+        cargo llvm-cov test --package lightway-client test_privileged --no-report -- --ignored
     
     # Generate final coverage report including all tests
     RUN --mount=$EARTHLY_RUST_CARGO_HOME_CACHE --mount=$EARTHLY_RUST_TARGET_CACHE \
