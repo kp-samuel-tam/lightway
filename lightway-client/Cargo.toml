@@ -31,7 +31,6 @@ libc.workspace = true
 lightway-app-utils.workspace = true
 lightway-core.workspace = true
 pnet.workspace = true
-route_manager.workspace = true
 serde = { workspace = true, features = ["derive"] }
 socket2.workspace = true
 thiserror.workspace = true
@@ -47,3 +46,6 @@ more-asserts.workspace = true
 test-case.workspace = true
 tun.workspace = true
 serial_test = "3.2.0"
+
+[target.'cfg(any(target_os = "freebsd", target_os = "linux", target_os = "macos", target_os = "openbsd", target_os = "windows"))'.dependencies]
+route_manager = { version = "0.2.0", features = ["async"] }
