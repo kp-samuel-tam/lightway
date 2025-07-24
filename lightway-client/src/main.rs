@@ -1,4 +1,8 @@
-use std::{net::SocketAddr, path::PathBuf, sync::Arc};
+use std::{
+    net::{SocketAddr, ToSocketAddrs},
+    path::PathBuf,
+    sync::Arc,
+};
 
 use anyhow::{Context, Result, anyhow};
 use clap::CommandFactory;
@@ -78,8 +82,9 @@ async fn main() -> Result<()> {
 
     let server_addr: SocketAddr = config
         .server
-        .parse()
-        .with_context(|| format!("Invalid server address: {}", config.server))?;
+        .to_socket_addrs()?
+        .next()
+        .ok_or_else(|| anyhow!("No addresses resolved for server: {}", config.server))?;
 
     let config = ClientConfig {
         mode,

@@ -1,5 +1,5 @@
 ---
-server: 172.16.0.1:27690
+server: server:27690
 mode: tcp
 ca_cert: "tests/certs/ca.crt"
 tun_name: lightway
