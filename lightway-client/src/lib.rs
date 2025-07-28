@@ -626,7 +626,7 @@ pub async fn client<A: 'static + Send + EventCallback, T: Send + Sync>(
     ))]
     route_table
         .initialize_routing_table(
-            &config.server.ip(),
+            &outside_io.peer_addr().ip(),
             tun_index,
             &config.tun_peer_ip.into(),
             &config.tun_dns_ip.into(),

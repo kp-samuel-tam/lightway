@@ -18,6 +18,10 @@ impl Tcp {
         let peer_addr = sock.peer_addr()?;
         Ok(Arc::new(Self(sock, peer_addr)))
     }
+
+    fn peer_addr(&self) -> SocketAddr {
+        self.1
+    }
 }
 
 #[async_trait]
@@ -55,6 +59,10 @@ impl OutsideIO for Tcp {
     fn into_io_send_callback(self: Arc<Self>) -> OutsideIOSendCallbackArg {
         self
     }
+
+    fn peer_addr(&self) -> SocketAddr {
+        self.peer_addr()
+    }
 }
 
 impl OutsideIOSendCallback for Tcp {
@@ -69,6 +77,6 @@ impl OutsideIOSendCallback for Tcp {
     }
 
     fn peer_addr(&self) -> SocketAddr {
-        self.1
+        self.peer_addr()
     }
 }

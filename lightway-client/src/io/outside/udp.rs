@@ -44,6 +44,10 @@ impl Udp {
             default_ip_pmtudisc,
         }))
     }
+
+    fn peer_addr(&self) -> SocketAddr {
+        self.peer_addr
+    }
 }
 
 #[async_trait]
@@ -76,6 +80,10 @@ impl OutsideIO for Udp {
 
     fn into_io_send_callback(self: Arc<Self>) -> OutsideIOSendCallbackArg {
         self
+    }
+
+    fn peer_addr(&self) -> SocketAddr {
+        self.peer_addr()
     }
 }
 
@@ -121,7 +129,7 @@ impl OutsideIOSendCallback for Udp {
     }
 
     fn peer_addr(&self) -> SocketAddr {
-        self.peer_addr
+        self.peer_addr()
     }
 
     fn enable_pmtud_probe(&self) -> std::io::Result<()> {

@@ -7,7 +7,7 @@ pub use udp::Udp;
 use anyhow::Result;
 use async_trait::async_trait;
 use lightway_core::{IOCallbackResult, OutsideIOSendCallbackArg};
-use std::sync::Arc;
+use std::{net::SocketAddr, sync::Arc};
 
 #[async_trait]
 pub trait OutsideIO: Sync + Send {
@@ -19,4 +19,6 @@ pub trait OutsideIO: Sync + Send {
     fn recv_buf(&self, buf: &mut bytes::BytesMut) -> IOCallbackResult<usize>;
 
     fn into_io_send_callback(self: Arc<Self>) -> OutsideIOSendCallbackArg;
+
+    fn peer_addr(&self) -> SocketAddr;
 }
