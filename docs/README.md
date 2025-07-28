@@ -1,6 +1,7 @@
 # Lightway Protocol Documentation
 
 * [Design Overview](./design_overview.md)
+* [Parallel Connect](./parallel_connect.md)
 * [IP translation](./ip_translation.md)
 * [Connection State Machine](connection_state_machine.md)
 * [UDP Session ID Rotation](udp_session_id.md)
