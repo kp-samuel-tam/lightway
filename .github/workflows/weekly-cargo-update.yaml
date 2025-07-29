@@ -81,7 +81,7 @@ jobs:
 
         if [ -n "$expected_hash" ]; then
           # Update with the correct hash
-          sed -i 's/"wolfssl-3.0.0" = "sha256-[^"]*"/"wolfssl-3.0.0" = "sha256-'$expected_hash'"/' flake.nix
+          sed -i 's|"wolfssl-3.0.0" = "sha256-[^"]*"|"wolfssl-3.0.0" = "sha256-'$expected_hash'"|' flake.nix
           echo "Updated wolfssl hash in flake.nix to: sha256-$expected_hash"
         else
           echo "Warning: Could not determine correct wolfssl hash from nix build output"
