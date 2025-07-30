@@ -1,4 +1,3 @@
-use anyhow::Result;
 use bytes::BytesMut;
 use std::{net::SocketAddr, sync::Arc};
 use wolfssl::IOCallbackResult;
@@ -17,7 +16,7 @@ pub trait InsideIOSendCallback<AppState> {
     fn mtu(&self) -> usize;
 
     /// Interface Index of tun
-    fn if_index(&self) -> Result<i32>;
+    fn if_index(&self) -> std::io::Result<i32>;
 }
 
 /// Convenience type to use as function arguments
