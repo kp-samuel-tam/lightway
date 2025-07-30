@@ -74,7 +74,7 @@ impl Tun {
     }
 
     /// Interface index of 'Tun' interface
-    pub fn if_index(&self) -> Result<i32> {
+    pub fn if_index(&self) -> std::io::Result<i32> {
         match self {
             Tun::Direct(t) => t.if_index(),
             #[cfg(feature = "io-uring")]
@@ -152,7 +152,7 @@ impl TunDirect {
     }
 
     /// Interface index of Tun
-    pub fn if_index(&self) -> Result<i32> {
+    pub fn if_index(&self) -> std::io::Result<i32> {
         Ok(self.tun.tun_index()?)
     }
 }
@@ -204,7 +204,7 @@ impl TunIoUring {
     }
 
     /// Interface index of tun
-    pub fn if_index(&self) -> Result<i32> {
+    pub fn if_index(&self) -> std::io::Result<i32> {
         self.tun_io_uring.owned_fd().if_index()
     }
 }
