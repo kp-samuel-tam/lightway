@@ -304,7 +304,7 @@ fn read_from_socket(
         // All zeros is a valid representation,
         // corresponding to the `ss_family` having a
         // value of `AF_UNSPEC`.
-        let addr_storage: libc::sockaddr_storage = unsafe { std::mem::zeroed() };
+        let addr_storage: socket2::SockAddrStorage = unsafe { std::mem::zeroed() };
         let len = std::mem::size_of_val(&addr_storage) as libc::socklen_t;
         // SAFETY: We initialized above as `AF_UNSPEC`
         // so the storage is correct from that
