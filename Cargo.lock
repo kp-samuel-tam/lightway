@@ -391,9 +391,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.5.41"
+version = "4.5.42"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be92d32e80243a54711e5d7ce823c35c41c9d929dc4ab58e1276f625841aadf9"
+checksum = "ed87a9d530bb41a67537289bafcac159cb3ee28460e0a4571123d2a778a6a882"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -401,9 +401,9 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.5.41"
+version = "4.5.42"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "707eab41e9622f9139419d573eca0900137718000c517d47da73045f54331c3d"
+checksum = "64f4f3f3c77c94aff3c7e9aac9a2ca1974a5adf392a8bb751e827d6d127ab966"
 dependencies = [
  "anstream",
  "anstyle",
@@ -2119,9 +2119,8 @@ dependencies = [
 
 [[package]]
 name = "route_manager"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0f3a4eae9e0cc97729d29d7d0936dd30170c80625cca122a56856fd23d619159"
+version = "0.2.5"
+source = "git+https://github.com/rustp2p/route_manager.git?rev=refs%2Fpull%2F10%2Fhead#6d7e800ca6c1eb9a469c8f0b7fe27aead31a9140"
 dependencies = [
  "bindgen",
  "flume",
@@ -2224,9 +2223,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.141"
+version = "1.0.142"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30b9eff21ebe718216c6ec64e1d9ac57087aad11efc64e32002bce4a0d4c03d3"
+checksum = "030fedb782600dcbd6f02d479bf0d817ac3bb40d644745b769d6a96bc3afc5a7"
 dependencies = [
  "itoa",
  "memchr",
@@ -3203,7 +3202,7 @@ dependencies = [
 [[package]]
 name = "wolfssl"
 version = "3.0.0"
-source = "git+https://github.com/expressvpn/wolfssl-rs#7481cab9003c0faad26ed7127a3a8c2990db0c01"
+source = "git+https://github.com/expressvpn/wolfssl-rs#89d2dfc24b552ab7508e93104df09c43b69a81d9"
 dependencies = [
  "bytes",
  "log",
@@ -3214,7 +3213,7 @@ dependencies = [
 [[package]]
 name = "wolfssl-sys"
 version = "2.0.0"
-source = "git+https://github.com/expressvpn/wolfssl-rs#7481cab9003c0faad26ed7127a3a8c2990db0c01"
+source = "git+https://github.com/expressvpn/wolfssl-rs#89d2dfc24b552ab7508e93104df09c43b69a81d9"
 dependencies = [
  "autotools",
  "bindgen",

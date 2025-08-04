@@ -82,6 +82,7 @@ unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 allow-git = [
     "https://github.com/expressvpn/wolfssl-rs",
+    "https://github.com/rustp2p/route_manager.git",
 ]
 
 # See https://github.com/briansmith/ring/blob/main/LICENSE Ring
