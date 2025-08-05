@@ -135,14 +135,36 @@ impl RoutingTable {
 
     /// Adds Route
     async fn add_route(&mut self, route: &Route) -> Result<(), RoutingTableError> {
-        self.route_manager_async.add(route).await.map_err(|e| {
-            // Check if the error is related to permissions
-            if e.kind() == std::io::ErrorKind::PermissionDenied {
-                RoutingTableError::InsufficientPermissions
-            } else {
-                RoutingTableError::AddRouteError(e)
+        match self.route_manager_async.add(route).await {
+            Ok(()) => Ok(()),
+            Err(e) => {
+                if self.is_route_exists_error(&e) {
+                    // Ignore error if route already exists and
+                    // keep the existing route
+                    Ok(())
+                } else if e.kind() == std::io::ErrorKind::PermissionDenied {
+                    Err(RoutingTableError::InsufficientPermissions)
+                } else {
+                    Err(RoutingTableError::AddRouteError(e))
+                }
             }
-        })
+        }
+    }
+
+    fn is_route_exists_error(&self, error: &std::io::Error) -> bool {
+        match error.raw_os_error() {
+            #[cfg(any(
+                target_os = "linux",
+                target_os = "macos",
+                target_os = "freebsd",
+                target_os = "openbsd",
+                target_os = "netbsd"
+            ))]
+            Some(libc::EEXIST) => true,
+            #[cfg(target_os = "windows")]
+            Some(val) if val == windows::Win32::Foundation::ERROR_ALREADY_EXISTS.0 as i32 => true,
+            _ => false,
+        }
     }
 
     /// Adds Routes and stores it
@@ -528,6 +550,28 @@ mod tests {
         assert_eq!(routing_table.vpn_routes.len(), 1);
         assert_eq!(routing_table.lan_routes.len(), 1);
         assert!(routing_table.server_route.is_some());
+    }
+
+    #[tokio::test]
+    #[serial_test::serial(routing_table)]
+    #[ignore = "May affect system routing"]
+    async fn test_privileged_is_route_exists_error_real() {
+        let (_restorer, mut routing_table) = create_test_setup(RouteMode::Default);
+
+        // Create test routes using shared fixtures
+        let (route, _, _, _) = create_test_routes_with_gateway(&mut routing_table);
+
+        // Add the route first time - should succeed
+        routing_table.add_route(&route).await.unwrap();
+
+        // Try to add the same route again - should get "route exists" error
+        let result2 = routing_table.route_manager_async.add(&route).await;
+        match result2 {
+            Err(e) => {
+                assert!(routing_table.is_route_exists_error(&e));
+            }
+            Ok(_) => panic!(),
+        }
     }
 
     #[test_case(RouteAddMethod::Standard, 1, 0, 0)]
