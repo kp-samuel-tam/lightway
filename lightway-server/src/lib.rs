@@ -207,6 +207,11 @@ pub struct ServerConfig<SA: for<'a> ServerAuth<AuthState<'a>>> {
 
     /// UDP Buffer size for the server
     pub udp_buffer_size: ByteSize,
+
+    /// Disable IP pool randomization
+    /// Should be used for debugging only
+    #[cfg(feature = "debug")]
+    pub randomize_ippool: bool,
 }
 
 pub(crate) fn handle_inside_io_error(conn: Arc<Connection>, result: ConnectionResult<()>) {
@@ -252,12 +257,18 @@ pub async fn server<SA: for<'a> ServerAuth<AuthState<'a>> + Sync + Send + 'stati
         .into_iter()
         .chain(config.tun_ip)
         .chain(std::iter::once(config.lightway_dns_ip));
+    #[cfg(feature = "debug")]
+    let randomize_ippool = config.randomize_ippool;
+    #[cfg(not(feature = "debug"))]
+    let randomize_ippool = true;
+
     let ip_manager = IpManager::new(
         config.ip_pool,
         config.ip_map,
         reserved_ips,
         inside_ip_config,
         config.use_dynamic_client_ip,
+        randomize_ippool,
     );
     let ip_manager = Arc::new(ip_manager);
 
