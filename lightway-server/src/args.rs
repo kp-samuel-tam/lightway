@@ -115,4 +115,10 @@ pub struct Config {
     #[cfg(feature = "debug")]
     #[clap(long)]
     pub tls_debug: bool,
+
+    /// Disable IP pool randomization
+    /// Should be used for debugging only
+    #[cfg(feature = "debug")]
+    #[clap(long, default_value_t = true)]
+    pub randomize_ippool: bool,
 }

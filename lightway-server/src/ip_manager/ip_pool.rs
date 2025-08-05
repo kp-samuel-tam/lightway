@@ -1,5 +1,4 @@
 use ipnet::Ipv4Net;
-use rand::prelude::*;
 use std::{
     collections::{HashSet, VecDeque},
     net::Ipv4Addr,
@@ -25,20 +24,24 @@ impl IpPool {
                 .chain(std::iter::once(ip_pool.broadcast())),
         );
 
-        let mut available_ips: VecDeque<_> = ip_pool
+        let available_ips: VecDeque<_> = ip_pool
             .hosts()
             .filter(|ip| !reserved_ips.contains(ip))
             .collect();
-
-        // make it harder to guess IPs during the early life of a
-        // server.
-        available_ips.make_contiguous().shuffle(&mut rand::rng());
 
         Self {
             reserved_ips,
             allocated_ips: Default::default(),
             available_ips,
         }
+    }
+
+    // Shuffle available IPs and make it harder to guess IPs
+    pub fn shuffle_ips(&mut self) {
+        use rand::prelude::*;
+        self.available_ips
+            .make_contiguous()
+            .shuffle(&mut rand::rng());
     }
 
     pub fn allocate_ip(&mut self) -> Option<Ipv4Addr> {
@@ -84,7 +87,9 @@ impl IpPool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     use more_asserts::*;
+    use rand::prelude::*;
     use test_case::test_case;
 
     fn get_ip_pool() -> IpPool {
@@ -345,10 +350,25 @@ mod tests {
     }
 
     #[test]
-    fn initial_shuffle() {
+    fn test_no_shuffle() {
+        // 10.125.0.1 is used for local ip
+        // 10.125.0.2 is used for dns ip
+        let exp_ip1: Ipv4Addr = "10.125.0.3".parse().unwrap();
+        let exp_ip2: Ipv4Addr = "10.125.0.4".parse().unwrap();
+        let mut pool = get_ip_pool();
+
+        let new_ip = pool.allocate_ip().unwrap();
+        assert_eq!(new_ip, exp_ip1);
+        let new_ip = pool.allocate_ip().unwrap();
+        assert_eq!(new_ip, exp_ip2);
+    }
+
+    #[test]
+    fn test_shuffle() {
         use average::Mean;
 
         let mut pool = get_ip_pool();
+        pool.shuffle_ips();
 
         // An imperfect test of randomness. This is sufficient to
         // catch an obvious mistake such as allocating in order.

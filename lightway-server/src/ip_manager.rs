@@ -72,8 +72,14 @@ impl<T> IpManager<T> {
         reserved_ips: impl IntoIterator<Item = Ipv4Addr>,
         static_ip_config: InsideIpConfig,
         use_dynamic_client_ip: bool,
+        randomize_ippool: bool,
     ) -> Self {
         let mut ip_pool = IpPool::new(ip_pool, reserved_ips);
+        if randomize_ippool {
+            ip_pool.shuffle_ips();
+        } else {
+            tracing::warn!("IpPool not randomized");
+        }
 
         let ip_map = ip_map
             .into_iter()
@@ -203,6 +209,7 @@ mod tests {
             [local_ip, dns_ip],
             get_static_ip_config(),
             use_dynamic_client_ip,
+            true,
         )
     }
 
@@ -394,6 +401,7 @@ mod tests {
             [local_ip, dns_ip, reserved_ip1, reserved_ip2],
             get_static_ip_config(),
             false,
+            true,
         );
         // Allocate every possible IP and check we never get a reserved one
         let mut count = 0;

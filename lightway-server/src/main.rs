@@ -177,6 +177,8 @@ async fn main() -> Result<()> {
         bind_address: config.bind_address,
         proxy_protocol: config.proxy_protocol,
         udp_buffer_size: config.udp_buffer_size,
+        #[cfg(feature = "debug")]
+        randomize_ippool: config.randomize_ippool,
     };
 
     server(config).await
