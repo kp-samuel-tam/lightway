@@ -146,7 +146,7 @@ pub fn ipv4_adjust_packet_checksum(mut packet: MutableIpv4Packet, updates: Check
 pub fn ipv4_update_source(buf: &mut [u8], ip: Ipv4Addr) {
     let packet = MutableIpv4Packet::new(buf);
     let Some(mut packet) = packet else {
-        warn!("Invalid packet size (less than Ipv4 header)!");
+        warn!("Ipv4 src update: Invalid packet size {:?}!", buf.len());
         return;
     };
 
@@ -162,7 +162,7 @@ pub fn ipv4_update_source(buf: &mut [u8], ip: Ipv4Addr) {
 pub fn ipv4_update_destination(buf: &mut [u8], ip: Ipv4Addr) {
     let packet = MutableIpv4Packet::new(buf);
     let Some(mut packet) = packet else {
-        warn!("Invalid packet size (less than Ipv4 header)!");
+        warn!("Ipv4 dest update: Invalid packet size {:?}!", buf.len());
         return;
     };
 
