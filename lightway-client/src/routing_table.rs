@@ -153,16 +153,8 @@ impl RoutingTable {
 
     fn is_route_exists_error(&self, error: &std::io::Error) -> bool {
         match error.raw_os_error() {
-            #[cfg(any(
-                target_os = "linux",
-                target_os = "macos",
-                target_os = "freebsd",
-                target_os = "openbsd",
-                target_os = "netbsd"
-            ))]
+            #[cfg(any(target_os = "linux", target_os = "macos",))]
             Some(libc::EEXIST) => true,
-            #[cfg(target_os = "windows")]
-            Some(val) if val == windows::Win32::Foundation::ERROR_ALREADY_EXISTS.0 as i32 => true,
             _ => false,
         }
     }

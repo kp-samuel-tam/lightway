@@ -104,13 +104,7 @@ async fn main() -> Result<()> {
         continuous_keepalive: true,
         sndbuf: config.sndbuf,
         rcvbuf: config.rcvbuf,
-        #[cfg(any(
-            target_os = "freebsd",
-            target_os = "linux",
-            target_os = "macos",
-            target_os = "openbsd",
-            target_os = "windows"
-        ))]
+        #[cfg(any(target_os = "linux", target_os = "macos",))]
         route_mode: config.route_mode,
         enable_pmtud: config.enable_pmtud,
         pmtud_base_mtu: config.pmtud_base_mtu,

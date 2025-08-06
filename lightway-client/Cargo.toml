@@ -47,8 +47,5 @@ test-case.workspace = true
 tun.workspace = true
 serial_test = "3.2.0"
 
-[target.'cfg(any(target_os = "freebsd", target_os = "linux", target_os = "macos", target_os = "openbsd", target_os = "windows"))'.dependencies]
+[target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]
 route_manager = { git = "https://github.com/rustp2p/route_manager.git", rev = "refs/pull/10/head", features = ["async"] }
-
-[target.'cfg(target_os = "windows")'.dependencies]
-windows = { version = "0.61.3", features = ["Win32_Foundation"] }
