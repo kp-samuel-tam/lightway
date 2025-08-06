@@ -74,7 +74,7 @@ async fn metrics_debug() {
     }
 }
 
-#[tokio::main(worker_threads = 1)]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
     let matches = Config::command().get_matches();
 
