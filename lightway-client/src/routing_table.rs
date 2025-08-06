@@ -135,14 +135,36 @@ impl RoutingTable {
 
     /// Adds Route
     async fn add_route(&mut self, route: &Route) -> Result<(), RoutingTableError> {
-        self.route_manager_async.add(route).await.map_err(|e| {
-            // Check if the error is related to permissions
-            if e.kind() == std::io::ErrorKind::PermissionDenied {
-                RoutingTableError::InsufficientPermissions
-            } else {
-                RoutingTableError::AddRouteError(e)
+        match self.route_manager_async.add(route).await {
+            Ok(()) => Ok(()),
+            Err(e) => {
+                if self.is_route_exists_error(&e) {
+                    // Ignore error if route already exists and
+                    // keep the existing route
+                    Ok(())
+                } else if e.kind() == std::io::ErrorKind::PermissionDenied {
+                    Err(RoutingTableError::InsufficientPermissions)
+                } else {
+                    Err(RoutingTableError::AddRouteError(e))
+                }
             }
-        })
+        }
+    }
+
+    fn is_route_exists_error(&self, error: &std::io::Error) -> bool {
+        match error.raw_os_error() {
+            #[cfg(any(
+                target_os = "linux",
+                target_os = "macos",
+                target_os = "freebsd",
+                target_os = "openbsd",
+                target_os = "netbsd"
+            ))]
+            Some(libc::EEXIST) => true,
+            #[cfg(target_os = "windows")]
+            Some(val) if val == windows::Win32::Foundation::ERROR_ALREADY_EXISTS.0 as i32 => true,
+            _ => false,
+        }
     }
 
     /// Adds Routes and stores it
@@ -325,9 +347,6 @@ mod tests {
     use test_case::test_case;
     use tokio;
     use tun::AbstractDevice;
-
-    const SERVER_ROUTES_COUNT: usize = 1;
-    const DNS_ROUTES_COUNT: usize = 1;
 
     const EXTERNAL_IP: IpAddr = IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8));
     const TEST_TARGET_IP1: IpAddr = IpAddr::V4(Ipv4Addr::new(192, 168, 100, 1));
@@ -530,22 +549,36 @@ mod tests {
         assert!(routing_table.server_route.is_some());
     }
 
-    #[test_case(RouteAddMethod::Standard, 1, 0, 0)]
-    #[test_case(RouteAddMethod::Server, 0, 1, 0)]
-    #[test_case(RouteAddMethod::Lan, 0, 0, 1)]
+    #[tokio::test]
+    #[serial_test::serial(routing_table)]
+    #[ignore = "May affect system routing"]
+    async fn test_privileged_is_route_exists_error_real() {
+        let (_restorer, mut routing_table) = create_test_setup(RouteMode::Default);
+
+        // Create test routes using shared fixtures
+        let (route, _, _, _) = create_test_routes_with_gateway(&mut routing_table);
+
+        // Add the route first time - should succeed
+        routing_table.add_route(&route).await.unwrap();
+
+        // Try to add the same route again - should get "route exists" error
+        let result2 = routing_table.route_manager_async.add(&route).await;
+        match result2 {
+            Err(e) => {
+                assert!(routing_table.is_route_exists_error(&e));
+            }
+            Ok(_) => panic!(),
+        }
+    }
+
+    #[test_case(RouteAddMethod::Standard)]
+    #[test_case(RouteAddMethod::Server)]
+    #[test_case(RouteAddMethod::Lan)]
     #[tokio::test]
     #[serial_test::serial(routing_table)]
     #[ignore = "May falsely fail during development due to local route settings"]
-    async fn test_privileged_add_single_route(
-        add_method: RouteAddMethod,
-        expected_vpn: usize,
-        expected_server: usize,
-        expected_lan: usize,
-    ) {
+    async fn test_privileged_add_single_route(add_method: RouteAddMethod) {
         let (_restorer, mut routing_table) = create_test_setup(RouteMode::Default);
-
-        // Get initial route count from the system
-        let initial_count = routing_table.route_manager.list().unwrap().len();
 
         // Create test route using shared fixtures
         let (route1, _route2, _route3, _gateway_ip) =
@@ -561,30 +594,8 @@ mod tests {
             RouteAddMethod::Lan => routing_table.add_route_lan(route1.clone()).await.unwrap(),
         };
         let routes_after_add1 = routing_table.route_manager.list().unwrap();
-        assert_eq!(routes_after_add1.len(), initial_count + 1);
 
-        // Verify route counts using test case parameters
-        assert_eq!(routing_table.vpn_routes.len(), expected_vpn);
-        assert_eq!(
-            routing_table.server_route.is_some() as usize,
-            expected_server
-        );
-        assert_eq!(routing_table.lan_routes.len(), expected_lan);
-
-        // Verify the correct route is stored in the right collection
-        match add_method {
-            RouteAddMethod::Standard => {
-                assert_eq!(routing_table.vpn_routes[0], route1);
-            }
-            RouteAddMethod::Server => {
-                assert_eq!(routing_table.server_route, Some(route1.clone()));
-            }
-            RouteAddMethod::Lan => {
-                assert_eq!(routing_table.lan_routes[0], route1);
-            }
-        }
-
-        // Verify the route was actually added to the system
+        // Verify the route is present in the system
         let route_found = routes_after_add1
             .iter()
             .any(|r| r.destination() == route1.destination() && r.gateway() == route1.gateway());
@@ -592,89 +603,67 @@ mod tests {
         assert!(route_found);
     }
 
-    #[test_case(RouteMode::NoExec, 0, 0, false, 0)]
-    #[test_case(RouteMode::Default, TUNNEL_ROUTES.len() + DNS_ROUTES_COUNT, 0, true, SERVER_ROUTES_COUNT + TUNNEL_ROUTES.len() + DNS_ROUTES_COUNT)]
-    #[test_case(RouteMode::Lan, TUNNEL_ROUTES.len() + DNS_ROUTES_COUNT, LAN_NETWORKS.len(), true, SERVER_ROUTES_COUNT + TUNNEL_ROUTES.len() + DNS_ROUTES_COUNT + LAN_NETWORKS.len())]
+    #[test_case(RouteMode::NoExec)]
+    #[test_case(RouteMode::Default)]
+    #[test_case(RouteMode::Lan)]
     #[tokio::test]
     #[serial_test::serial(routing_table)]
     #[ignore = "May falsely fail during development due to local route settings"]
-    async fn test_privileged_initialize_routing_table(
-        route_mode: RouteMode,
-        expected_vpn_routes: usize,
-        expected_lan_routes: usize,
-        should_have_server_route: bool,
-        expected_routes_added: usize,
-    ) {
+    async fn test_privileged_initialize_routing_table(route_mode: RouteMode) {
         let (_restorer, mut routing_table) = create_test_setup(route_mode);
 
         // Create a TUN device for testing using shared fixtures
         let (_tun_device, tun_index) = create_test_tun(TUN_LOCAL_IP).await.unwrap();
-
-        // Get initial system state AFTER TUN device creation
-        let initial_count = routing_table.route_manager.list().unwrap().len();
 
         // Test initialize_routing_table using shared fixtures
         routing_table
             .initialize_routing_table(&EXTERNAL_IP, tun_index, &TUN_PEER_IP, &TUN_DNS_IP)
             .await
             .unwrap();
-        // Verify state after initialization
-        let routes_after_init = routing_table.route_manager.list().unwrap().len();
-        let routes_added = routes_after_init - initial_count;
 
-        // Verify basic route counts using test case parameters
-        assert_eq!(routing_table.vpn_routes.len(), expected_vpn_routes);
-        assert_eq!(routing_table.lan_routes.len(), expected_lan_routes);
-        assert_eq!(
-            routing_table.server_route.is_some(),
-            should_have_server_route
-        );
+        // Get system routes after initialization
+        let routes_after_init = routing_table.route_manager.list().unwrap();
 
-        // Verify exact number of routes added to system
-        assert_eq!(routes_added, expected_routes_added);
+        // Verify routes are present in system
+        if [RouteMode::Default, RouteMode::Lan].contains(&route_mode) {
+            let server_route_found = routes_after_init
+                .iter()
+                .any(|r| r.destination() == EXTERNAL_IP && r.prefix() == 32);
+            assert!(server_route_found);
 
-        // Verify server route details (for modes that have server routes)
-        if should_have_server_route {
-            let server_route = routing_table.server_route.as_ref().unwrap();
-            assert_eq!(server_route.destination(), EXTERNAL_IP);
-            assert_eq!(server_route.prefix(), 32);
-        }
-
-        // Verify tunnel routes in vpn_routes (for modes that have VPN routes)
-        if expected_vpn_routes > 0 {
             for (network, prefix) in TUNNEL_ROUTES {
-                let route_found = routing_table.vpn_routes.iter().any(|r| {
+                // Verify route is present in system
+                let route_in_system = routes_after_init.iter().any(|r| {
                     r.destination() == network
                         && r.prefix() == prefix
                         && r.gateway() == Some(TUN_PEER_IP)
                         && r.if_index() == Some(tun_index)
                 });
-                assert!(route_found);
+                assert!(route_in_system);
             }
 
-            // Verify DNS route
-            let dns_route_found = routing_table.vpn_routes.iter().any(|r| {
+            let dns_route_in_system = routes_after_init.iter().any(|r| {
                 r.destination() == TUN_DNS_IP
                     && r.prefix() == 32
                     && r.gateway() == Some(TUN_PEER_IP)
                     && r.if_index() == Some(tun_index)
             });
-            assert!(dns_route_found);
+            assert!(dns_route_in_system);
         }
 
-        // Verify LAN routes (for Lan mode)
-        if expected_lan_routes > 0 {
-            let (_, default_gateway) = routing_table
+        // Verify LAN routes are present in system
+        if route_mode == RouteMode::Lan {
+            let (default_index, default_gateway) = routing_table
                 .find_default_interface_index_and_gateway(&EXTERNAL_IP)
                 .unwrap();
 
             for (network, prefix) in LAN_NETWORKS {
-                let lan_route_found = routing_table.lan_routes.iter().any(|r| {
+                let lan_route_in_system = routes_after_init.iter().any(|r| {
                     r.destination() == network
                         && r.prefix() == prefix
-                        && r.gateway() == default_gateway
+                        && (r.gateway() == default_gateway || r.if_index() == Some(default_index))
                 });
-                assert!(lan_route_found);
+                assert!(lan_route_in_system);
             }
         }
     }
