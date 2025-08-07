@@ -2119,8 +2119,9 @@ dependencies = [
 
 [[package]]
 name = "route_manager"
-version = "0.2.5"
-source = "git+https://github.com/rustp2p/route_manager.git?rev=refs%2Fpull%2F10%2Fhead#6d7e800ca6c1eb9a469c8f0b7fe27aead31a9140"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "27f8623f8f002a57e28fd382a3c8d99156f262cfd9f91d56337238450e41d02e"
 dependencies = [
  "bindgen",
  "flume",
