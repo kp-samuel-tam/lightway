@@ -28,7 +28,7 @@ install-build-dependencies:
     RUN rustup toolchain install nightly
 
     DO lib-rust+INIT --keep_fingerprints=true
-    DO lib-rust+CARGO --args="install --locked cargo-deny cargo-llvm-cov"
+    DO lib-rust+CARGO --args="install --locked cargo-deny cargo-llvm-cov cargo-make"
     RUN rustup component add clippy
     RUN rustup component add rustfmt
     RUN rustup component add llvm-tools-preview
@@ -41,7 +41,7 @@ install-build-dependencies:
 
 source:
     FROM +install-build-dependencies
-    COPY --keep-ts Cargo.toml Cargo.lock ./
+    COPY --keep-ts Cargo.toml Cargo.lock Makefile.toml ./
     COPY --keep-ts deny.toml ./
     COPY --keep-ts --dir lightway-core lightway-app-utils lightway-client lightway-server tests .cargo ./
 
@@ -151,7 +151,6 @@ fmt:
 # lint runs cargo clippy on the source code
 lint:
     FROM +source
-    DO lib-rust+CARGO --args="clippy --all-features --all-targets -- -D warnings"
     DO lib-rust+CARGO --args="clippy -p lightway-client --no-default-features --all-targets -- -D warnings"
     ENV RUSTDOCFLAGS="-D warnings"
     DO lib-rust+CARGO --args="doc --document-private-items"

@@ -10,7 +10,7 @@ concurrency:
 
 jobs:
   ci:
-    needs: [earthly, e2e, coverage, nix-build]
+    needs: [earthly, e2e, coverage, nix-build, nix-clippy]
     runs-on: ubuntu-latest
     if: always()
     steps:
@@ -168,7 +168,7 @@ jobs:
         run: exit 1
 
   nix-build:
-    name: Nix (${{ matrix.os }})
+    name: Nix Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -181,8 +181,35 @@ jobs:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
       - run: nix flake check
 
+      - name: Run cargo tests
+        run: nix develop --command cargo test
+
+      - name: Run cargo tests with kyber_only feature
+        run: nix develop --command cargo test --features kyber_only
+      
+      - name: Run privileged tests (macOS only)
+        if: matrix.os == 'macos-latest'
+        run: sudo nix develop --command cargo test test_privileged -- --ignored
+
       - name: Build lightway client
         run: nix build .#lightway-client
 
       - name: Build lightway server
         run: nix build .#lightway-server
+
+  nix-clippy:
+    name: Nix Clippy (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - run: nix flake check
+
+      - name: Run clippy
+        run: nix develop --command cargo make clippy
