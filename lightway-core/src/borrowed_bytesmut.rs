@@ -131,7 +131,7 @@ mod immutable_bytesmut {
             Self { orig, mutable }
         }
 
-        pub fn as_borrowed_bytesmut(&mut self) -> BorrowedBytesMut {
+        pub fn as_borrowed_bytesmut(&mut self) -> BorrowedBytesMut<'_> {
             BorrowedBytesMut::from(&mut self.mutable)
         }
     }

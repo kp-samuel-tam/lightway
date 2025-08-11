@@ -22,7 +22,7 @@ impl<const N: usize> Buffer<N> {
     ///
     /// `control_len` must have been set to the number of bytes of the
     /// buffer which have been initialized.
-    pub(crate) unsafe fn iter(&self, control_len: LibcControlLen) -> Iter<N> {
+    pub(crate) unsafe fn iter(&self, control_len: LibcControlLen) -> Iter<'_, N> {
         // Build a `msghdr` so we can use the `CMSG_*` functionality in
         // libc. We will only use the `CMSG_*` macros which only use
         // the `msg_control*` fields.
@@ -123,7 +123,7 @@ impl<const N: usize> BufferMut<N> {
     ///
     /// Note that this is not mentioned in
     /// <https://pubs.opengroup.org/onlinepubs/9699919799.2018edition/basedefs/sys_socket.h.html>.
-    pub(crate) fn builder(&mut self) -> BufferBuilder<N> {
+    pub(crate) fn builder(&mut self) -> BufferBuilder<'_, N> {
         // Build a `msghdr` so we can use the `CMSG_*` functionality in
         // libc. We will only use the `CMSG_*` macros which only use
         // the `msg_control*` fields.

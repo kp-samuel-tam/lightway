@@ -558,10 +558,10 @@ impl<AppState: Send> Connection<AppState> {
             }
         }
 
-        if matches!(new_state, State::LinkUp) {
-            if let ConnectionMode::Client { auth_method, .. } = &self.mode {
-                self.authenticate(auth_method.clone())?;
-            }
+        if matches!(new_state, State::LinkUp)
+            && let ConnectionMode::Client { auth_method, .. } = &self.mode
+        {
+            self.authenticate(auth_method.clone())?;
         };
         Ok(())
     }
@@ -859,11 +859,11 @@ impl<AppState: Send> Connection<AppState> {
         // This should be enabled only for client for now.
         // But since we enable PMTU check only on client, there is no direct
         // check for client/server
-        if let Some(pmtud) = self.pmtud.as_ref() {
-            if let Some((mps, _)) = pmtud.maximum_packet_sizes() {
-                let tcp_mss = mps - (IPV4_HEADER_SIZE + TCP_HEADER_SIZE);
-                tcp_clamp_mss(pkt.as_mut(), tcp_mss as _);
-            }
+        if let Some(pmtud) = self.pmtud.as_ref()
+            && let Some((mps, _)) = pmtud.maximum_packet_sizes()
+        {
+            let tcp_mss = mps - (IPV4_HEADER_SIZE + TCP_HEADER_SIZE);
+            tcp_clamp_mss(pkt.as_mut(), tcp_mss as _);
         }
 
         match self.inside_plugins.do_ingress(pkt) {

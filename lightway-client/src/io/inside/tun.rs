@@ -59,10 +59,10 @@ impl InsideIORecv for Tun {
         // Update source IP from server DNS ip to TUN DNS ip
         if let Some(ip_config) = ip_config {
             let packet = Ipv4Packet::new(pkt.as_ref());
-            if let Some(packet) = packet {
-                if packet.get_source() == ip_config.dns_ip {
-                    ipv4_update_source(pkt.as_mut(), self.dns_ip);
-                }
+            if let Some(packet) = packet
+                && packet.get_source() == ip_config.dns_ip
+            {
+                ipv4_update_source(pkt.as_mut(), self.dns_ip);
             };
         }
 
@@ -83,10 +83,10 @@ impl<T: Send + Sync> InsideIOSendCallback<ConnectionState<T>> for Tun {
         // Update source IP from server DNS ip to TUN DNS ip
         if let Some(ip_config) = state.ip_config {
             let packet = Ipv4Packet::new(buf.as_ref());
-            if let Some(packet) = packet {
-                if packet.get_source() == ip_config.dns_ip {
-                    ipv4_update_source(buf.as_mut(), self.dns_ip);
-                }
+            if let Some(packet) = packet
+                && packet.get_source() == ip_config.dns_ip
+            {
+                ipv4_update_source(buf.as_mut(), self.dns_ip);
             };
         }
 

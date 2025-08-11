@@ -273,13 +273,13 @@ impl RoutingTable {
             }
         }
 
-        if let Some(route) = &self.server_route {
-            if let Err(e) = self.route_manager.delete(route) {
-                warn!(
-                    "Failed to delete server route during drop: {}, error: {}",
-                    route, e
-                );
-            }
+        if let Some(route) = &self.server_route
+            && let Err(e) = self.route_manager.delete(route)
+        {
+            warn!(
+                "Failed to delete server route during drop: {}, error: {}",
+                route, e
+            );
         }
     }
     pub async fn initialize_routing_table(

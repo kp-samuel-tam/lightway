@@ -312,7 +312,7 @@ impl<AppState: Send + 'static> ServerContext<AppState> {
         &self,
         protocol_version: Version,
         outside_io: OutsideIOSendCallbackArg,
-    ) -> Result<ServerConnectionBuilder<AppState>, ContextError> {
+    ) -> Result<ServerConnectionBuilder<'_, AppState>, ContextError> {
         Ok(ServerConnectionBuilder::new(
             self,
             protocol_version,
