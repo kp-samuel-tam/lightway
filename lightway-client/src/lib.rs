@@ -280,13 +280,10 @@ async fn handle_events<A: 'static + Send + EventCallback>(
 
                     conn.lock().unwrap().inside_io(inside_io.clone());
 
-                    if enable_encoding_when_online {
-                        if let Err(e) = conn.lock().unwrap().set_encoding(true) {
-                            tracing::error!(
-                                "Error encoutered when trying to toggle encoding. {}",
-                                e
-                            );
-                        }
+                    if enable_encoding_when_online
+                        && let Err(e) = conn.lock().unwrap().set_encoding(true)
+                    {
+                        tracing::error!("Error encoutered when trying to toggle encoding. {}", e);
                     }
                 }
             }
@@ -369,10 +366,10 @@ pub async fn inside_io_task<T: Send + Sync>(
 
             // Update TUN device DNS IP address to server provided DNS address
             let packet = Ipv4Packet::new(buf.as_ref());
-            if let Some(packet) = packet {
-                if packet.get_destination() == tun_dns_ip {
-                    ipv4_update_destination(buf.as_mut(), ip_config.dns_ip);
-                }
+            if let Some(packet) = packet
+                && packet.get_destination() == tun_dns_ip
+            {
+                ipv4_update_destination(buf.as_mut(), ip_config.dns_ip);
             };
         }
 
@@ -525,14 +522,13 @@ fn validate_client_config<A: 'static + Send + EventCallback, T: Send + Sync>(
         ));
     }
 
-    if let Some(inside_pkt_codec_config) = &config.inside_pkt_codec_config {
-        if inside_pkt_codec_config.enable_encoding_at_connect
-            && matches!(config.mode, ClientConnectionMode::Stream(_))
-        {
-            return Err(anyhow!(
-                "inside pkt encoding should not be enabled with TCP"
-            ));
-        }
+    if let Some(inside_pkt_codec_config) = &config.inside_pkt_codec_config
+        && inside_pkt_codec_config.enable_encoding_at_connect
+        && matches!(config.mode, ClientConnectionMode::Stream(_))
+    {
+        return Err(anyhow!(
+            "inside pkt encoding should not be enabled with TCP"
+        ));
     }
 
     Ok(())

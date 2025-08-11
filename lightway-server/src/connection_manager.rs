@@ -167,11 +167,11 @@ async fn handle_events(mut stream: EventStream, conn: Weak<Connection>) {
 #[instrument(level = "trace", skip_all)]
 async fn handle_stale(conn: Weak<Connection>) {
     tokio::time::sleep(CONNECTION_STALE_AGE).await;
-    if let Some(conn) = conn.upgrade() {
-        if !matches!(conn.state(), State::Online) {
-            metrics::connection_stale_closed();
-            let _ = conn.disconnect();
-        }
+    if let Some(conn) = conn.upgrade()
+        && !matches!(conn.state(), State::Online)
+    {
+        metrics::connection_stale_closed();
+        let _ = conn.disconnect();
     };
 }
 
