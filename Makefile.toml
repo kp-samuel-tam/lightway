@@ -7,17 +7,13 @@ FEATURES_MACOS = "default,debug,postquantum,kyber_only"
 FEATURES_LINUX = "default,debug,postquantum,kyber_only,io-uring"
 
 [tasks.clippy]
-mac_alias = "clippy-macos"
-linux_alias = "clippy-linux"
-
-[tasks.clippy-macos]
-description = "Run clippy with macOS features only"
+description = "Run Clippy with platform specific features only"
 category = "Development"
+
+[tasks.clippy.mac]
 command = "cargo"
 args = ["clippy", "--features", "${FEATURES_MACOS}", "--all-targets", "--", "-D", "warnings"]
 
-[tasks.clippy-linux]
-description = "Run clippy with Linux features (including io-uring)"
-category = "Development"
+[tasks.clippy.linux]
 command = "cargo"
 args = ["clippy", "--features", "${FEATURES_LINUX}", "--all-targets", "--", "-D", "warnings"]
