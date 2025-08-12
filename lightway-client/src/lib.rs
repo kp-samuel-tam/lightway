@@ -26,8 +26,7 @@ use tokio::sync::mpsc::UnboundedReceiver;
 
 #[cfg(feature = "debug")]
 use crate::debug::WiresharkKeyLogger;
-use crate::dns_manager::DnsManager;
-use crate::dns_manager::DnsSetup;
+use crate::dns_manager::{DnsConfigMode, DnsManager, DnsManagerError, DnsSetup};
 #[cfg(any(target_os = "linux", target_os = "macos",))]
 use crate::routing_table::{RouteMode, RoutingTable};
 #[cfg(feature = "debug")]
@@ -134,6 +133,10 @@ pub struct ClientConfig<'cert, ExtAppState: Send + Sync> {
     /// Route Mode
     #[cfg(any(target_os = "linux", target_os = "macos",))]
     pub route_mode: RouteMode,
+
+    /// DNS configuration mode
+    #[cfg(any(target_os = "linux", target_os = "macos",))]
+    pub dns_config_mode: DnsConfigMode,
 
     /// Enable PMTU discovery for Udp connections
     pub enable_pmtud: bool,
@@ -532,6 +535,8 @@ pub struct ClientConnection<T: Send + Sync> {
     server_ip: IpAddr,
     #[cfg(any(target_os = "linux", target_os = "macos",))]
     route_table: Option<RoutingTable>,
+    #[cfg(any(target_os = "linux", target_os = "macos",))]
+    dns_manager: Option<DnsManager>,
 }
 
 impl<ExtAppState: Send + Sync> ClientConnection<ExtAppState> {
@@ -558,6 +563,20 @@ impl<ExtAppState: Send + Sync> ClientConnection<ExtAppState> {
             .await?;
 
         self.route_table = Some(route_table);
+        Ok(())
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "macos",))]
+    pub fn set_dns(
+        &mut self,
+        dns_config_mode: DnsConfigMode,
+        tun_dns_ip: Ipv4Addr,
+    ) -> Result<(), DnsManagerError> {
+        if dns_config_mode == DnsConfigMode::Default {
+            let mut dns_manager = DnsManager::default();
+            dns_manager.set_dns(&tun_dns_ip.to_string())?;
+            self.dns_manager = Some(dns_manager);
+        }
         Ok(())
     }
 
@@ -803,6 +822,7 @@ pub async fn connect<
         server_ip: server_config.server.ip(),
         #[cfg(any(target_os = "linux", target_os = "macos",))]
         route_table: None,
+        dns_manager: None,
     })
 }
 
@@ -1017,8 +1037,8 @@ pub async fn client<
         )
         .await?;
 
-    let mut dns_manager = DnsManager::default();
-    dns_manager.set_dns(&config.tun_dns_ip.to_string())?;
+    #[cfg(any(target_os = "linux", target_os = "macos",))]
+    connection.set_dns(config.dns_config_mode, config.tun_dns_ip)?;
 
     connection.task.await?
 }

@@ -137,6 +137,8 @@ async fn main() -> Result<()> {
         rcvbuf: config.rcvbuf,
         #[cfg(any(target_os = "linux", target_os = "macos",))]
         route_mode: config.route_mode,
+        #[cfg(any(target_os = "linux", target_os = "macos",))]
+        dns_config_mode: config.dns_config_mode,
         enable_pmtud: config.enable_pmtud,
         pmtud_base_mtu: config.pmtud_base_mtu,
         #[cfg(feature = "io-uring")]
