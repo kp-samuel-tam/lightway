@@ -35,6 +35,7 @@
           ];
           devDeps = with pkgs; [
             cargo-deny
+            cargo-make
             cargo-nextest
             cargo-outdated
             rust-analyzer

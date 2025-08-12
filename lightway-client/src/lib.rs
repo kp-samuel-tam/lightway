@@ -1,6 +1,8 @@
 mod debug;
+pub mod dns_manager;
 pub mod io;
 pub mod keepalive;
+pub mod platform;
 #[cfg(any(target_os = "linux", target_os = "macos",))]
 pub mod routing_table;
 
@@ -24,6 +26,8 @@ use tokio::sync::mpsc::UnboundedReceiver;
 
 #[cfg(feature = "debug")]
 use crate::debug::WiresharkKeyLogger;
+use crate::dns_manager::DnsManager;
+use crate::dns_manager::DnsSetup;
 #[cfg(any(target_os = "linux", target_os = "macos",))]
 use crate::routing_table::{RouteMode, RoutingTable};
 #[cfg(feature = "debug")]
@@ -1015,6 +1019,9 @@ pub async fn client<
             config.tun_dns_ip.into(),
         )
         .await?;
+
+    let mut dns_manager = DnsManager::default();
+    dns_manager.set_dns(&config.tun_dns_ip.to_string())?;
 
     connection.task.await?
 }
