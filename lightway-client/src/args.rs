@@ -110,7 +110,7 @@ pub struct Config {
     ///     default: Sets up routes as specified in server, tun_local_ip, tun_peer_ip, tun_dns_ip
     ///     noexec : Does not setup any routes
     ///     lan    : Sets up default + additional lan routes
-    #[clap(long, value_enum, default_value_t = RouteMode::Default)]
+    #[clap(long, value_enum, default_value_t)]
     #[cfg(any(target_os = "linux", target_os = "macos",))]
     pub route_mode: RouteMode,
 
