@@ -32,6 +32,15 @@ pub enum DnsManagerError {
     #[error("Invalid system data type")]
     #[cfg(macos)]
     InvalidSystemData,
+    #[error("Unable to find backup to restore resolv.conf")]
+    #[cfg(linux)]
+    NoResolvConfBackup,
+    #[error("Failed to restore DNS configuration: {0}")]
+    #[cfg(linux)]
+    FailedToRestoreDnsConfig(String),
+    #[error("DNS has already been configured")]
+    #[cfg(linux)]
+    DnsAlreadyConfigured,
 }
 
 pub trait DnsSetup {
