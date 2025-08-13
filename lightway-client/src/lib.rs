@@ -970,14 +970,11 @@ pub async fn client<
 
     tracing::trace!("Best connection selected: {best_connection_index}");
 
-    for (i, conn) in connections.iter_mut().enumerate() {
-        if i == best_connection_index {
-            continue;
-        }
+    let mut connection = connections.swap_remove(best_connection_index);
+
+    for conn in connections.iter_mut() {
         let _ = conn.stop_signal.take().unwrap().send(());
     }
-
-    let mut connection = connections.swap_remove(best_connection_index);
 
     if let Some(mut network_change_signal) = config.network_change_signal.take() {
         let connection_network_change_signal = connection.network_change_signal.clone();
