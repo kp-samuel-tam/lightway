@@ -38,6 +38,7 @@
             cargo-make
             cargo-nextest
             cargo-outdated
+            cargo-fuzz
             rust-analyzer
           ];
 
@@ -95,6 +96,7 @@
           packages.lightway-server = rustPackage "lightway-server" serverFeatures;
 
           devShells.stable = mkDevShell pkgs.rust-bin.stable.latest.default;
+          devShells.nightly = mkDevShell pkgs.rust-bin.nightly.latest.default;
           devShells.msrv = mkDevShell pkgs.rust-bin.stable.${msrv}.default;
 
           formatter = pkgs.nixfmt-rfc-style;
