@@ -27,4 +27,5 @@ enable_pmtud: false
 # sndbuf: 1.5 MiB
 # rcvbuf: 1.5 MiB
 route_mode: default
+dns_config_mode: default
 preferred_connection_wait_interval: 2s

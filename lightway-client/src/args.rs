@@ -1,3 +1,4 @@
+use super::dns_manager::DnsConfigMode;
 use super::routing_table::RouteMode;
 use anyhow::{Result, anyhow};
 use bytesize::ByteSize;
@@ -110,9 +111,17 @@ pub struct Config {
     ///     default: Sets up routes as specified in server, tun_local_ip, tun_peer_ip, tun_dns_ip
     ///     noexec : Does not setup any routes
     ///     lan    : Sets up default + additional lan routes
-    #[clap(long, value_enum, default_value_t = RouteMode::Default)]
+    #[clap(long, value_enum, default_value_t)]
     #[cfg(any(target_os = "linux", target_os = "macos",))]
     pub route_mode: RouteMode,
+
+    /// DNS configuration mode
+    /// Modes:
+    ///     default: Sets up DNS Configuration based on target platform
+    ///     noexec : Skips DNS Configuration setup
+    #[clap(long, value_enum, default_value_t)]
+    #[cfg(any(target_os = "linux", target_os = "macos",))]
+    pub dns_config_mode: DnsConfigMode,
 
     /// Log level to use
     #[clap(long, value_enum, default_value_t = LogLevel::Info)]

@@ -48,9 +48,10 @@ const TUNNEL_ROUTES: [(IpAddr, u8); 2] = [
     ),
 ];
 
-#[derive(Debug, PartialEq, Copy, Clone, clap::ValueEnum, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Copy, Clone, clap::ValueEnum, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum RouteMode {
+    #[default]
     Default,
     Lan,
     NoExec,

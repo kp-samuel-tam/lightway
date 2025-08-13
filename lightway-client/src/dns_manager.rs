@@ -1,5 +1,15 @@
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::warn;
+
+/// DNS configuration mode
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum DnsConfigMode {
+    #[default]
+    Default,
+    NoExec,
+}
 #[derive(Error, Debug)]
 pub enum DnsManagerError {
     #[error("Unable to find primary service ID")]
