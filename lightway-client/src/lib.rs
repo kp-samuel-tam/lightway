@@ -989,6 +989,9 @@ pub async fn client<
             }
             return Err(anyhow!("All connections failed to connect."));
         }
+        _ = &mut config.stop_signal => {
+            return Ok(ClientResult::UserDisconnect);
+        }
     };
 
     tracing::trace!("Best connection selected: {best_connection_index}");
