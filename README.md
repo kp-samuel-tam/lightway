@@ -225,20 +225,36 @@ To run things within the containers
 
 ## Nix flake
 
-Lightway can also be built and tested using nix commands:
+Lightway can be built and tested using Nix commands:
 
-```
+```bash
 nix build .#lightway-server
 nix build .#lightway-client
 ```
 
-To run server or client,
-```
+To run the server or client:
+```bash
 nix run .#lightway-server -- -c config.yaml
 nix run .#lightway-client -- -c config.yaml
 ```
 
-Linux or mac machines are supported
+Both Linux and macOS are supported.
+
+### Development environment
+
+Set up a local development environment using the Nix flake:
+
+```bash
+nix develop
+cargo build --bin lightway-server
+```
+
+This installs all necessary tools required to develop Lightway.
+
+For nightly toolchain support (needed for fuzzing):
+```bash
+nix develop .#nightly
+```
 
 ## Contributing
 

@@ -1,11 +1,14 @@
 //! Handle `lightway_core::ScheduleTickCb` callbacks using Tokio.
 
-use lightway_core::{Connection, ConnectionResult};
+use lightway_core::{Connection, ConnectionError, ConnectionResult};
 use std::{
     sync::{Mutex, Weak},
     time::Duration,
 };
-use tokio::{sync::mpsc, task::JoinSet};
+use tokio::{
+    sync::mpsc::{self, UnboundedReceiver},
+    task::JoinSet,
+};
 use tracing::warn;
 
 /// App state compatible with [`connection_ticker_cb`]
@@ -78,16 +81,7 @@ pub struct ConnectionTickerTask(mpsc::UnboundedReceiver<()>);
 impl ConnectionTickerTask {
     /// Spawn the handler task
     pub fn spawn<T: Tickable + 'static>(self, weak: Weak<T>) -> tokio::task::JoinHandle<()> {
-        let mut recv = self.0;
-        tokio::task::spawn(async move {
-            while let Some(()) = recv.recv().await {
-                let Some(tickable) = weak.upgrade() else {
-                    break;
-                };
-
-                let _ = tickable.tick();
-            }
-        })
+        tokio::task::spawn(Self::task(weak, self.0))
     }
 
     /// Spawn the handler task in a JoinSet
@@ -96,16 +90,25 @@ impl ConnectionTickerTask {
         weak: Weak<T>,
         join_set: &mut JoinSet<()>,
     ) -> tokio::task::AbortHandle {
-        let mut recv = self.0;
-        join_set.spawn(async move {
-            while let Some(()) = recv.recv().await {
-                let Some(tickable) = weak.upgrade() else {
-                    break;
-                };
+        join_set.spawn(Self::task(weak, self.0))
+    }
 
-                let _ = tickable.tick();
+    async fn task<T: Tickable + 'static>(weak: Weak<T>, mut recv: UnboundedReceiver<()>) {
+        while let Some(()) = recv.recv().await {
+            let Some(tickable) = weak.upgrade() else {
+                break;
+            };
+
+            if let Err(e) = tickable.tick() {
+                match e {
+                    ConnectionError::TimedOut => {
+                        tracing::error!("DTLS connection timed out");
+                        break;
+                    }
+                    _ => tracing::warn!("Connection tick failed: {e:?}"),
+                }
             }
-        })
+        }
     }
 }
 
