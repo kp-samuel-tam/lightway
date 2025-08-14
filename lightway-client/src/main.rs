@@ -91,7 +91,7 @@ async fn main() -> Result<()> {
         .destination(config.tun_peer_ip)
         .up();
 
-    let (ctrlc_tx, ctrlc_rx) = tokio::sync::oneshot::channel();
+    let (ctrlc_tx, mut ctrlc_rx) = tokio::sync::oneshot::channel();
     let mut ctrlc_tx = Some(ctrlc_tx);
     ctrlc::set_handler(move || {
         if let Some(Err(err)) = ctrlc_tx.take().map(|tx| tx.send(())) {
@@ -112,11 +112,21 @@ async fn main() -> Result<()> {
         config.servers
     };
 
-    let servers = join_all(servers.into_iter().map(make_client_connection_config))
-        .await
-        .into_iter()
-        .flat_map(|result| result.map_err(|e| tracing::error!("{e}")))
-        .collect::<Vec<_>>();
+    let servers = join_all(servers.into_iter().map(make_client_connection_config));
+    let servers = tokio::select! {
+        results = servers => {
+            results.into_iter()
+                .flat_map(|result| result.map_err(|e| tracing::error!("{e}")))
+                .collect::<Vec<_>>()
+        }
+        _ = &mut ctrlc_rx => {
+            tracing::info!("Ctrl-C received, exiting...");
+            // `lookup_host` uses `spawn_blocking`, and the executor will still wait for the tasks
+            // to finish before exiting. Instead of waiting for the resolution to fail, we exit
+            // manually.
+            std::process::exit(0);
+        }
+    };
 
     let config = ClientConfig {
         auth,
