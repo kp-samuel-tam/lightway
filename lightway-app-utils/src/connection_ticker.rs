@@ -1,6 +1,6 @@
 //! Handle `lightway_core::ScheduleTickCb` callbacks using Tokio.
 
-use lightway_core::{Connection, ConnectionResult};
+use lightway_core::{Connection, ConnectionError, ConnectionResult};
 use std::{
     sync::{Mutex, Weak},
     time::Duration,
@@ -85,7 +85,15 @@ impl ConnectionTickerTask {
                     break;
                 };
 
-                let _ = tickable.tick();
+                if let Err(e) = tickable.tick()  {
+                    match e {
+                        ConnectionError::TimedOut => {
+                            tracing::error!("DTLS connection timed out");
+                            break;
+                        }
+                        _ => tracing::warn!("Connection tick failed: {e:?}")
+                    }
+                }
             }
         })
     }
@@ -103,7 +111,15 @@ impl ConnectionTickerTask {
                     break;
                 };
 
-                let _ = tickable.tick();
+                if let Err(e) = tickable.tick()  {
+                    match e {
+                        ConnectionError::TimedOut => {
+                            tracing::error!("DTLS connection timed out");
+                            break;
+                        }
+                        _ => tracing::warn!("Connection tick failed: {e:?}")
+                    }
+                }
             }
         })
     }

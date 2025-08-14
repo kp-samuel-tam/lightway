@@ -732,7 +732,7 @@ pub async fn connect<
         connected_tx,
     ));
 
-    ticker_task.spawn_in(Arc::downgrade(&conn), &mut join_set);
+    let mut ticker_task = ticker_task.spawn(Arc::downgrade(&conn));
     pmtud_timer_task.spawn(Arc::downgrade(&conn), &mut join_set);
 
     if let Some(codec_ticker_task) = codec_ticker_task {
@@ -790,6 +790,7 @@ pub async fn connect<
             io = &mut inside_io_loop => Err(anyhow!("Inside IO loop exited: {io:?}")),
             io = &mut encoded_pkt_send_task, if server_config.inside_pkt_codec.is_some() => Err(anyhow!("Inside IO (Encoded packet send task) exited: {io:?}")),
             io = &mut decoded_pkt_send_task, if server_config.inside_pkt_codec.is_some() => Err(anyhow!("Inside IO (Decoded packet send task) exited: {io:?}")),
+            _ = &mut ticker_task => Err(anyhow!("Ticker task stopped")),
             result = &mut network_change_task => {
                 match result {
                     Ok(client_result) => {
@@ -808,6 +809,7 @@ pub async fn connect<
         encoded_pkt_send_task.abort();
         decoded_pkt_send_task.abort();
         network_change_task.abort();
+        ticker_task.abort();
 
         result
     });
