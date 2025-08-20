@@ -283,8 +283,10 @@ async fn handle_events<A: 'static + Send + EventCallback, ExtAppState: Send + Sy
     enable_encoding_when_online: bool,
     event_handler: Option<A>,
     connected_signal: oneshot::Sender<()>,
+    disconnected_signal: oneshot::Sender<()>,
 ) {
     let mut connected_signal = Some(connected_signal);
+    let mut disconnected_signal = Some(disconnected_signal);
     while let Some(event) = stream.next().await {
         match &event {
             Event::StateChanged(state) => {
@@ -302,6 +304,10 @@ async fn handle_events<A: 'static + Send + EventCallback, ExtAppState: Send + Sy
                     {
                         tracing::error!("Error encoutered when trying to toggle encoding. {}", e);
                     }
+                } else if matches!(state, State::Disconnected)
+                    && let Some(disconnected_tx) = disconnected_signal.take()
+                {
+                    let _ = disconnected_tx.send(());
                 }
             }
             Event::KeepaliveReply => keepalive.reply_received().await,
@@ -718,6 +724,7 @@ pub async fn connect<
     );
 
     let (connected_tx, connected_rx) = oneshot::channel();
+    let (disconnected_tx, disconnected_rx) = oneshot::channel();
 
     let event_handler = server_config.event_handler.take();
     join_set.spawn(handle_events(
@@ -730,6 +737,7 @@ pub async fn connect<
             .is_some_and(|x| x.enable_encoding_at_connect),
         event_handler,
         connected_tx,
+        disconnected_tx,
     ));
 
     let mut ticker_task = ticker_task.spawn(Arc::downgrade(&conn));
@@ -803,6 +811,10 @@ pub async fn connect<
                 }
             },
         };
+
+        if result.is_ok() {
+            let _ = disconnected_rx.await;
+        }
 
         outside_io_loop.abort();
         inside_io_loop.abort();
