@@ -790,8 +790,10 @@ pub async fn connect<
         let result = tokio::select! {
             _ = stop_rx => {
                 info!("client shutting down ..");
-                let _ = stop_conn.lock().unwrap().disconnect();
-                Ok(ClientResult::UserDisconnect)
+                match stop_conn.lock().unwrap().disconnect() {
+                    Ok(()) => Ok(ClientResult::UserDisconnect),
+                    Err(e) => Err(e.into())
+                }
             },
             Some(_) = keepalive_task => Err(anyhow!("Keepalive timeout")),
             io = &mut outside_io_loop => Err(anyhow!("Outside IO loop exited: {io:?}")),
