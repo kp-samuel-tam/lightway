@@ -3,19 +3,18 @@ use bytes::BytesMut;
 use educe::Educe;
 use lightway_core::IOCallbackResult;
 
+use std::net::{IpAddr, Ipv4Addr};
+#[cfg(unix)]
+use std::os::fd::{AsRawFd, IntoRawFd, RawFd};
 #[cfg(feature = "io-uring")]
 use std::time::Duration;
-use std::{
-    net::{IpAddr, Ipv4Addr},
-    os::fd::{AsRawFd, IntoRawFd, RawFd},
-};
 
-#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
 use std::os::fd::FromRawFd;
 #[cfg(feature = "io-uring")]
 use std::sync::Arc;
 use tun_rs::AsyncDevice;
-#[cfg(any(target_os = "linux", target_os = "macos"))]
+#[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
 use tun_rs::DeviceBuilder;
 
 #[cfg(feature = "io-uring")]
@@ -41,8 +40,10 @@ pub struct TunConfig {
     /// Whether the interface should be brought up after creation
     pub enabled: bool,
     /// File Descriptor of the Tunnel
+    #[cfg(unix)]
     pub fd: Option<RawFd>,
     /// Whether to close the file descriptor when the TUN device is dropped
+    #[cfg(unix)]
     #[educe(Default = true)]
     pub close_fd_on_drop: bool,
 }
@@ -85,22 +86,26 @@ impl TunConfig {
         self.enabled = true;
         self
     }
+
     /// Set the file descriptor
+    #[cfg(unix)]
     pub fn raw_fd(&mut self, fd: RawFd) -> &mut Self {
         self.fd = Some(fd);
         self
     }
+
     /// Set whether to close the received raw file descriptor on drop or not.
     /// The default behaviour is to close the received or tun generated file descriptor.
     /// Note: If this is set to true, it is up to the caller to ensure the
     /// file descriptor (obtainable via [`AsRawFd::as_raw_fd`]) is properly closed.
+    #[cfg(unix)]
     pub fn close_fd_on_drop(&mut self, value: bool) -> &mut Self {
         self.close_fd_on_drop = value;
         self
     }
 
     /// Creates an async device based on TunConfig
-    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    #[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
     pub fn create_as_async(&self) -> std::io::Result<AsyncDevice> {
         let mut builder = DeviceBuilder::new();
         if let Some(name) = self.tun_name.as_ref() {
@@ -142,7 +147,7 @@ impl TunConfig {
     }
     /// Creates an async device based on TunConfig
     #[allow(unsafe_code)]
-    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
     pub fn create_as_async(&self) -> std::io::Result<AsyncDevice> {
         let device = match self.fd {
             Some(fd) => {
@@ -224,6 +229,7 @@ impl Tun {
     }
 }
 
+#[cfg(unix)]
 impl AsRawFd for Tun {
     fn as_raw_fd(&self) -> RawFd {
         match self {
@@ -238,7 +244,9 @@ impl AsRawFd for Tun {
 pub struct TunDirect {
     tun: Option<AsyncDevice>,
     mtu: u16,
+    #[cfg(unix)]
     fd: RawFd,
+    #[cfg(unix)]
     close_fd_on_drop: bool,
 }
 
@@ -246,18 +254,21 @@ impl TunDirect {
     /// Create a new `Tun` struct
     pub fn new(config: &TunConfig) -> Result<Self> {
         let tun_device = config.create_as_async()?;
+        #[cfg(unix)]
         let fd = tun_device.as_raw_fd();
-        #[cfg(any(target_os = "linux", target_os = "macos"))]
+        #[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
         let mtu = tun_device.mtu()?;
         // This currently is not supported for Android and IOS
-        #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+        #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
         let mtu = 1350;
         let tun = Some(tun_device);
 
         Ok(TunDirect {
             tun,
             mtu,
+            #[cfg(unix)]
             fd,
+            #[cfg(unix)]
             close_fd_on_drop: config.close_fd_on_drop,
         })
     }
@@ -300,22 +311,24 @@ impl TunDirect {
 
     /// Interface index of Tun
     pub fn if_index(&self) -> std::io::Result<u32> {
-        #[cfg(any(target_os = "linux", target_os = "macos"))]
+        #[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
         {
             let tun = self.tun.as_ref().unwrap();
             tun.if_index()
         }
-        #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+        #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
         Err(std::io::Error::from(std::io::ErrorKind::Unsupported))
     }
 }
 
+#[cfg(unix)]
 impl AsRawFd for TunDirect {
     fn as_raw_fd(&self) -> RawFd {
         self.fd
     }
 }
 
+#[cfg(unix)]
 impl IntoRawFd for TunDirect {
     fn into_raw_fd(mut self) -> RawFd {
         // Alters state to prevent drop from closing fd
@@ -324,6 +337,7 @@ impl IntoRawFd for TunDirect {
     }
 }
 
+#[cfg(unix)]
 impl Drop for TunDirect {
     fn drop(&mut self) {
         if !self.close_fd_on_drop {
