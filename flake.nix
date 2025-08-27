@@ -67,7 +67,7 @@
                   "--skip=routing_table::tests"
                 ];
                 cargoLock.outputHashes = {
-                  "wolfssl-3.0.0" = "sha256-h3ORb5FmIeYyTf23+QhVr7vl+UwRkhAhFqbHiJ+ML9k=";
+                  "wolfssl-3.0.0" = "sha256-xdzBOgfrhMNRqt6zlFVBU0x1z3TzzE7hXjyHuDfEs0g=";
                 };
               };
 
