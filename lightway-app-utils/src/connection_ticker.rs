@@ -102,10 +102,10 @@ impl ConnectionTickerTask {
             if let Err(e) = tickable.tick() {
                 match e {
                     ConnectionError::TimedOut => {
-                        tracing::error!("DTLS connection timed out");
+                        warn!("DTLS connection timed out");
                         break;
                     }
-                    _ => tracing::warn!("Connection tick failed: {e:?}"),
+                    _ => warn!("Connection tick failed: {e:?}"),
                 }
             }
         }
