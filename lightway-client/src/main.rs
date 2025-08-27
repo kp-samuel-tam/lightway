@@ -18,7 +18,7 @@ use crate::args::ConnectionConfig;
 struct EventHandler;
 
 impl EventCallback for EventHandler {
-    fn event(&self, event: lightway_core::Event) {
+    fn event(&mut self, event: lightway_core::Event) {
         if let Event::StateChanged(state) = event {
             tracing::debug!("State changed to {:?}", state);
         }

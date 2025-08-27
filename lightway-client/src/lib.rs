@@ -281,7 +281,7 @@ async fn handle_events<A: 'static + Send + EventCallback, ExtAppState: Send + Sy
     keepalive: Keepalive,
     weak: Weak<Mutex<Connection<ConnectionState<ExtAppState>>>>,
     enable_encoding_when_online: bool,
-    event_handler: Option<A>,
+    mut event_handler: Option<A>,
     connected_signal: oneshot::Sender<()>,
     disconnected_signal: oneshot::Sender<()>,
 ) {
@@ -322,7 +322,7 @@ async fn handle_events<A: 'static + Send + EventCallback, ExtAppState: Send + Sy
                 unreachable!("server only event received");
             }
         }
-        if let Some(ref handler) = event_handler {
+        if let Some(ref mut handler) = event_handler {
             handler.event(event);
         }
     }
