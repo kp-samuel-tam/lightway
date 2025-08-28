@@ -31,10 +31,12 @@ pub trait SleepManager: Send {
     fn continuous(&self) -> bool;
 }
 
+#[derive(Clone)]
 pub struct Config {
     pub interval: Duration,
     pub timeout: Duration,
     pub continuous: bool,
+    pub tracer_trigger_timeout: Option<Duration>,
 }
 
 impl SleepManager for Config {
