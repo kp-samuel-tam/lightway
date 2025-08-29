@@ -23,7 +23,7 @@ impl EventStreamCallback {
 }
 
 impl EventCallback for EventStreamCallback {
-    fn event(&self, event: Event) {
+    fn event(&mut self, event: Event) {
         let sender = self.0.clone();
         tokio::spawn(async move {
             let _ = sender.send(event).await;

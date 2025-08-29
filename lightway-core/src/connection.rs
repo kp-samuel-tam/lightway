@@ -268,7 +268,7 @@ impl ConnectionError {
 /// Callbacks for this particular connection
 pub trait EventCallback {
     /// Called when Lightway wishes to notify about an event
-    fn event(&self, event: Event);
+    fn event(&mut self, event: Event);
 }
 
 /// Convenience type to use as function arguments
@@ -1030,8 +1030,8 @@ impl<AppState: Send> Connection<AppState> {
     }
 
     /// Generate an event
-    fn event(&self, event: Event) {
-        if let Some(event_cb) = &self.event_cb {
+    fn event(&mut self, event: Event) {
+        if let Some(event_cb) = &mut self.event_cb {
             debug!(?event, "event");
             event_cb.event(event);
         }
