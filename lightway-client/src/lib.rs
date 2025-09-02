@@ -122,6 +122,10 @@ pub struct ClientConfig<'cert, ExtAppState: Send + Sync> {
     /// Keepalive timeout
     pub keepalive_timeout: Duration,
 
+    /// Time it takes to trigger a tracer packet
+    /// when we haven't received an outside packet
+    pub tracer_packet_timeout: Duration,
+
     /// Enables keepalives to be sent constantly instead
     /// of only during network change events
     pub continuous_keepalive: bool,
@@ -755,7 +759,7 @@ pub async fn connect<
         interval: config.keepalive_interval,
         timeout: config.keepalive_timeout,
         continuous: config.continuous_keepalive,
-        tracer_trigger_timeout: None,
+        tracer_trigger_timeout: Some(config.tracer_packet_timeout),
     };
     let (keepalive, keepalive_task) =
         Keepalive::new(keepalive_config.clone(), Arc::downgrade(&conn));

@@ -141,6 +141,7 @@ async fn main() -> Result<()> {
         enable_pqc: config.enable_pqc,
         keepalive_interval: config.keepalive_interval.into(),
         keepalive_timeout: config.keepalive_timeout.into(),
+        tracer_packet_timeout: config.tracer_packet_timeout.into(),
         continuous_keepalive: true,
         preferred_connection_wait_interval: config.preferred_connection_wait_interval.into(),
         sndbuf: config.sndbuf,

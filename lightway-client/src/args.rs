@@ -94,6 +94,11 @@ pub struct Config {
     #[clap(long, default_value = "0s")]
     pub keepalive_timeout: Duration,
 
+    /// Time it takes to trigger a tracer packet
+    /// when we haven't received an outside packet
+    #[clap(long, default_value = "10s")]
+    pub tracer_packet_timeout: Duration,
+
     /// How long to wait before selecting the best connection. If the preferred
     /// connection connects before the timeout, it will be used immediately.
     #[clap(long, default_value = "0s")]
