@@ -40,10 +40,13 @@ tokio-stream = { workspace = true, optional = true }
 tokio-util.workspace = true
 tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["json"] }
-tun-rs.workspace = true 
+tun-rs.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.52", features = ["Win32_Networking_WinSock"] }
+
+[build-dependencies]
+cfg_aliases = "0.2.1"
 
 [[example]]
 name = "udprelay"

@@ -9,12 +9,12 @@ use std::os::fd::{AsRawFd, IntoRawFd, RawFd};
 #[cfg(feature = "io-uring")]
 use std::time::Duration;
 
-#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+#[cfg(mobile)]
 use std::os::fd::FromRawFd;
 #[cfg(feature = "io-uring")]
 use std::sync::Arc;
 use tun_rs::AsyncDevice;
-#[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
+#[cfg(desktop)]
 use tun_rs::DeviceBuilder;
 
 #[cfg(feature = "io-uring")]
@@ -105,7 +105,7 @@ impl TunConfig {
     }
 
     /// Creates an async device based on TunConfig
-    #[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
+    #[cfg(desktop)]
     pub fn create_as_async(&self) -> std::io::Result<AsyncDevice> {
         let mut builder = DeviceBuilder::new();
         if let Some(name) = self.tun_name.as_ref() {
@@ -145,9 +145,10 @@ impl TunConfig {
         }
         Ok(device)
     }
+
     /// Creates an async device based on TunConfig
     #[allow(unsafe_code)]
-    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+    #[cfg(mobile)]
     pub fn create_as_async(&self) -> std::io::Result<AsyncDevice> {
         let device = match self.fd {
             Some(fd) => {
@@ -256,10 +257,10 @@ impl TunDirect {
         let tun_device = config.create_as_async()?;
         #[cfg(unix)]
         let fd = tun_device.as_raw_fd();
-        #[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
+        #[cfg(desktop)]
         let mtu = tun_device.mtu()?;
         // This currently is not supported for Android and IOS
-        #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+        #[cfg(mobile)]
         let mtu = 1350;
         let tun = Some(tun_device);
 
@@ -311,12 +312,12 @@ impl TunDirect {
 
     /// Interface index of Tun
     pub fn if_index(&self) -> std::io::Result<u32> {
-        #[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
+        #[cfg(desktop)]
         {
             let tun = self.tun.as_ref().unwrap();
             tun.if_index()
         }
-        #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+        #[cfg(mobile)]
         Err(std::io::Error::from(std::io::ErrorKind::Unsupported))
     }
 }
