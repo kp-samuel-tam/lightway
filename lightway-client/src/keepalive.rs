@@ -156,6 +156,8 @@ async fn keepalive<CONFIG: SleepManager, CONNECTION: Connection>(
     enum State {
         // No pending keepalive
         Inactive,
+        // Need to send keepalive immediately
+        Needed,
         // We are waiting between keepalive intervals
         Waiting,
         // A keepalive has been sent, reply is pending
@@ -212,8 +214,7 @@ async fn keepalive<CONFIG: SleepManager, CONNECTION: Connection>(
                         // the keepalives otherwise this will
                         // reset our timeouts
                         tracing::info!("network change keepalives");
-                        state = State::Waiting;
-                        timeout.as_mut().set(None.into())
+                        state = State::Needed;
                     },
                     Message::Suspend => {
                         // Suspend keepalives whenever the timer is active
@@ -226,7 +227,18 @@ async fn keepalive<CONFIG: SleepManager, CONNECTION: Connection>(
                 }
             }
 
-            _ = config.sleep_for_interval(), if matches!(state, State::Waiting | State::Pending) => {
+            _ = futures::future::ready(()), if matches!(state, State::Needed) => {
+                if let Err(e) = conn.keepalive() {
+                    tracing::error!("Send Keepalive failed: {e:?}");
+                }
+                state = State::Pending;
+                if !config.timeout_is_zero() {
+                    let fut = config.sleep_for_timeout();
+                    timeout.as_mut().set(Some(fut).into());
+                }
+            }
+
+            _ = config.sleep_for_interval(), if matches!(state, State::Pending | State::Waiting) => {
                 if let Err(e) = conn.keepalive() {
                     tracing::error!("Send Keepalive failed: {e:?}");
                 }
@@ -359,8 +371,11 @@ mod tests {
         fn interval_expired(&self) {
             println!("Interval expired");
             let mut inner = self.0.lock().unwrap();
-            let tx = inner.pending_interval.take().unwrap();
-            tx.send(()).unwrap();
+            if let Some(tx) = inner.pending_interval.take() {
+                tx.send(()).unwrap();
+            } else {
+                println!("no pending_interval to trigger");
+            }
         }
 
         fn timeout_expired(&self) {
