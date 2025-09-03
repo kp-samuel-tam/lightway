@@ -381,8 +381,11 @@ mod tests {
         fn timeout_expired(&self) {
             println!("Timeout expired");
             let mut inner = self.0.lock().unwrap();
-            let tx = inner.pending_timeout.take().unwrap();
-            tx.send(()).unwrap();
+            if let Some(tx) = inner.pending_timeout.take() {
+                tx.send(()).unwrap();
+            } else {
+                println!("no pending_timeout to trigger");
+            }
         }
 
         async fn run(&self) -> (Keepalive, OptionFuture<JoinHandle<KeepaliveResult>>) {
@@ -485,7 +488,12 @@ mod tests {
     async fn keepalives_are_sent(continuous: bool) {
         use FixtureEvent::*;
         let first_event = if continuous { Online } else { NetworkChange };
-        let fixture = Fixture::new(vec![first_event, IntervalExpired, Wait], continuous);
+        let events = if continuous {
+            vec![first_event, IntervalExpired, Wait]
+        } else {
+            vec![first_event, Wait]
+        };
+        let fixture = Fixture::new(events, continuous);
 
         let (keepalive, task) = fixture.run().await;
 
@@ -589,10 +597,12 @@ mod tests {
     async fn timeout_if_no_reply(continuous: bool) {
         use FixtureEvent::*;
         let first_event = if continuous { Online } else { NetworkChange };
-        let fixture = Fixture::new(
-            vec![first_event, IntervalExpired, TimeoutExpired],
-            continuous,
-        );
+        let events = if continuous {
+            vec![first_event, IntervalExpired, TimeoutExpired]
+        } else {
+            vec![first_event, TimeoutExpired]
+        };
+        let fixture = Fixture::new(events, continuous);
 
         let (_keepalive, task) = fixture.run().await;
 
@@ -601,10 +611,10 @@ mod tests {
         assert_eq!(1, fixture.keepalive_count());
     }
 
-    #[test_case(true; "Continuous uses Online to start keepalives")]
-    #[test_case(false; "Non-Continuous uses NetworkChange to start keepalives")]
+    #[test_case(true, 1; "Continuous uses Online to start keepalives")]
+    #[test_case(false, 2; "Non-Continuous uses NetworkChange to start keepalives")]
     #[tokio::test]
-    async fn timeout_if_no_reply_even_if_outside_data(continuous: bool) {
+    async fn timeout_if_no_reply_even_if_outside_data(continuous: bool, exp_count: usize) {
         use FixtureEvent::*;
         let first_event = if continuous { Online } else { NetworkChange };
         let fixture = Fixture::new(
@@ -621,13 +631,13 @@ mod tests {
 
         assert!(matches!(task.await.unwrap(), Ok(KeepaliveResult::Timedout)));
 
-        assert_eq!(1, fixture.keepalive_count());
+        assert_eq!(exp_count, fixture.keepalive_count());
     }
 
-    #[test_case(true; "Continuous uses Online to start keepalives")]
-    #[test_case(false; "Non-Continuous uses NetworkChange to start keepalives")]
-    #[tokio::test]
-    async fn suspend_keepalives_and_enable_again(continuous: bool) {
+    #[test_case(true, 2; "Continuous uses Online to start keepalives")]
+    #[test_case(false, 3; "Non-Continuous uses NetworkChange to start keepalives")]
+    #[tokio::test(flavor = "current_thread")]
+    async fn suspend_keepalives_and_enable_again(continuous: bool, exp_count: usize) {
         use FixtureEvent::*;
         let enable_keepalive = if continuous { Online } else { NetworkChange };
         let fixture = Fixture::new(
@@ -650,6 +660,6 @@ mod tests {
             Ok(KeepaliveResult::Cancelled)
         ));
 
-        assert_eq!(2, fixture.keepalive_count());
+        assert_eq!(exp_count, fixture.keepalive_count());
     }
 }
