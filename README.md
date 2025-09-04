@@ -186,6 +186,9 @@ By default the client will use the existing MTU on the tunnel device, this can b
 the `--inside-mtu` option but note that this requires additional privileges, specifically the
 `CAP_SYS_ADMIN` capability.
 
+Running the client on linux platforms with `dns_config_mode: default` will require `CAP_DAC_OVERRIDE` 
+and ` CAP_FOWNER` permissions, to properly modify `resolv.conf`.
+
 > [!CAUTION]
 > Passing the `--password` option on the CLI will expose your password
 > to other users on the system. It is recommended to provide the
