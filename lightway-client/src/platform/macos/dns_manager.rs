@@ -6,6 +6,7 @@ use core_foundation::{
     propertylist::CFPropertyList,
     string::{CFString, CFStringGetTypeID, CFStringRef},
 };
+use std::net::IpAddr;
 use std::process::Command;
 use system_configuration::{
     dynamic_store::{SCDynamicStore, SCDynamicStoreBuilder},
@@ -153,7 +154,7 @@ impl DnsManager {
 }
 
 impl DnsSetup for DnsManager {
-    fn set_dns(&mut self, dns_server: &str) -> Result<(), DnsManagerError> {
+    fn set_dns(&mut self, dns_server: IpAddr) -> Result<(), DnsManagerError> {
         let primary_service_id = self.get_primary_service_id()?;
 
         let primary_service_path = Self::get_primary_service_path(&primary_service_id);
@@ -161,7 +162,7 @@ impl DnsSetup for DnsManager {
 
         // Create DNS configuration dictionary with default search domain
         let dns_dictionary = self.get_dns_dictionary(
-            &[CFString::new(dns_server)],
+            &[CFString::new(&dns_server.to_string())],
             &[CFString::new(DEFAULT_SEARCH_DOMAIN)],
         );
 
@@ -216,7 +217,7 @@ mod tests {
         {
             // Set DNS and verify it's changed
             let mut dns_manager = crate::dns_manager::DnsManager::default();
-            dns_manager.set_dns(TEST_ADDRESS).unwrap();
+            dns_manager.set_dns(TEST_ADDRESS.parse().unwrap()).unwrap();
 
             let modified_dns = get_dns_config();
 

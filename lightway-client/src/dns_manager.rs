@@ -1,3 +1,5 @@
+use std::net::IpAddr;
+
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::warn;
@@ -34,7 +36,7 @@ pub enum DnsManagerError {
 
 pub trait DnsSetup {
     /// Set system DNS to the specified server
-    fn set_dns(&mut self, dns_server: &str) -> Result<(), DnsManagerError>;
+    fn set_dns(&mut self, dns_server: IpAddr) -> Result<(), DnsManagerError>;
     /// Clear system DNS configuration
     fn reset_dns(&mut self) -> Result<(), DnsManagerError>;
 }
@@ -49,7 +51,7 @@ pub struct DnsManager {
 }
 
 impl DnsSetup for DnsManager {
-    fn set_dns(&mut self, dns_server: &str) -> Result<(), DnsManagerError> {
+    fn set_dns(&mut self, dns_server: IpAddr) -> Result<(), DnsManagerError> {
         self.dns_manager.set_dns(dns_server)
     }
 

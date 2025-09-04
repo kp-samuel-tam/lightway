@@ -578,11 +578,11 @@ impl<ExtAppState: Send + Sync> ClientConnection<ExtAppState> {
     pub fn set_dns(
         &mut self,
         dns_config_mode: DnsConfigMode,
-        tun_dns_ip: Ipv4Addr,
+        tun_dns_ip: IpAddr,
     ) -> Result<(), DnsManagerError> {
         if dns_config_mode == DnsConfigMode::Default {
             let mut dns_manager = DnsManager::default();
-            dns_manager.set_dns(&tun_dns_ip.to_string())?;
+            dns_manager.set_dns(tun_dns_ip)?;
             self.dns_manager = Some(dns_manager);
         }
         Ok(())
@@ -1051,7 +1051,7 @@ pub async fn client<
         .await?;
 
     #[cfg(desktop)]
-    connection.set_dns(config.dns_config_mode, config.tun_dns_ip)?;
+    connection.set_dns(config.dns_config_mode, config.tun_dns_ip.into())?;
 
     connection.task.await?
 }
