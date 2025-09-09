@@ -23,7 +23,7 @@ anyhow.workspace = true
 bytes.workspace = true
 clap.workspace = true
 educe = { workspace = true, features = ["Default"] }
-fs-mistrust = { version = "0.10.0", default-features = false }
+fs-mistrust = { version = "0.11.0", default-features = false }
 humantime = "2.1.0"
 io-uring = {  version = "0.7.0", optional = true }
 ipnet.workspace = true
@@ -43,7 +43,7 @@ tracing-subscriber = { workspace = true, features = ["json"] }
 tun-rs.workspace = true
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.52", features = ["Win32_Networking_WinSock"] }
+windows-sys = { workspace = true, features = ["Win32_Networking_WinSock"] }
 
 [build-dependencies]
 cfg_aliases = "0.2.1"
