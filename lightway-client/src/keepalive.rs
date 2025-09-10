@@ -64,11 +64,13 @@ impl SleepManager for Config {
     }
 }
 
+#[derive(Debug)]
 pub enum Message {
     Online,
     OutsideActivity,
     ReplyReceived,
     NetworkChange,
+    TracerDeltaExceeded,
     Suspend,
 }
 
@@ -140,6 +142,14 @@ impl Keepalive {
     pub async fn network_changed(&self) {
         if let Some(tx) = &self.tx {
             let _ = tx.send(Message::NetworkChange).await;
+        }
+    }
+
+    /// Signal that we haven't heard from server in a while
+    /// This will trigger a keepalive immediately
+    pub async fn tracer_delta_exceeded(&self) {
+        if let Some(tx) = &self.tx {
+            let _ = tx.send(Message::TracerDeltaExceeded).await;
         }
     }
 
@@ -219,12 +229,9 @@ async fn keepalive<CONFIG: SleepManager, CONNECTION: Connection>(
                         failed_keepalives = 0;
                         timeout.as_mut().set(None.into())
                     },
-                    Message::NetworkChange => {
-                        // In the case we are Offline this will start
-                        // the keepalives otherwise this will
-                        // reset our timeouts
+                    Message::NetworkChange | Message::TracerDeltaExceeded => {
                         if !matches!(state, State::Pending) {
-                            tracing::info!("network change keepalives");
+                            tracing::info!("sending keepalives because of {:?}", msg);
                             state = State::Needed;
                         }
                     },
