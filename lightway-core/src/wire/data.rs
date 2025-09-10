@@ -78,9 +78,13 @@ mod tests {
     use crate::borrowed_bytesmut::ImmutableBytesMut;
     use test_case::test_case;
 
+    #[cfg(debug_assertions)]
     #[test_case(0 => panics "plpmtu too small")]
+    #[cfg(debug_assertions)]
     #[test_case(1 => panics "plpmtu too small")]
+    #[cfg(debug_assertions)]
     #[test_case(2 => panics "plpmtu too small")]
+    #[cfg(debug_assertions)]
     #[test_case(3 => panics "plpmtu too small")]
     #[test_case(4 => 1)]
     #[test_case(1200 => 1197)]
