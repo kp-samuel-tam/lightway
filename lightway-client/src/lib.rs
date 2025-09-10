@@ -56,7 +56,7 @@ use tokio::{
     task::{JoinHandle, JoinSet},
 };
 use tokio_stream::{StreamExt, StreamMap};
-use tracing::{debug, info};
+use tracing::info;
 
 /// Connection type
 /// Applications can also attach socket for library to use directly,
@@ -442,15 +442,7 @@ pub async fn inside_io_task<ExtAppState: Send + Sync>(
         if !tracer_trigger_timeout.is_zero()
             && duration_since_last_outside_data > tracer_trigger_timeout
         {
-            debug!(
-                duration = format!(
-                    "{}.{}s",
-                    duration_since_last_outside_data.as_secs(),
-                    duration_since_last_outside_data.subsec_millis()
-                ),
-                "sending keepalive due to delta exceeded trigger timeout"
-            );
-            keepalive.network_changed().await;
+            keepalive.tracer_delta_exceeded().await;
         }
     }
 }
