@@ -60,8 +60,6 @@
                 buildInputs = runtimeDeps;
                 nativeBuildInputs = buildDeps;
                 cargoBuildFlags = "-p ${package}";
-                # Some tests rely on debug_assert! and fail in release.
-                checkType = "debug";
                 checkFlags = [
                   # These tests need permission to create tun interface
                   "--skip=routing_table::tests"
