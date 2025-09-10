@@ -9,6 +9,9 @@ use tokio_util::sync::{CancellationToken, DropGuard};
 
 use crate::ConnectionState;
 
+// Number of consecutive keepalive timeouts before disconnecting.
+const FAILED_KEEPALIVE_THRESHOLD: usize = 3;
+
 pub trait Connection: Send {
     fn keepalive(&self) -> lightway_core::ConnectionResult<()>;
 }
@@ -173,6 +176,9 @@ async fn keepalive<CONFIG: SleepManager, CONNECTION: Connection>(
     let timeout: OptionFuture<_> = None.into();
     tokio::pin!(timeout);
 
+    // Number of consecutive keepalive timeouts observed
+    let mut failed_keepalives: usize = 0;
+
     loop {
         tokio::select! {
             _ = token.cancelled() => {
@@ -209,14 +215,18 @@ async fn keepalive<CONFIG: SleepManager, CONNECTION: Connection>(
                             tracing::info!("reply received turning off network change keepalives");
                             State::Inactive
                         };
+                        // Reset failure counter on successful reply
+                        failed_keepalives = 0;
                         timeout.as_mut().set(None.into())
                     },
                     Message::NetworkChange => {
                         // In the case we are Offline this will start
                         // the keepalives otherwise this will
                         // reset our timeouts
-                        tracing::info!("network change keepalives");
-                        state = State::Needed;
+                        if !matches!(state, State::Pending) {
+                            tracing::info!("network change keepalives");
+                            state = State::Needed;
+                        }
                     },
                     Message::Suspend => {
                         // Suspend keepalives whenever the timer is active
@@ -255,9 +265,18 @@ async fn keepalive<CONFIG: SleepManager, CONNECTION: Connection>(
             // `State::Pending` and `config.timeout` is non-zero and
             // evaluates to `None` otherwise.
             Some(_) = timeout.as_mut() => {
-                tracing::info!("keep alives timed out");
-                // Return will exit the client
-                return KeepaliveResult::Timedout;
+                // Keepalive timed out: increment failure counter
+                failed_keepalives = failed_keepalives.saturating_add(1);
+                tracing::info!("keepalive timed out (consecutive timeouts = {failed_keepalives})");
+
+                if failed_keepalives >= FAILED_KEEPALIVE_THRESHOLD {
+                    tracing::info!("keepalive failure threshold exceeded; disconnecting");
+                    return KeepaliveResult::Timedout;
+                }
+
+                // Immediately attempt another keepalive
+                state = State::Needed;
+                timeout.as_mut().set(None.into());
             }
         }
     }
@@ -504,7 +523,18 @@ mod tests {
         start_keepalives(&keepalive, &sleep_manager, continuous).await;
         assert_eq!(connection.keepalive_count(), 1);
 
-        // Trigger timeout
+        // Trigger timeouts up to the failure threshold
+        // Trigger FAILED_KEEPALIVE_THRESHOLD - 1 timeouts to cause immediate resends
+        for _ in 0..(FAILED_KEEPALIVE_THRESHOLD - 1) {
+            sleep_manager.trigger_timeout();
+            // give the task a moment to process and resend
+            sleep(Duration::from_millis(10)).await;
+        }
+
+        // At this point, we should have sent FAILED_KEEPALIVE_THRESHOLD total keepalives
+        assert_eq!(connection.keepalive_count(), FAILED_KEEPALIVE_THRESHOLD);
+
+        // Final timeout should exceed the threshold and terminate the task
         sleep_manager.trigger_timeout();
 
         let result = task.await.unwrap().unwrap();
