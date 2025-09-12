@@ -1,5 +1,5 @@
 use anyhow::Result;
-use route_manager::{AsyncRouteManager, Route, RouteManager};
+use route_manager::{AsyncRouteManager, Route, RouteManager as SyncRouteManager};
 use serde::{Deserialize, Serialize};
 use std::net::{IpAddr, Ipv4Addr};
 use thiserror::Error;
@@ -82,18 +82,19 @@ pub enum RoutingTableError {
     ServerRouteAlreadyExists,
 }
 
-pub struct RoutingTable {
+pub struct RouteManager {
     routing_mode: RouteMode,
-    route_manager: RouteManager,
+    route_manager: SyncRouteManager,
     route_manager_async: AsyncRouteManager,
     vpn_routes: Vec<Route>,
     lan_routes: Vec<Route>,
     server_route: Option<Route>,
 }
 
-impl RoutingTable {
+impl RouteManager {
     pub fn new(routing_mode: RouteMode) -> Result<Self, RoutingTableError> {
-        let route_manager = RouteManager::new().map_err(RoutingTableError::RoutingManagerError)?;
+        let route_manager =
+            SyncRouteManager::new().map_err(RoutingTableError::RoutingManagerError)?;
         let route_manager_async =
             AsyncRouteManager::new().map_err(RoutingTableError::AsyncRoutingManagerError)?;
         Ok(Self {
@@ -288,7 +289,8 @@ impl RoutingTable {
             );
         }
     }
-    pub async fn initialize_routing_table(
+
+    pub async fn initialize(
         &mut self,
         server_ip: &IpAddr,
         tun_index: u32,
@@ -332,7 +334,7 @@ impl RoutingTable {
     }
 }
 
-impl Drop for RoutingTable {
+impl Drop for RouteManager {
     fn drop(&mut self) {
         self.cleanup_sync();
     }
@@ -358,9 +360,9 @@ mod tests {
 
     /// Helper to create test routes with gateway lookup
     fn create_test_routes_with_gateway(
-        routing_table: &mut RoutingTable,
+        route_manager: &mut RouteManager,
     ) -> (Route, Route, Route, IpAddr) {
-        let default_route = routing_table.find_route(&EXTERNAL_IP).unwrap();
+        let default_route = route_manager.find_route(&EXTERNAL_IP).unwrap();
         let gateway_ip = default_route.gateway().unwrap();
 
         let route1 = Route::new(TEST_TARGET_IP1, 32).with_gateway(gateway_ip);
@@ -380,15 +382,15 @@ mod tests {
 
     /// Creates a test setup with RouteRestorer and RoutingTable
     /// Returns tuple where RouteRestorer is dropped last for proper cleanup
-    fn create_test_setup(route_mode: RouteMode) -> (RouteRestorer, RoutingTable) {
+    fn create_test_setup(route_mode: RouteMode) -> (RouteRestorer, RouteManager) {
         // Capture initial state FIRST
         let restorer = RouteRestorer::new();
 
         // Then create RoutingTable
-        let routing_table = RoutingTable::new(route_mode).unwrap();
+        let route_manager = RouteManager::new(route_mode).unwrap();
 
         // Return tuple - RoutingTable will be dropped first, RouteRestorer last
-        (restorer, routing_table)
+        (restorer, route_manager)
     }
 
     /// Test wrapper around RouteManager for cleanup purposes
@@ -398,7 +400,7 @@ mod tests {
 
     impl RouteRestorer {
         fn new() -> Self {
-            let mut route_manager = RouteManager::new().unwrap();
+            let mut route_manager = SyncRouteManager::new().unwrap();
             let initial_routes = route_manager.list().unwrap();
             Self { initial_routes }
         }
@@ -408,7 +410,7 @@ mod tests {
         /// Restores the system routing table to match the target routes
         /// Removes routes that shouldn't be there and adds routes that should be there
         fn drop(&mut self) {
-            let mut route_manager = RouteManager::new().unwrap();
+            let mut route_manager = SyncRouteManager::new().unwrap();
             let current_routes = route_manager.list().unwrap_or_default();
 
             // Remove routes that are in current but not in target
@@ -472,102 +474,102 @@ mod tests {
     #[test_case(RouteMode::Lan)]
     #[test_case(RouteMode::NoExec)]
     #[ignore = "May falsely fail during development due to local route settings"]
-    fn test_privileged_new_routing_table(route_mode: RouteMode) {
-        let (_restorer, routing_table) = create_test_setup(route_mode);
-        assert_eq!(routing_table.routing_mode, route_mode);
-        assert_eq!(routing_table.vpn_routes.len(), 0);
-        assert_eq!(routing_table.lan_routes.len(), 0);
-        assert!(routing_table.server_route.is_none());
+    fn test_privileged_new_route_manager(route_mode: RouteMode) {
+        let (_restorer, route_manager) = create_test_setup(route_mode);
+        assert_eq!(route_manager.routing_mode, route_mode);
+        assert_eq!(route_manager.vpn_routes.len(), 0);
+        assert_eq!(route_manager.lan_routes.len(), 0);
+        assert!(route_manager.server_route.is_none());
     }
 
     #[tokio::test]
-    #[serial_test::serial(routing_table)]
+    #[serial_test::serial(route_manager)]
     #[ignore = "May falsely fail during development due to local route settings"]
     async fn test_privileged_cleanup_empty_routes() {
-        let (_restorer, mut routing_table) = create_test_setup(RouteMode::Default);
+        let (_restorer, mut route_manager) = create_test_setup(RouteMode::Default);
 
         // Get initial route count from the system
-        let initial_count = routing_table.route_manager.list().unwrap().len();
+        let initial_count = route_manager.route_manager.list().unwrap().len();
 
         // Cleanup should not change system routes since vpn_routes is empty
-        routing_table.cleanup().await;
+        route_manager.cleanup().await;
 
         // Check that vpn_routes remains empty
-        assert_eq!(routing_table.vpn_routes.len(), 0);
-        assert_eq!(routing_table.lan_routes.len(), 0);
+        assert_eq!(route_manager.vpn_routes.len(), 0);
+        assert_eq!(route_manager.lan_routes.len(), 0);
 
         // Check that system routes are unchanged
-        let final_count = routing_table.route_manager.list().unwrap().len();
+        let final_count = route_manager.route_manager.list().unwrap().len();
         assert_eq!(initial_count, final_count);
-        assert!(routing_table.server_route.is_none());
+        assert!(route_manager.server_route.is_none());
     }
 
     #[test_case(RouteMode::Default)]
     #[test_case(RouteMode::Lan)]
     #[test_case(RouteMode::NoExec)]
-    #[serial_test::serial(routing_table)]
+    #[serial_test::serial(route_manager)]
     #[ignore = "May falsely fail during development due to local route settings"]
     fn test_privileged_cleanup_sync(route_mode: RouteMode) {
-        let (_restorer, mut routing_table) = create_test_setup(route_mode);
+        let (_restorer, mut route_manager) = create_test_setup(route_mode);
 
         // Get initial route count from the system
-        let initial_count = routing_table.route_manager.list().unwrap().len();
+        let initial_count = route_manager.route_manager.list().unwrap().len();
 
         // Create test routes using shared fixtures
         let (vpn_route, lan_route, server_route, _gateway_ip) =
-            create_test_routes_with_gateway(&mut routing_table);
+            create_test_routes_with_gateway(&mut route_manager);
 
         // Add routes directly to the sync route manager and store them
-        routing_table.route_manager.add(&vpn_route).unwrap();
-        routing_table.vpn_routes.push(vpn_route.clone());
+        route_manager.route_manager.add(&vpn_route).unwrap();
+        route_manager.vpn_routes.push(vpn_route.clone());
 
-        routing_table.route_manager.add(&lan_route).unwrap();
-        routing_table.lan_routes.push(lan_route.clone());
+        route_manager.route_manager.add(&lan_route).unwrap();
+        route_manager.lan_routes.push(lan_route.clone());
 
-        routing_table.route_manager.add(&server_route).unwrap();
-        routing_table.server_route = Some(server_route.clone());
+        route_manager.route_manager.add(&server_route).unwrap();
+        route_manager.server_route = Some(server_route.clone());
 
         // Verify routes were added to the system
-        let routes_after_add = routing_table.route_manager.list().unwrap();
+        let routes_after_add = route_manager.route_manager.list().unwrap();
         let routes_added = routes_after_add.len() - initial_count;
         assert_eq!(routes_added, 3);
 
         // Verify internal state
-        assert_eq!(routing_table.vpn_routes.len(), 1);
-        assert_eq!(routing_table.lan_routes.len(), 1);
-        assert!(routing_table.server_route.is_some());
+        assert_eq!(route_manager.vpn_routes.len(), 1);
+        assert_eq!(route_manager.lan_routes.len(), 1);
+        assert!(route_manager.server_route.is_some());
 
         // Test cleanup_sync
-        routing_table.cleanup_sync();
+        route_manager.cleanup_sync();
 
         // Verify routes were removed from the system
-        let routes_after_cleanup = routing_table.route_manager.list().unwrap();
+        let routes_after_cleanup = route_manager.route_manager.list().unwrap();
         let final_count = routes_after_cleanup.len();
         assert_eq!(final_count, initial_count);
 
         // Verify internal state is unchanged (cleanup_sync doesn't modify internal vectors)
-        assert_eq!(routing_table.vpn_routes.len(), 1);
-        assert_eq!(routing_table.lan_routes.len(), 1);
-        assert!(routing_table.server_route.is_some());
+        assert_eq!(route_manager.vpn_routes.len(), 1);
+        assert_eq!(route_manager.lan_routes.len(), 1);
+        assert!(route_manager.server_route.is_some());
     }
 
     #[tokio::test]
-    #[serial_test::serial(routing_table)]
+    #[serial_test::serial(route_manager)]
     #[ignore = "May affect system routing"]
     async fn test_privileged_is_route_exists_error_real() {
-        let (_restorer, mut routing_table) = create_test_setup(RouteMode::Default);
+        let (_restorer, mut route_manager) = create_test_setup(RouteMode::Default);
 
         // Create test routes using shared fixtures
-        let (route, _, _, _) = create_test_routes_with_gateway(&mut routing_table);
+        let (route, _, _, _) = create_test_routes_with_gateway(&mut route_manager);
 
         // Add the route first time - should succeed
-        routing_table.add_route(&route).await.unwrap();
+        route_manager.add_route(&route).await.unwrap();
 
         // Try to add the same route again - should get "route exists" error
-        let result2 = routing_table.route_manager_async.add(&route).await;
+        let result2 = route_manager.route_manager_async.add(&route).await;
         match result2 {
             Err(e) => {
-                assert!(routing_table.is_route_exists_error(&e));
+                assert!(route_manager.is_route_exists_error(&e));
             }
             Ok(_) => panic!(),
         }
@@ -577,25 +579,25 @@ mod tests {
     #[test_case(RouteAddMethod::Server)]
     #[test_case(RouteAddMethod::Lan)]
     #[tokio::test]
-    #[serial_test::serial(routing_table)]
+    #[serial_test::serial(route_manager)]
     #[ignore = "May falsely fail during development due to local route settings"]
     async fn test_privileged_add_single_route(add_method: RouteAddMethod) {
-        let (_restorer, mut routing_table) = create_test_setup(RouteMode::Default);
+        let (_restorer, mut route_manager) = create_test_setup(RouteMode::Default);
 
         // Create test route using shared fixtures
         let (route1, _route2, _route3, _gateway_ip) =
-            create_test_routes_with_gateway(&mut routing_table);
+            create_test_routes_with_gateway(&mut route_manager);
 
         // Test adding route using the specified method
         match add_method {
-            RouteAddMethod::Standard => routing_table.add_route_vpn(route1.clone()).await.unwrap(),
-            RouteAddMethod::Server => routing_table
+            RouteAddMethod::Standard => route_manager.add_route_vpn(route1.clone()).await.unwrap(),
+            RouteAddMethod::Server => route_manager
                 .add_route_server(route1.clone())
                 .await
                 .unwrap(),
-            RouteAddMethod::Lan => routing_table.add_route_lan(route1.clone()).await.unwrap(),
+            RouteAddMethod::Lan => route_manager.add_route_lan(route1.clone()).await.unwrap(),
         };
-        let routes_after_add1 = routing_table.route_manager.list().unwrap();
+        let routes_after_add1 = route_manager.route_manager.list().unwrap();
 
         // Verify the route is present in the system
         let route_found = routes_after_add1
@@ -609,22 +611,22 @@ mod tests {
     #[test_case(RouteMode::Default)]
     #[test_case(RouteMode::Lan)]
     #[tokio::test]
-    #[serial_test::serial(routing_table)]
+    #[serial_test::serial(route_manager)]
     #[ignore = "May falsely fail during development due to local route settings"]
-    async fn test_privileged_initialize_routing_table(route_mode: RouteMode) {
-        let (_restorer, mut routing_table) = create_test_setup(route_mode);
+    async fn test_privileged_initialize_route_manager(route_mode: RouteMode) {
+        let (_restorer, mut route_manager) = create_test_setup(route_mode);
 
         // Create a TUN device for testing using shared fixtures
         let (_tun_device, tun_index) = create_test_tun(TUN_LOCAL_IP).await.unwrap();
 
-        // Test initialize_routing_table using shared fixtures
-        routing_table
-            .initialize_routing_table(&EXTERNAL_IP, tun_index, &TUN_PEER_IP, &TUN_DNS_IP)
+        // Test initialize_route_manager using shared fixtures
+        route_manager
+            .initialize(&EXTERNAL_IP, tun_index, &TUN_PEER_IP, &TUN_DNS_IP)
             .await
             .unwrap();
 
         // Get system routes after initialization
-        let routes_after_init = routing_table.route_manager.list().unwrap();
+        let routes_after_init = route_manager.route_manager.list().unwrap();
 
         // Verify routes are present in system
         if [RouteMode::Default, RouteMode::Lan].contains(&route_mode) {
@@ -655,7 +657,7 @@ mod tests {
 
         // Verify LAN routes are present in system
         if route_mode == RouteMode::Lan {
-            let (default_index, default_gateway) = routing_table
+            let (default_index, default_gateway) = route_manager
                 .find_default_interface_index_and_gateway(&EXTERNAL_IP)
                 .unwrap();
 
@@ -674,10 +676,10 @@ mod tests {
     #[test_case(RouteMode::Default)]
     #[test_case(RouteMode::NoExec)]
     #[tokio::test]
-    #[serial_test::serial(routing_table)]
+    #[serial_test::serial(route_manager)]
     #[ignore = "May falsely fail during development due to local route settings"]
     async fn test_privileged_find_server_route(route_mode: RouteMode) {
-        let (_restorer, mut routing_table) = create_test_setup(route_mode);
+        let (_restorer, mut route_manager) = create_test_setup(route_mode);
 
         // Create a TUN device for testing using different IP to avoid conflicts
         let (_tun_device, tun_index) = create_test_tun(TUN_LOCAL_IP).await.unwrap();
@@ -691,19 +693,19 @@ mod tests {
             .with_if_index(tun_index);
 
         // Add routes (assuming add_route works based on previous test)
-        routing_table.add_route_vpn(route1.clone()).await.unwrap();
+        route_manager.add_route_vpn(route1.clone()).await.unwrap();
 
         // Test find_server_route for test_ip1 using shared fixtures
-        let found_route1 = routing_table.find_route(&ROUTE_TEST_IP1).unwrap();
+        let found_route1 = route_manager.find_route(&ROUTE_TEST_IP1).unwrap();
         assert_eq!(found_route1.gateway(), route1.gateway());
 
-        routing_table.add_route_vpn(route2.clone()).await.unwrap();
+        route_manager.add_route_vpn(route2.clone()).await.unwrap();
 
         // Test find_server_route for test_ip1 after adding route2
-        let found_route1 = routing_table.find_route(&ROUTE_TEST_IP1).unwrap();
+        let found_route1 = route_manager.find_route(&ROUTE_TEST_IP1).unwrap();
         assert_eq!(found_route1.gateway(), route1.gateway());
 
-        let found_route2 = routing_table.find_route(&ROUTE_TEST_IP2).unwrap();
+        let found_route2 = route_manager.find_route(&ROUTE_TEST_IP2).unwrap();
         assert_eq!(found_route2.gateway(), route2.gateway());
     }
 }

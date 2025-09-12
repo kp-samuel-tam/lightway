@@ -1,5 +1,5 @@
 use super::dns_manager::DnsConfigMode;
-use super::routing_table::RouteMode;
+use super::route_manager::RouteMode;
 use anyhow::{Result, anyhow};
 use bytesize::ByteSize;
 use clap::Parser;

@@ -5,7 +5,7 @@ pub mod io;
 pub mod keepalive;
 pub mod platform;
 #[cfg(desktop)]
-pub mod routing_table;
+pub mod route_manager;
 
 use anyhow::{Context, Result, anyhow};
 use bytes::BytesMut;
@@ -31,7 +31,7 @@ use crate::debug::WiresharkKeyLogger;
 use crate::dns_manager::{DnsConfigMode, DnsManager, DnsManagerError, DnsSetup};
 use crate::keepalive::Config as KeepaliveConfig;
 #[cfg(desktop)]
-use crate::routing_table::{RouteMode, RoutingTable};
+use crate::route_manager::{RouteManager, RouteMode};
 #[cfg(feature = "debug")]
 use lightway_app_utils::wolfssl_tracing_callback;
 pub use lightway_core::{
@@ -572,7 +572,7 @@ pub struct ClientConnection<T: Send + Sync> {
     network_change_signal: mpsc::Sender<()>,
     encoding_request_signal: mpsc::Sender<bool>,
     #[cfg(desktop)]
-    route_table: Option<RoutingTable>,
+    route_manager: Option<RouteManager>,
     #[cfg(desktop)]
     dns_manager: Option<DnsManager>,
 }
@@ -587,17 +587,17 @@ impl<ExtAppState: Send + Sync> ClientConnection<ExtAppState> {
     ) -> Result<()> {
         let tun_index = self.inside_io.if_index()?;
 
-        let mut route_table = RoutingTable::new(route_mode)?;
+        let mut route_manager = RouteManager::new(route_mode)?;
         tracing::trace!(
-            "Initializing routing table: mode: {:?}, server: {:?}, tun_index: {:?}, tun_peer_ip: {:?}, tun_dns_ip: {:?}",
+            "Initializing route manager: mode: {:?}, server: {:?}, tun_index: {:?}, tun_peer_ip: {:?}, tun_dns_ip: {:?}",
             route_mode,
             &self.outside_io.peer_addr().ip(),
             tun_index,
             &tun_peer_ip,
             &tun_dns_ip
         );
-        route_table
-            .initialize_routing_table(
+        route_manager
+            .initialize(
                 &self.outside_io.peer_addr().ip(),
                 tun_index,
                 &tun_peer_ip,
@@ -605,7 +605,7 @@ impl<ExtAppState: Send + Sync> ClientConnection<ExtAppState> {
             )
             .await?;
 
-        self.route_table = Some(route_table);
+        self.route_manager = Some(route_manager);
         Ok(())
     }
 
@@ -879,7 +879,7 @@ pub async fn connect<
         network_change_signal: network_change_tx,
         encoding_request_signal: encoding_request_tx,
         #[cfg(desktop)]
-        route_table: None,
+        route_manager: None,
         #[cfg(desktop)]
         dns_manager: None,
     })
