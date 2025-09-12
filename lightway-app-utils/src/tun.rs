@@ -3,11 +3,14 @@ use bytes::BytesMut;
 use educe::Educe;
 use lightway_core::IOCallbackResult;
 
-use std::net::{IpAddr, Ipv4Addr};
 #[cfg(unix)]
 use std::os::fd::{AsRawFd, IntoRawFd, RawFd};
 #[cfg(feature = "io-uring")]
 use std::time::Duration;
+use std::{
+    fmt::Debug,
+    net::{IpAddr, Ipv4Addr},
+};
 
 #[cfg(mobile)]
 use std::os::fd::FromRawFd;
@@ -24,7 +27,7 @@ use crate::IOUring;
 ///
 /// This struct provides a builder-like interface for configuring TUN interfaces
 /// with various network settings including address assignment, routing, and MTU.
-#[derive(Clone, Debug, Educe)]
+#[derive(Clone, Educe)]
 #[educe(Default)]
 pub struct TunConfig {
     /// Optional name for the TUN interface (e.g., "utun3" on macOS)
@@ -46,6 +49,36 @@ pub struct TunConfig {
     #[cfg(unix)]
     #[educe(Default = true)]
     pub close_fd_on_drop: bool,
+}
+
+impl Debug for TunConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = f.debug_struct("TunConfig");
+        s.field("enabled", &self.enabled);
+
+        if let Some(tun_name) = self.tun_name.as_ref() {
+            s.field("prefix", tun_name);
+        }
+        if let Some(address) = self.address.as_ref() {
+            s.field("address", address);
+        }
+        if let Some(destination) = self.destination.as_ref() {
+            s.field("destination", destination);
+        }
+        if let Some(prefix) = self.prefix.as_ref() {
+            s.field("prefix", prefix);
+        }
+        if let Some(mtu) = self.mtu.as_ref() {
+            s.field("mtu", mtu);
+        }
+        #[cfg(unix)]
+        if let Some(fd) = self.fd.as_ref() {
+            s.field("fd", fd);
+        }
+        #[cfg(unix)]
+        s.field("close_fd_on_drop", &self.close_fd_on_drop);
+        s.finish()
+    }
 }
 
 impl TunConfig {
