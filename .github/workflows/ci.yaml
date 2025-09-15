@@ -26,15 +26,15 @@ jobs:
             privileged: true
           - target: test-miri
             privileged: false
-          - target: test-arm64
+          - target: test-cross-arm64
             privileged: true
-          - target: test-riscv64
+          - target: test-cross-riscv64
             privileged: true
           - target: build
             privileged: false
-          - target: build-arm64
+          - target: build-cross-arm64
             privileged: false
-          - target: build-riscv64
+          - target: build-cross-riscv64
             privileged: false
           - target: fmt
             privileged: false
