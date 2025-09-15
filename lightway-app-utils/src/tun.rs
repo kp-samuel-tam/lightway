@@ -163,7 +163,13 @@ impl TunConfig {
                         .prefix
                         .map(|x| x.min(Ipv4Addr::BITS as u8))
                         .unwrap_or(Ipv4Addr::BITS as u8);
-                    device.set_network_address(ipv4_addr, netmask, self.destination)?;
+                    // Windows if destination provided create a default route with
+                    // high priority
+                    if cfg!(windows) {
+                        device.add_address_v4(ipv4_addr, netmask)?;
+                    } else {
+                        device.set_network_address(ipv4_addr, netmask, self.destination)?;
+                    }
                 }
                 IpAddr::V6(ipv6_addr) => {
                     use std::net::Ipv6Addr;
