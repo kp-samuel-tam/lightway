@@ -217,45 +217,8 @@ impl RouteManager {
         Ok(())
     }
 
-    /// Cleans up LAN routes
-    pub async fn cleanup_lan_routes(&mut self) {
-        for r in self.lan_routes.drain(..) {
-            self.route_manager_async
-                .delete(&r)
-                .await
-                .unwrap_or_else(|e| {
-                    warn!("Failed to delete LAN route: {r}, error: {e}");
-                })
-        }
-    }
-
-    /// Cleans up server routes
-    pub async fn cleanup_server_routes(&mut self) {
-        if let Some(r) = &self.server_route {
-            self.route_manager_async
-                .delete(r)
-                .await
-                .unwrap_or_else(|e| {
-                    warn!("Failed to delete server route: {r}, error: {e}");
-                })
-        }
-        self.server_route = None;
-    }
-
-    /// Cleans up normal routes
-    pub async fn cleanup_normal_routes(&mut self) {
-        for r in self.vpn_routes.drain(..) {
-            self.route_manager_async
-                .delete(&r)
-                .await
-                .unwrap_or_else(|e| {
-                    warn!("Failed to delete route: {r}, error: {e}");
-                })
-        }
-    }
-
     /// Clean up for program unwind
-    pub fn cleanup_sync(&mut self) {
+    fn cleanup_sync(&mut self) {
         for route in &self.vpn_routes {
             if let Err(e) = self.route_manager.delete(route) {
                 warn!(
