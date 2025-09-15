@@ -571,7 +571,6 @@ pub struct ClientConnection<T: Send + Sync> {
     stop_signal: Option<oneshot::Sender<()>>,
     network_change_signal: mpsc::Sender<()>,
     encoding_request_signal: mpsc::Sender<bool>,
-    server_ip: IpAddr,
     #[cfg(desktop)]
     route_table: Option<RoutingTable>,
     #[cfg(desktop)]
@@ -598,7 +597,12 @@ impl<ExtAppState: Send + Sync> ClientConnection<ExtAppState> {
             &tun_dns_ip
         );
         route_table
-            .initialize_routing_table(&self.server_ip, tun_index, &tun_peer_ip, &tun_dns_ip)
+            .initialize_routing_table(
+                &self.outside_io.peer_addr().ip(),
+                tun_index,
+                &tun_peer_ip,
+                &tun_dns_ip,
+            )
             .await?;
 
         self.route_table = Some(route_table);
@@ -874,7 +878,6 @@ pub async fn connect<
         stop_signal: Some(stop_tx),
         network_change_signal: network_change_tx,
         encoding_request_signal: encoding_request_tx,
-        server_ip: server_config.server.ip(),
         #[cfg(desktop)]
         route_table: None,
         #[cfg(desktop)]
