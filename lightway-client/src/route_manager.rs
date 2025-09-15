@@ -161,14 +161,14 @@ impl RouteManager {
     }
 
     /// Adds Routes and stores it
-    pub async fn add_route_vpn(&mut self, route: Route) -> Result<(), RoutingTableError> {
+    async fn add_route_vpn(&mut self, route: Route) -> Result<(), RoutingTableError> {
         self.add_route(&route).await?;
         self.vpn_routes.push(route);
         Ok(())
     }
 
     /// Adds Server Route and stores it
-    pub async fn add_route_server(&mut self, route: Route) -> Result<(), RoutingTableError> {
+    async fn add_route_server(&mut self, route: Route) -> Result<(), RoutingTableError> {
         if self.server_route.is_some() {
             return Err(RoutingTableError::ServerRouteAlreadyExists);
         }
@@ -178,7 +178,7 @@ impl RouteManager {
     }
 
     /// Adds LAN Route and stores it
-    pub async fn add_route_lan(&mut self, route: Route) -> Result<(), RoutingTableError> {
+    async fn add_route_lan(&mut self, route: Route) -> Result<(), RoutingTableError> {
         self.add_route(&route).await?;
         self.lan_routes.push(route);
         Ok(())
@@ -186,7 +186,7 @@ impl RouteManager {
 
     /// Adds standard LAN routes (RFC 1918 private networks + link-local + multicast)
     /// with optional gateway. Gateway is None for direct routes (e.g., in Docker containers)
-    pub async fn add_standard_lan_routes(
+    async fn add_standard_lan_routes(
         &mut self,
         interface_index: u32,
         gateway: Option<IpAddr>,
@@ -202,7 +202,7 @@ impl RouteManager {
     }
 
     /// Adds standard tunnel routes (high priority default routing)
-    pub async fn add_standard_tunnel_routes(
+    async fn add_standard_tunnel_routes(
         &mut self,
         interface_index: u32,
         gateway: IpAddr,
