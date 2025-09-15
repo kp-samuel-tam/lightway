@@ -107,12 +107,6 @@ impl RouteManager {
         })
     }
 
-    pub async fn cleanup(&mut self) {
-        self.cleanup_normal_routes().await;
-        self.cleanup_lan_routes().await;
-        self.cleanup_server_routes().await;
-    }
-
     /// Identifies route used to reach a particular ip
     fn find_route(&mut self, server_ip: &IpAddr) -> Result<Route, RoutingTableError> {
         Ok(self
@@ -479,28 +473,6 @@ mod tests {
         assert_eq!(route_manager.routing_mode, route_mode);
         assert_eq!(route_manager.vpn_routes.len(), 0);
         assert_eq!(route_manager.lan_routes.len(), 0);
-        assert!(route_manager.server_route.is_none());
-    }
-
-    #[tokio::test]
-    #[serial_test::serial(route_manager)]
-    #[ignore = "May falsely fail during development due to local route settings"]
-    async fn test_privileged_cleanup_empty_routes() {
-        let (_restorer, mut route_manager) = create_test_setup(RouteMode::Default);
-
-        // Get initial route count from the system
-        let initial_count = route_manager.route_manager.list().unwrap().len();
-
-        // Cleanup should not change system routes since vpn_routes is empty
-        route_manager.cleanup().await;
-
-        // Check that vpn_routes remains empty
-        assert_eq!(route_manager.vpn_routes.len(), 0);
-        assert_eq!(route_manager.lan_routes.len(), 0);
-
-        // Check that system routes are unchanged
-        let final_count = route_manager.route_manager.list().unwrap().len();
-        assert_eq!(initial_count, final_count);
         assert!(route_manager.server_route.is_none());
     }
 
