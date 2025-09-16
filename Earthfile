@@ -43,64 +43,56 @@ source:
     FROM +install-build-dependencies
     COPY --keep-ts Cargo.toml Cargo.lock Makefile.toml ./
     COPY --keep-ts deny.toml ./
-    COPY --keep-ts --dir lightway-core lightway-app-utils lightway-client lightway-server tests .cargo ./
+    COPY --keep-ts --dir lightway-core lightway-app-utils lightway-client lightway-server tests ./
 
-# build builds with the Cargo release profile
+# build runs cargo to build native binaries for the host platform.
+# You may use `--platform linux/[amd64|arm64]` to override the host platform, to natively compile in emulation.
 build:
     FROM +source
-    ARG ARCH=$(dpkg --print-architecture)
-    LET target = "x86_64-unknown-linux-gnu"
 
-    IF [ "$ARCH" = "arm64" ]
-        SET target = "aarch64-unknown-linux-gnu"
-    ELSE IF [ "$ARCH" = "riscv64" ]
-        SET target = "riscv64gc-unknown-linux-gnu"
-    END
+    DO lib-rust+CARGO --args="build --release --features io-uring" --output="release/lightway-(client|server)$"
+
+    SAVE ARTIFACT ./target/release/lightway-client AS LOCAL ./target/release/
+    SAVE ARTIFACT ./target/release/lightway-server AS LOCAL ./target/release/
+
+# build-cross-arm64 cross-compiles to arm64 from an amd64 host.
+build-cross-arm64:
+    FROM +source
+    LET target = "aarch64-unknown-linux-gnu"
+    ENV CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER="aarch64-linux-gnu-gcc"
 
     DO lib-rust+CARGO --args="build --release --features io-uring --target=$target" --output="$target/release/lightway-(client|server)$"
 
     SAVE ARTIFACT ./target/$target/release/lightway-client AS LOCAL ./target/$target/release/
     SAVE ARTIFACT ./target/$target/release/lightway-server AS LOCAL ./target/$target/release/
 
-# build-arm64 build for arm64. Support building from an amd64 or arm64 host
-build-arm64:
-    BUILD +build --ARCH="arm64"
+# build-cross-riscv64 cross-compiles to riscv64 from an amd64 or arm64 host.
+build-cross-riscv64:
+    FROM +source
+    LET target = "riscv64gc-unknown-linux-gnu"
+    ENV CARGO_TARGET_RISCV64GC_UNKNOWN_LINUX_GNU_LINKER="riscv64-linux-gnu-gcc"
 
-build-riscv64:
-    BUILD +build --ARCH="riscv64"
+    DO lib-rust+CARGO --args="build --release --features io-uring --target=$target" --output="$target/release/lightway-(client|server)$"
+
+    SAVE ARTIFACT ./target/$target/release/lightway-client AS LOCAL ./target/$target/release/
+    SAVE ARTIFACT ./target/$target/release/lightway-server AS LOCAL ./target/$target/release/
 
 build-kyber-client:
     FROM +source
-    ARG ARCH=$(dpkg --print-architecture)
-    LET target = "x86_64-unknown-linux-gnu"
+    DO lib-rust+CARGO --args="build --release --features kyber_only --bin lightway-client --target-dir ./lightway-client-kyber" --output="lightway-client-kyber/release/lightway-client"
+    SAVE ARTIFACT ./lightway-client-kyber/release/lightway-client AS LOCAL ./target/release/lightway-client-kyber
 
-    IF [ "$ARCH" = "arm64" ]
-        SET target = "aarch64-unknown-linux-gnu" 
-    ELSE IF [ "$ARCH" = "riscv64" ]
-        SET target = "riscv64gc-unknown-linux-gnu"
-    END
-
-    DO lib-rust+CARGO --args="build --release --features kyber_only --target=$target --bin lightway-client --target-dir ./lightway-client-kyber" --output="lightway-client-kyber/$target/release/lightway-client"
-    SAVE ARTIFACT ./lightway-client-kyber/$target/release/lightway-client AS LOCAL ./target/$target/release/lightway-client-kyber
-
-# test executes all unit and integration tests via Cargo, in the host's native platform
+# test runs cargo to compile all unit and integration tests, natively for the host platform.
+# You may use `--platform linux/[amd64|arm64]` to override the host platform, to natively compile in emulation.
 test:
     FROM +source
-    ARG ARCH=$(dpkg --print-architecture)
-    LET target = "x86_64-unknown-linux-gnu"
-
-    IF [ "$ARCH" = "arm64" ]
-        SET target = "aarch64-unknown-linux-gnu" 
-    ELSE IF [ "$ARCH" = "riscv64" ]
-        SET target = "riscv64gc-unknown-linux-gnu"
-    END
 
     # Run all tests except privileged tests
-    DO lib-rust+CARGO --args="test --target=$target"
-    DO lib-rust+CARGO --args="test --features kyber_only --target=$target"
-    
+    DO lib-rust+CARGO --args="test"
+    DO lib-rust+CARGO --args="test --features kyber_only"
+
     # Run only privileged tests with sudo permissions
-    RUN --privileged cargo test --package lightway-client --target=$target test_privileged -- --ignored
+    RUN --privileged cargo test --package lightway-client test_privileged -- --ignored
 
 # test-miri runs tests for modules which make use of `unsafe` under Miri.
 test-miri:
@@ -111,13 +103,33 @@ test-miri:
     DO lib-rust+CARGO --args="+nightly miri test -p lightway-app-utils -- iouring sockopt"
     DO lib-rust+CARGO --args="+nightly miri test -p lightway-server -- io::outside::udp"
 
-# test-arm64 executes all unit and integration tests via Cargo for arm64. Support running from an amd64 or arm64 host
-test-arm64:
-    BUILD +test --ARCH="arm64"
+# test-cross-arm64 cross-compiles to arm64 from an amd64 host. It then runs tests via QEMU.
+test-cross-arm64:
+    FROM +source
+    LET target = "aarch64-unknown-linux-gnu"
+    ENV CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER="aarch64-linux-gnu-gcc"
+    ENV CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUNNER="qemu-aarch64-static"
 
-# test-riscv64 executes all unit and integration tests via Cargo for riscv64. Support running from an amd64 or arm64 host
-test-riscv64:
-    BUILD +test --ARCH="riscv64"
+    # Run all tests except privileged tests
+    DO lib-rust+CARGO --args="test --target=$target"
+    DO lib-rust+CARGO --args="test --features kyber_only --target=$target"
+
+    # Run only privileged tests with sudo permissions
+    RUN --privileged cargo test --package lightway-client --target=$target test_privileged -- --ignored
+
+# test-cross-riscv64 cross-compiles to riscv64 from an amd64 or arm64 host. It then runs tests via QEMU.
+test-cross-riscv64:
+    FROM +source
+    LET target = "riscv64gc-unknown-linux-gnu"
+    ENV CARGO_TARGET_RISCV64GC_UNKNOWN_LINUX_GNU_LINKER="riscv64-linux-gnu-gcc"
+    ENV CARGO_TARGET_RISCV64GC_UNKNOWN_LINUX_GNU_RUNNER="qemu-riscv64-static -L /usr/riscv64-linux-gnu -cpu rv64"
+
+    # Run all tests except privileged tests
+    DO lib-rust+CARGO --args="test --target=$target"
+    DO lib-rust+CARGO --args="test --features kyber_only --target=$target"
+
+    # Run only privileged tests with sudo permissions
+    RUN --privileged cargo test --package lightway-client --target=$target test_privileged -- --ignored
 
 # e2e runs all end-to-end tests, must be run with `--allow-privileged`
 e2e:

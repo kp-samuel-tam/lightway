@@ -54,7 +54,17 @@ For more information about the different Earthly targets available, run:
 earthly doc
 ```
 
-Note: Lightway can also be built using standard cargo tools
+Note: Lightway can also be built using standard cargo tools. To use the same cross-compilation defaults as Earthly, write this into `.cargo/config.toml`:
+
+```toml
+[target.aarch64-unknown-linux-gnu]
+linker = "aarch64-linux-gnu-gcc"
+runner = "qemu-aarch64-static"
+
+[target.riscv64gc-unknown-linux-gnu]
+linker = "riscv64-linux-gnu-gcc"
+runner = "qemu-riscv64-static -L /usr/riscv64-linux-gnu -cpu rv64"
+```
 
 ## Configuration
 
