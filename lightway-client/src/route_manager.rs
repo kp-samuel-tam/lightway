@@ -184,39 +184,6 @@ impl RouteManager {
         Ok(())
     }
 
-    /// Adds standard LAN routes (RFC 1918 private networks + link-local + multicast)
-    /// with optional gateway. Gateway is None for direct routes (e.g., in Docker containers)
-    async fn add_standard_lan_routes(
-        &mut self,
-        interface_index: u32,
-        gateway: Option<IpAddr>,
-    ) -> Result<(), RoutingTableError> {
-        for (network, prefix) in LAN_NETWORKS {
-            let mut lan_route = Route::new(network, prefix).with_if_index(interface_index);
-            if let Some(gw) = gateway {
-                lan_route = lan_route.with_gateway(gw);
-            }
-            self.add_route_lan(lan_route).await?;
-        }
-        Ok(())
-    }
-
-    /// Adds standard tunnel routes (high priority default routing)
-    async fn add_standard_tunnel_routes(
-        &mut self,
-        interface_index: u32,
-        gateway: IpAddr,
-    ) -> Result<(), RoutingTableError> {
-        for (network, prefix) in TUNNEL_ROUTES {
-            let tunnel_route = Route::new(network, prefix)
-                .with_gateway(gateway)
-                .with_if_index(interface_index);
-
-            self.add_route_vpn(tunnel_route).await?;
-        }
-        Ok(())
-    }
-
     /// Clean up for program unwind
     fn cleanup_sync(&mut self) {
         for route in &self.vpn_routes {
@@ -270,21 +237,42 @@ impl RouteManager {
             None => server_route,
         };
 
+        #[cfg(windows)]
+        let server_route = server_route.with_metric(0);
+
         self.add_route_server(server_route).await?;
 
         if self.routing_mode == RouteMode::Lan {
-            self.add_standard_lan_routes(default_interface_index, default_interface_gateway)
-                .await?;
+            for (network, prefix) in LAN_NETWORKS {
+                let mut lan_route =
+                    Route::new(network, prefix).with_if_index(default_interface_index);
+                if let Some(gw) = default_interface_gateway {
+                    lan_route = lan_route.with_gateway(gw);
+                }
+                #[cfg(windows)]
+                let lan_route = lan_route.with_metric(0);
+                self.add_route_lan(lan_route).await?;
+            }
         }
 
         // Add standard tunnel routes (high priority default routing)
-        self.add_standard_tunnel_routes(tun_index, *tun_peer_ip)
-            .await?;
+        for (network, prefix) in TUNNEL_ROUTES {
+            let tunnel_route = Route::new(network, prefix)
+                .with_gateway(*tun_peer_ip)
+                .with_if_index(tun_index);
+
+            #[cfg(windows)]
+            let tunnel_route = tunnel_route.with_metric(0);
+
+            self.add_route_vpn(tunnel_route).await?;
+        }
 
         // Add DNS route separately since it's not a constant
         let dns_route = Route::new(*tun_dns_ip, 32)
             .with_gateway(*tun_peer_ip)
             .with_if_index(tun_index);
+        #[cfg(windows)]
+        let dns_route = dns_route.with_metric(0);
 
         self.add_route_vpn(dns_route).await?;
         Ok(())
