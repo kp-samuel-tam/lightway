@@ -1,5 +1,5 @@
 use super::dns_manager::DnsConfigMode;
-use super::routing_table::RouteMode;
+use super::route_manager::RouteMode;
 use anyhow::{Result, anyhow};
 use bytesize::ByteSize;
 use clap::Parser;
@@ -58,8 +58,10 @@ pub struct Config {
     pub password: Option<String>,
 
     /// CA certificate
+    /// This can either be a path to the file, or a string starting with
+    /// "-----BEGIN CERTIFICATE-----"
     #[clap(long, default_value = "./ca_cert.crt")]
-    pub ca_cert: PathBuf,
+    pub ca_cert: String,
 
     /// Outside (wire) MTU
     #[clap(long, default_value_t = MAX_OUTSIDE_MTU)]
