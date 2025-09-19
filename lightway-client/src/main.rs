@@ -76,6 +76,7 @@ async fn main() -> Result<()> {
 
     let auth = config.take_auth()?;
 
+    let root_ca_path = PathBuf::from(&config.ca_cert);
     let root_ca_cert = if config
         .ca_cert
         .as_str()
@@ -83,7 +84,7 @@ async fn main() -> Result<()> {
     {
         RootCertificate::PemBuffer(config.ca_cert.as_bytes())
     } else {
-        RootCertificate::PemFileOrDirectory(&PathBuf::from(config.ca_cert))
+        RootCertificate::PemFileOrDirectory(&root_ca_path)
     };
 
     let mut tun_config = TunConfig::default();

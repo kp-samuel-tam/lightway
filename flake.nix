@@ -47,10 +47,10 @@
           msrv = cargoToml.workspace.package.rust-version;
 
           rustPackage =
-            package: features:
+            rustVersion: package: features:
             (pkgs.makeRustPlatform {
-              cargo = pkgs.rust-bin.stable.latest.minimal;
-              rustc = pkgs.rust-bin.stable.latest.minimal;
+              cargo = pkgs.rust-bin.stable.${rustVersion}.minimal;
+              rustc = pkgs.rust-bin.stable.${rustVersion}.minimal;
             }).buildRustPackage
               {
                 inherit ((cargoMemberToml package).package) name version;
@@ -90,8 +90,11 @@
           packages.default = self'.packages.lightway-client;
           devShells.default = self'.devShells.stable;
 
-          packages.lightway-client = rustPackage "lightway-client" clientFeatures;
-          packages.lightway-server = rustPackage "lightway-server" serverFeatures;
+          packages.lightway-client = rustPackage "latest" "lightway-client" clientFeatures;
+          packages.lightway-server = rustPackage "latest" "lightway-server" serverFeatures;
+          packages.lightway-client-msrv = rustPackage msrv "lightway-client" clientFeatures;
+          packages.lightway-server-msrv = rustPackage msrv "lightway-server" serverFeatures;
+
 
           devShells.stable = mkDevShell pkgs.rust-bin.stable.latest.default;
           devShells.nightly = mkDevShell pkgs.rust-bin.nightly.latest.default;

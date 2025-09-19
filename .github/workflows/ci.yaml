@@ -197,6 +197,12 @@ jobs:
       - name: Build lightway server
         run: nix build .#lightway-server
 
+      - name: Build lightway client on MSRV version
+        run: nix build .#lightway-client-msrv
+
+      - name: Build lightway server on MSRV version
+        run: nix build .#lightway-server-msrv
+
   nix-clippy:
     name: Nix Clippy (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
