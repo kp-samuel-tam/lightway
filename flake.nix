@@ -62,7 +62,7 @@
                 cargoBuildFlags = "-p ${package}";
                 checkFlags = [
                   # These tests need permission to create tun interface
-                  "--skip=routing_table::tests"
+                  "--skip=route_manager::tests"
                 ];
                 cargoLock.outputHashes = {
                   "wolfssl-3.0.0" = "sha256-oYt12y37V4SWTlxVhCsIb7AroiPvl1Fl8oCDhTtg05k=";
