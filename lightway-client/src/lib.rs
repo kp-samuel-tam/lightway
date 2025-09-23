@@ -1000,15 +1000,17 @@ pub async fn client<
         ),
     };
 
-    let mut connections = join_all(
+    let (original_indices, mut connections): (Vec<_>, Vec<_>) = join_all(
         servers
             .into_iter()
             .map(|server_config| connect(&config, server_config, inside_io.clone())),
     )
     .await
     .into_iter()
-    .flat_map(|result| result.map_err(|e| tracing::error!("Creating connection failed: {e}")))
-    .collect::<Vec<_>>();
+    .map(|result| result.inspect_err(|e| tracing::error!("Creating connection failed: {e}")))
+    .enumerate()
+    .flat_map(|(index, result)| result.map(|result| (index, result)))
+    .unzip();
 
     if connections.is_empty() {
         return Err(anyhow!("No servers available"));
@@ -1034,7 +1036,10 @@ pub async fn client<
         }
     };
 
-    tracing::trace!("Best connection selected: {best_connection_index}");
+    tracing::trace!(
+        "Best connection selected: {}",
+        original_indices[best_connection_index]
+    );
 
     let mut connection = connections.swap_remove(best_connection_index);
 
