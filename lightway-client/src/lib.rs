@@ -181,6 +181,10 @@ pub struct ClientConfig<'cert, ExtAppState: Send + Sync> {
     #[educe(Debug(ignore))]
     pub network_change_signal: Option<mpsc::Receiver<()>>,
 
+    /// Signal for Lightway to notify the index of the best connection when it is selected
+    #[educe(Debug(ignore))]
+    pub best_connection_selected_signal: Option<oneshot::Sender<usize>>,
+
     /// Enable WolfSsl debugging
     #[cfg(feature = "debug")]
     pub tls_debug: bool,
@@ -1000,15 +1004,17 @@ pub async fn client<
         ),
     };
 
-    let mut connections = join_all(
+    let (original_indices, mut connections): (Vec<_>, Vec<_>) = join_all(
         servers
             .into_iter()
             .map(|server_config| connect(&config, server_config, inside_io.clone())),
     )
     .await
     .into_iter()
-    .flat_map(|result| result.map_err(|e| tracing::error!("Creating connection failed: {e}")))
-    .collect::<Vec<_>>();
+    .map(|result| result.inspect_err(|e| tracing::error!("Creating connection failed: {e}")))
+    .enumerate()
+    .flat_map(|(index, result)| result.map(|result| (index, result)))
+    .unzip();
 
     if connections.is_empty() {
         return Err(anyhow!("No servers available"));
@@ -1034,7 +1040,17 @@ pub async fn client<
         }
     };
 
-    tracing::trace!("Best connection selected: {best_connection_index}");
+    tracing::trace!(
+        "Best connection selected: {}",
+        original_indices[best_connection_index]
+    );
+    if let Some(signal) = config.best_connection_selected_signal.take()
+        && signal
+            .send(original_indices[best_connection_index])
+            .is_err()
+    {
+        tracing::error!("Failed to send best_connection_selected_signal");
+    }
 
     let mut connection = connections.swap_remove(best_connection_index);
 

@@ -170,6 +170,7 @@ async fn main() -> Result<()> {
         inside_pkt_codec_config: None,
         stop_signal: ctrlc_rx,
         network_change_signal: None,
+        best_connection_selected_signal: None,
         #[cfg(feature = "debug")]
         tls_debug: config.tls_debug,
         #[cfg(feature = "debug")]
