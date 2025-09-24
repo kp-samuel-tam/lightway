@@ -643,6 +643,32 @@ mod tests {
     #[test_case(true; "continuous")]
     #[test_case(false; "non-continuous")]
     #[tokio::test]
+    async fn tracer_delta_exceeded_should_not_trigger_suspended_keepalive(continuous: bool) {
+        let (sleep_manager, connection) =
+            KeepaliveTestBuilder::new().continuous(continuous).build();
+
+        let (keepalive, task) = Keepalive::new(sleep_manager.clone(), connection.clone());
+        start_keepalives(&keepalive, &sleep_manager, continuous).await;
+        assert_eq!(connection.keepalive_count(), 1);
+
+        // Suspend keepalives
+        keepalive.suspend().await;
+        sleep(Duration::from_millis(10)).await;
+
+        // Send out a `TracerDeltaExceeded` event
+        keepalive.tracer_delta_exceeded().await;
+        sleep(Duration::from_millis(10)).await;
+
+        assert_eq!(connection.keepalive_count(), 1);
+
+        drop(keepalive);
+        let result = task.await.unwrap().unwrap();
+        assert!(matches!(result, KeepaliveResult::Cancelled));
+    }
+
+    #[test_case(true; "continuous")]
+    #[test_case(false; "non-continuous")]
+    #[tokio::test]
     async fn suspend_and_resume(continuous: bool) {
         let (sleep_manager, connection) =
             KeepaliveTestBuilder::new().continuous(continuous).build();
