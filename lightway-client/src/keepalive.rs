@@ -137,7 +137,7 @@ impl Keepalive {
     }
 
     /// Signal that the network has changed.
-    /// In the case we are offline, this will start the keepalives
+    /// In the case we are offline, this will start the keepalives immediately
     /// Otherwise this will reset our timeouts
     pub async fn network_changed(&self) {
         if let Some(tx) = &self.tx {
@@ -146,7 +146,7 @@ impl Keepalive {
     }
 
     /// Signal that we haven't heard from server in a while
-    /// This will trigger a keepalive immediately
+    /// This will trigger a keepalive immediately if keepalive is not suspended.
     pub async fn tracer_delta_exceeded(&self) {
         if let Some(tx) = &self.tx {
             let _ = tx.send(Message::TracerDeltaExceeded).await;
@@ -169,6 +169,8 @@ async fn keepalive<CONFIG: SleepManager, CONNECTION: Connection>(
     token: CancellationToken,
 ) -> KeepaliveResult {
     enum State {
+        // Keepalive is suspended
+        Suspended,
         // No pending keepalive
         Inactive,
         // Need to send keepalive immediately
@@ -197,8 +199,8 @@ async fn keepalive<CONFIG: SleepManager, CONNECTION: Connection>(
             }
             Some(msg) = rx.recv() => {
                 match msg {
-                    Message::Online  => {
-                        if matches!(state, State::Inactive) && config.continuous() {
+                    Message::Online => {
+                        if matches!(state, State::Inactive | State::Suspended) && config.continuous() {
                             tracing::info!("Starting keepalives");
                             state = State::Waiting;
                         }
@@ -229,17 +231,25 @@ async fn keepalive<CONFIG: SleepManager, CONNECTION: Connection>(
                         failed_keepalives = 0;
                         timeout.as_mut().set(None.into())
                     },
-                    Message::NetworkChange | Message::TracerDeltaExceeded => {
+                    Message::NetworkChange => {
                         if !matches!(state, State::Pending) {
                             tracing::info!("sending keepalives because of {:?}", msg);
                             state = State::Needed;
                         }
                     },
+                    Message::TracerDeltaExceeded => {
+                        // Do not trigger keepalive if it is suspended or waiting for reply
+                        if !matches!(state, State::Pending | State::Suspended) {
+                            tracing::info!("sending keepalives because of {:?}", msg);
+                            state = State::Needed;
+                        }
+                    }
                     Message::Suspend => {
                         // Suspend keepalives whenever the timer is active
-                        if matches!(state, State::Waiting | State::Pending) {
+                        if !matches!(state, State::Suspended) {
                             tracing::info!("suspending keepalives");
-                            state = State::Inactive;
+                            state = State::Suspended;
+                            failed_keepalives = 0;
                             timeout.as_mut().set(None.into())
                         }
                     },
@@ -621,6 +631,32 @@ mod tests {
 
         // Trigger interval - should not send keepalive while suspended
         sleep_manager.trigger_interval();
+        sleep(Duration::from_millis(10)).await;
+
+        assert_eq!(connection.keepalive_count(), 1);
+
+        drop(keepalive);
+        let result = task.await.unwrap().unwrap();
+        assert!(matches!(result, KeepaliveResult::Cancelled));
+    }
+
+    #[test_case(true; "continuous")]
+    #[test_case(false; "non-continuous")]
+    #[tokio::test]
+    async fn tracer_delta_exceeded_should_not_trigger_suspended_keepalive(continuous: bool) {
+        let (sleep_manager, connection) =
+            KeepaliveTestBuilder::new().continuous(continuous).build();
+
+        let (keepalive, task) = Keepalive::new(sleep_manager.clone(), connection.clone());
+        start_keepalives(&keepalive, &sleep_manager, continuous).await;
+        assert_eq!(connection.keepalive_count(), 1);
+
+        // Suspend keepalives
+        keepalive.suspend().await;
+        sleep(Duration::from_millis(10)).await;
+
+        // Send out a `TracerDeltaExceeded` event
+        keepalive.tracer_delta_exceeded().await;
         sleep(Duration::from_millis(10)).await;
 
         assert_eq!(connection.keepalive_count(), 1);
