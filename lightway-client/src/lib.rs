@@ -338,12 +338,15 @@ async fn handle_events<A: 'static + Send + EventCallback, ExtAppState: Send + Sy
     }
 }
 
+/// An async function to handle all the outside traffic
+/// You can pass in an optional oneshot channel to listen to when the socket is ready to read.
 pub async fn outside_io_task<ExtAppState: Send + Sync>(
     conn: Arc<Mutex<Connection<ConnectionState<ExtAppState>>>>,
     mtu: usize,
     connection_type: ConnectionType,
     outside_io: Arc<dyn io::outside::OutsideIO>,
     keepalive: Keepalive,
+    mut ready_signal: Option<oneshot::Sender<()>>,
 ) -> Result<()> {
     let mut buf = BytesMut::with_capacity(mtu);
     loop {
@@ -353,6 +356,11 @@ pub async fn outside_io_task<ExtAppState: Send + Sync>(
 
         // Unrecoverable errors: https://github.com/tokio-rs/tokio/discussions/5552
         outside_io.poll(tokio::io::Interest::READABLE).await?;
+
+        // Send ready signal after first successful poll
+        if let Some(tx) = ready_signal.take() {
+            let _ = tx.send(());
+        }
 
         match outside_io.recv_buf(&mut buf) {
             IOCallbackResult::Ok(_nr) => {}
@@ -789,6 +797,7 @@ pub async fn connect<
         connection_type,
         outside_io.clone(),
         keepalive.clone(),
+        None,
     ));
 
     let mut inside_io_loop: JoinHandle<anyhow::Result<()>> = tokio::spawn(inside_io_task(
