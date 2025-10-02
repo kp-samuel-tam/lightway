@@ -371,8 +371,13 @@ impl TunDirect {
 
     /// Name of 'Tun' interface
     pub fn name(&self) -> std::io::Result<String> {
-        let tun = self.tun.as_ref().unwrap();
-        tun.name()
+        #[cfg(desktop)]
+        {
+            let tun = self.tun.as_ref().unwrap();
+            tun.name()
+        }
+        #[cfg(mobile)]
+        Err(std::io::Error::from(std::io::ErrorKind::Unsupported))
     }
 }
 
