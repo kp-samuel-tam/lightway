@@ -78,6 +78,10 @@ impl InsideIOSendCallback<ConnectionState> for Tun {
     fn if_index(&self) -> std::io::Result<u32> {
         self.0.if_index()
     }
+
+    fn name(&self) -> std::io::Result<String> {
+        self.0.name()
+    }
 }
 
 impl InsideIO for Tun {}

@@ -42,6 +42,10 @@ impl Tun {
     pub fn if_index(&self) -> std::io::Result<u32> {
         self.tun.if_index()
     }
+
+    fn name(&self) -> std::io::Result<String> {
+        self.tun.name()
+    }
 }
 
 #[async_trait]
@@ -105,5 +109,9 @@ impl<ExtAppState: Send + Sync> InsideIOSendCallback<ConnectionState<ExtAppState>
 
     fn if_index(&self) -> std::io::Result<u32> {
         self.if_index()
+    }
+
+    fn name(&self) -> std::io::Result<String> {
+        self.name()
     }
 }

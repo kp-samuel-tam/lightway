@@ -1012,7 +1012,15 @@ pub async fn client<
                 .await?,
         ),
     };
-
+    if let Ok(device_name) = inside_io.name() {
+        tracing::info!(
+            message = "Interface Details",
+            ?device_name,
+            dns_ip = ?config.tun_dns_ip.to_string(),
+            local_ip = ?config.tun_local_ip.to_string(),
+            peer_ip = ?config.tun_peer_ip.to_string(),
+        );
+    }
     let (original_indices, mut connections): (Vec<_>, Vec<_>) = join_all(
         servers
             .into_iter()
