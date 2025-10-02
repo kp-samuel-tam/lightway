@@ -17,6 +17,9 @@ pub trait InsideIOSendCallback<AppState> {
 
     /// Interface Index of tun
     fn if_index(&self) -> std::io::Result<u32>;
+
+    /// Name of 'Tun' interface
+    fn name(&self) -> std::io::Result<String>;
 }
 
 /// Convenience type to use as function arguments

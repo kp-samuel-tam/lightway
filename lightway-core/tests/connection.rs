@@ -74,6 +74,10 @@ impl<T> InsideIOSendCallback<T> for ChannelTun {
     fn if_index(&self) -> std::io::Result<u32> {
         Err(std::io::Error::other("Not Implemented"))
     }
+
+    fn name(&self) -> std::io::Result<String> {
+        Err(std::io::Error::other("Not Implemented"))
+    }
 }
 
 // Static IP pool

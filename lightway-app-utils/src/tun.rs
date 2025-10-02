@@ -267,6 +267,15 @@ impl Tun {
             Tun::IoUring(t) => t.if_index(),
         }
     }
+
+    /// Name of 'Tun' interface
+    pub fn name(&self) -> std::io::Result<String> {
+        match self {
+            Tun::Direct(t) => t.name(),
+            #[cfg(feature = "io-uring")]
+            Tun::IoUring(t) => t.name(),
+        }
+    }
 }
 
 #[cfg(unix)]
@@ -359,6 +368,12 @@ impl TunDirect {
         #[cfg(mobile)]
         Err(std::io::Error::from(std::io::ErrorKind::Unsupported))
     }
+
+    /// Name of 'Tun' interface
+    pub fn name(&self) -> std::io::Result<String> {
+        let tun = self.tun.as_ref().unwrap();
+        tun.name()
+    }
 }
 
 #[cfg(unix)]
@@ -430,6 +445,11 @@ impl TunIoUring {
     /// Interface index of tun
     pub fn if_index(&self) -> std::io::Result<u32> {
         self.tun_io_uring.owned_fd().if_index()
+    }
+
+    /// Name of 'Tun' interface
+    pub fn name(&self) -> std::io::Result<String> {
+        self.tun_io_uring.owned_fd().name()
     }
 }
 
