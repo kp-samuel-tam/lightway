@@ -5,6 +5,7 @@ use lightway_core::Cipher as LWCipher;
 
 #[derive(Copy, Clone, Debug, ValueEnum, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
+#[value(rename_all = "lowercase")]
 /// [`LWCipher`] wrapper compatible with clap and twelf
 pub enum Cipher {
     /// AES256 Cipher
