@@ -4,6 +4,7 @@ use tracing_subscriber::{filter::LevelFilter, fmt::SubscriberBuilder};
 
 #[derive(Copy, Clone, ValueEnum, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[value(rename_all = "lowercase")]
 /// Tracing log format type compatible with clap and twelf
 pub enum LogFormat {
     /// human-readable, single-line logs for each event that occurs
@@ -30,6 +31,7 @@ impl LogFormat {
 
 #[derive(Copy, Clone, ValueEnum, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[value(rename_all = "lowercase")]
 /// Tracing log level type compatible with clap and twelf
 pub enum LogLevel {
     /// Trace
