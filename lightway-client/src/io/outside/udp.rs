@@ -124,6 +124,20 @@ impl OutsideIOSendCallback for Udp {
                 // network is reachable.
                 IOCallbackResult::Ok(buf.len())
             }
+            Err(err) if matches!(err.raw_os_error(), Some(libc::ENOBUFS)) => {
+                // No buffer space available
+                // UDP sockets may have this error when the system is overloaded.
+                //
+                // Swallow the socket error so the error is not passed to the
+                // WolfSSL layer, and DTLS would handle retransmission as well.
+                //
+                // Returning the number of bytes requested to be sent to mock
+                // that to send is successful.
+                // Otherwise, WolfSSL perceives that no data is sent and try
+                // to send the same data again, creating a live-lock as it may take a while
+                // to clear up send buffer.
+                IOCallbackResult::Ok(buf.len())
+            }
             Err(err) => IOCallbackResult::Err(err),
         }
     }
