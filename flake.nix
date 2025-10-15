@@ -8,8 +8,8 @@
   };
 
   outputs =
-    inputs:
-    inputs.flake-parts.lib.mkFlake { inherit inputs; } {
+    { self, ... }@inputs:
+    (inputs.flake-parts.lib.mkFlake { inherit inputs; } {
       systems = [
         "x86_64-linux"
         "x86_64-darwin"
@@ -95,10 +95,6 @@
           packages.lightway-client-msrv = rustPackage msrv "lightway-client" clientFeatures;
           packages.lightway-server-msrv = rustPackage msrv "lightway-server" serverFeatures;
 
-          packages.a-random-attrset = lib.recurseIntoAttrs {
-            lightway-client = rustPackage "latest" "lightway-client" clientFeatures;
-          };
-
           packages.a-new-drv = rustPackage "latest" "lightway-client" clientFeatures;
 
           devShells.stable = mkDevShell pkgs.rust-bin.stable.latest.default;
@@ -107,5 +103,8 @@
 
           formatter = pkgs.nixfmt-rfc-style;
         };
+    }) // {
+      hydraJobs.lightway-server.x86_64-linux = self.packages.x86_64-linux.lightway-server;
+      hydraJobs.lightway-server.aarch64-linux = self.packages.aarch64-linux.lightway-server;
     };
 }
