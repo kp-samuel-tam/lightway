@@ -99,6 +99,8 @@
             lightway-client = rustPackage "latest" "lightway-client" clientFeatures;
           };
 
+          packages.a-new-drv = rustPackage "latest" "lightway-client" clientFeatures;
+
           devShells.stable = mkDevShell pkgs.rust-bin.stable.latest.default;
           devShells.nightly = mkDevShell pkgs.rust-bin.nightly.latest.default;
           devShells.msrv = mkDevShell pkgs.rust-bin.stable.${msrv}.default;
