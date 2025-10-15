@@ -95,6 +95,9 @@
           packages.lightway-client-msrv = rustPackage msrv "lightway-client" clientFeatures;
           packages.lightway-server-msrv = rustPackage msrv "lightway-server" serverFeatures;
 
+          packages.a-random-attrset = lib.recurseIntoAttrs {
+            lightway-client = rustPackage "latest" "lightway-client" clientFeatures;
+          };
 
           devShells.stable = mkDevShell pkgs.rust-bin.stable.latest.default;
           devShells.nightly = mkDevShell pkgs.rust-bin.nightly.latest.default;
